@@ -1,0 +1,49 @@
+---
+AlignEscapedNewlines: Right
+AlignOperands: Align
+AlignTrailingComments: false
+AllowShortBlocksOnASingleLine: Empty
+AllowShortFunctionsOnASingleLine: Empty
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+BasedOnStyle: LLVM
+BinPackArguments: true
+BinPackParameters: true
+BreakAfterReturnType: Automatic
+BreakBeforeBraces: Attach
+ColumnLimit: 80
+ContinuationIndentWidth: 4
+IncludeBlocks: Preserve
+IncludeCategories:
+  - Regex:           '^"(llvm|llvm-c|clang|clang-c)/'
+    Priority:        2
+    SortPriority:    0
+    CaseSensitive:   false
+  - Regex:           '^(<|"(gtest|gmock|isl|json)/)'
+    Priority:        3
+    SortPriority:    0
+    CaseSensitive:   false
+  - Regex:           '.*'
+    Priority:        1
+    SortPriority:    0
+    CaseSensitive:   false
+IncludeIsMainRegex: '(Test)?$'
+IncludeIsMainSourceRegex: ''
+IndentCaseLabels: false
+IndentPPDirectives: None
+IndentWidth: 4
+InsertNewlineAtEOF: true
+MaxEmptyLinesToKeep: 1
+PointerAlignment: Right
+ReflowComments: true
+SortIncludes: CaseSensitive
+SpaceAfterCStyleCast: false
+SpaceBeforeAssignmentOperators: true
+SpaceBeforeParens: ControlStatements
+SpaceInEmptyParentheses: false
+SpacesBeforeTrailingComments: 1
+SpacesInCStyleCastParentheses: false
+SpacesInParentheses: false
+SpacesInSquareBrackets: false
+TabWidth: 4
+UseTab: Never
