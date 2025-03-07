@@ -48,6 +48,6 @@ void logger_log(enum logger_level level, const char *message, int error_code) {
         break;
     }
 
-    printf("%s[%s]: %s (%u)%s\n", color_str, level_str, message, error_code,
+    printf("%s[%s] %u : %s%s\n", color_str, level_str, error_code, message,
            ANSI_DEFAULT);
 }

@@ -1,4 +1,5 @@
 #include "ecs.h"
+#include "../util/error.h"
 #include "../util/logger.h"
 #include <stddef.h>
 
@@ -26,7 +27,7 @@ typedef struct ecs {
 } ecs;
 
 int ecs_new(ecs *out) {
-    int error = 0;
+    int error = CORE_ERROR_SUCCESS;
 
     if (error)
         goto error;
@@ -45,7 +46,7 @@ error:
 }
 
 int ecs_delete(ecs *in) {
-    int error = 0;
+    int error = CORE_ERROR_SUCCESS;
 
     if (error)
         goto error;
@@ -58,7 +59,7 @@ error:
 }
 
 int ecs_add_entity(ecs_entity *out, ecs *in) {
-    int error = 0;
+    int error = CORE_ERROR_SUCCESS;
 
     if (error)
         goto error;
@@ -71,7 +72,7 @@ error:
 }
 
 int ecs_remove_entity(ecs *in, ecs_entity entity) {
-    int error = 0;
+    int error = CORE_ERROR_SUCCESS;
 
     if (error)
         goto error;
@@ -84,7 +85,7 @@ error:
 }
 
 int ecs_add_component_type(ecs *in, ecs_component_type typentity) {
-    int error = 0;
+    int error = CORE_ERROR_SUCCESS;
 
     if (error)
         goto error;
@@ -97,7 +98,7 @@ error:
 }
 
 int ecs_remove_component_type(ecs *in, ecs_component_type typentity) {
-    int error = 0;
+    int error = CORE_ERROR_SUCCESS;
 
     if (error)
         goto error;
@@ -110,7 +111,7 @@ error:
 }
 
 int ecs_add_component(ecs *in, ecs_entity entity) {
-    int error = 0;
+    int error = CORE_ERROR_SUCCESS;
 
     if (error)
         goto error;
@@ -123,7 +124,7 @@ error:
 }
 
 int ecs_remove_component(ecs *in, ecs_entity entity) {
-    int error = 0;
+    int error = CORE_ERROR_SUCCESS;
 
     if (error)
         goto error;
@@ -136,7 +137,7 @@ error:
 }
 
 int ecs_remove_system(ecs *in, ecs_system system) {
-    int error = 0;
+    int error = CORE_ERROR_SUCCESS;
 
     if (error)
         goto error;
@@ -149,7 +150,7 @@ error:
 }
 
 int ecs_update_systems(ecs *in) {
-    int error = 0;
+    int error = CORE_ERROR_SUCCESS;
 
     if (error)
         goto error;
