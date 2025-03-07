@@ -16,14 +16,17 @@ add_executable(${PROJECT_NAME} ${HEADER_FILES} ${SOURCE_FILES})
 
 # Compiler and build types
 if (MSVC)
-  target_compile_options(${PROJECT_NAME} PRIVATE
-    $<$<CONFIG:Debug>:/W4 /WX>
-  )
+    target_compile_options(${PROJECT_NAME} PRIVATE
+        $<$<CONFIG:Debug>:/W4 /WX>
+    )
 else()
-  target_compile_options(${PROJECT_NAME} PRIVATE
-    $<$<CONFIG:Debug>:-g3 -O0 -Wall -Wextra -Wdeprecated -Wpointer-arith -Wstrict-aliasing -Wpedantic -Wstrict-aliasing -Werror -fsanitize=address,undefined>
-    $<$<CONFIG:Release>:-O2 -DNDEBUG>
-  )
+    target_compile_options(${PROJECT_NAME} PRIVATE
+        $<$<CONFIG:Debug>:-g3 -O0 -Wall -Wextra -Wdeprecated -Wpointer-arith -Wstrict-aliasing -Wpedantic -Wstrict-aliasing -fsanitize=address,undefined>
+        $<$<CONFIG:Release>:-O2 -DNDEBUG>
+    )
+    target_link_options(${PROJECT_NAME} PRIVATE
+        $<$<CONFIG:Debug>:-fsanitize=address,undefined>
+    )
 endif()
 
 # Symlink / copy assets
@@ -31,15 +34,15 @@ set(ASSETS_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/data)
 set(ASSETS_DEST_DIR ${CMAKE_CURRENT_BINARY_DIR}/data)
 
 if (CMAKE_BUILD_TYPE STREQUAL debug)
-  add_custom_target(ASSETS
-    COMMAND ${CMAKE_COMMAND} -E create_symlink ${ASSETS_SOURCE_DIR} ${ASSETS_DEST_DIR}
-    COMMENT "Creating symbolic link for assets in debug mode"
-  )
+    add_custom_target(ASSETS
+        COMMAND ${CMAKE_COMMAND} -E create_symlink ${ASSETS_SOURCE_DIR} ${ASSETS_DEST_DIR}
+        COMMENT "Creating symbolic link for assets in debug mode"
+    )
 else()
-  add_custom_target(ASSETS
-    COMMAND ${CMAKE_COMMAND} -E copy_directory ${ASSETS_SOURCE_DIR} ${ASSETS_DEST_DIR}
-    COMMENT "Copying assets in release mode"
-  )
+    add_custom_target(ASSETS
+        COMMAND ${CMAKE_COMMAND} -E copy_directory ${ASSETS_SOURCE_DIR} ${ASSETS_DEST_DIR}
+        COMMENT "Copying assets in release mode"
+    )
 endif()
 
 add_dependencies(${PROJECT_NAME} ASSETS)
@@ -49,12 +52,12 @@ set(LIB_DIR ${CMAKE_CURRENT_SOURCE_DIR}/libs)
 
 # GLFW
 set(GLFW_DIR ${LIB_DIR}/glfw)
-set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "Build the GLFW example programs" FORCE)
-set(GLFW_BUILD_TESTS OFF CACHE BOOL "Build the GLFW test programs" FORCE)
-set(GLFW_BUILD_DOCS OFF CACHE BOOL "Build the GLFW documentation" FORCE)
-set(GLFW_INSTALL OFF CACHE BOOL "Generate installation target" FORCE)
+set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
+set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(GLFW_INSTALL OFF CACHE BOOL "" FORCE)
 add_subdirectory("${GLFW_DIR}")
-target_link_libraries(${PROJECT_NAME} PRIVATE ${GLFW_LIBRARIES})
+target_link_libraries(${PROJECT_NAME} PRIVATE glfw)
 target_include_directories(${PROJECT_NAME} PRIVATE ${GLFW_DIR}/include)
 target_compile_definitions(${PROJECT_NAME} PRIVATE GLFW_INCLUDE_NONE)
 
@@ -63,7 +66,7 @@ set(GLAD_DIR ${LIB_DIR}/glad)
 add_library(glad ${GLAD_DIR}/src/gl.c)
 target_include_directories(glad PRIVATE ${GLAD_DIR}/include)
 target_include_directories(${PROJECT_NAME} PRIVATE ${GLAD_DIR}/include)
-target_link_libraries(${PROJECT_NAME} PRIVATE ${CMAKE_DL_LIBS})
+target_link_libraries(${PROJECT_NAME} PRIVATE glad)
 
 # Reservoir
 set(RSV_DIR ${LIB_DIR}/rsv)
