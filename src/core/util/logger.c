@@ -26,25 +26,29 @@ void logger_log(enum logger_level level, const char *message, int error_code) {
     char color_str[MAX_STR_SIZE];
 
     switch (level) {
-    case LOGGER_LOG_LEVEL_FATAL:
+    case LOGGER_FATAL:
         snprintf(level_str, MAX_STR_SIZE, "FATAL");
         snprintf(color_str, MAX_STR_SIZE, ANSI_RED);
         break;
-    case LOGGER_LOG_LEVEL_ERROR:
+    case LOGGER_ERROR:
         snprintf(level_str, MAX_STR_SIZE, "ERROR");
         snprintf(color_str, MAX_STR_SIZE, ANSI_BRIGHT_RED);
         break;
-    case LOGGER_LOG_LEVEL_WARNING:
+    case LOGGER_WARNING:
         snprintf(level_str, MAX_STR_SIZE, "WARNING");
         snprintf(color_str, MAX_STR_SIZE, ANSI_YELLOW);
         break;
-    case LOGGER_LOG_LEVEL_INFO:
+    case LOGGER_INFO:
         snprintf(level_str, MAX_STR_SIZE, "INFO");
-        snprintf(color_str, MAX_STR_SIZE, ANSI_WHITE);
+        snprintf(color_str, MAX_STR_SIZE, ANSI_BRIGHT_WHITE);
         break;
-    case LOGGER_LOG_LEVEL_DEBUG:
+    case LOGGER_DEBUG:
         snprintf(level_str, MAX_STR_SIZE, "DEBUG");
         snprintf(color_str, MAX_STR_SIZE, ANSI_CYAN);
+        break;
+    default:
+        snprintf(level_str, MAX_STR_SIZE, "LOG");
+        snprintf(color_str, MAX_STR_SIZE, ANSI_WHITE);
         break;
     }
 

@@ -1,14 +1,14 @@
-#ifndef LOGGER_H
-#define LOGGER_H
+#ifndef UTIL_LOGGER_H
+#define UTIL_LOGGER_H
 
 enum logger_level {
-    LOGGER_LOG_LEVEL_FATAL,
-    LOGGER_LOG_LEVEL_ERROR,
-    LOGGER_LOG_LEVEL_WARNING,
-    LOGGER_LOG_LEVEL_INFO,
-    LOGGER_LOG_LEVEL_DEBUG
+    LOGGER_FATAL,
+    LOGGER_ERROR,
+    LOGGER_WARNING,
+    LOGGER_INFO,
+    LOGGER_DEBUG
 };
 
 void logger_log(enum logger_level level, const char *message, int error_code);
 
-#endif /* LOGGER_H */
+#endif /* UTIL_LOGGER_H */
