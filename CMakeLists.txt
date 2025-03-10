@@ -21,7 +21,7 @@ if (MSVC)
     )
 else()
     target_compile_options(${PROJECT_NAME} PRIVATE
-        $<$<CONFIG:Debug>:-g3 -O0 -Wall -Wextra -Wdeprecated -Wpointer-arith -Wstrict-aliasing -Wpedantic -Wstrict-aliasing -fsanitize=address,undefined>
+        $<$<CONFIG:Debug>:-g3 -O0 -Wall -Wextra -Wdeprecated -Wpointer-arith -Wstrict-aliasing -Wpedantic -Wstrict-aliasing -Werror>
         $<$<CONFIG:Release>:-O2 -DNDEBUG>
     )
     target_link_options(${PROJECT_NAME} PRIVATE
