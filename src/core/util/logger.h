@@ -3,12 +3,12 @@
 
 enum logger_level {
     LOGGER_FATAL,
-    LOGGER_ERROR,
-    LOGGER_WARNING,
+    LOGGER_ERR,
+    LOGGER_WARN,
     LOGGER_INFO,
     LOGGER_DEBUG
 };
 
-void logger_log(enum logger_level level, const char *message, int error_code);
+void logger_log(enum logger_level level, const char *msg, int err);
 
 #endif /* UTIL_LOGGER_H */

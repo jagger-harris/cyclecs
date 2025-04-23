@@ -1,7 +1,6 @@
-#include "window.h"
-#include "../graphics/renderer.h"
-#include "../util/error.h"
-#include "../util/logger.h"
+#include "core/app/window.h"
+#include "core/gfx/renderer.h"
+#include "core/util/logger.h"
 #include <GLFW/glfw3.h>
 
 struct window {
@@ -9,8 +8,8 @@ struct window {
     renderer *renderer;
 };
 
-static void error_callback(int error_code, const char *description) {
-    logger_log(LOGGER_ERROR, description, error_code);
+static void err_callback(err err, const char *msg) {
+    logger_log(LOGGER_ERR, msg, err);
 }
 
 static void framebuffer_size_callback(GLFWwindow *window, int width,
@@ -19,7 +18,7 @@ static void framebuffer_size_callback(GLFWwindow *window, int width,
         (struct window *)glfwGetWindowUserPointer(window);
 
     if (!user_window || !user_window->renderer) {
-        logger_log(LOGGER_ERROR, "Failed to resize framebuffer",
+        logger_log(LOGGER_ERR, "Failed to resize framebuffer",
                    CORE_INVALID_NULLPTR);
         return;
     }
@@ -27,122 +26,111 @@ static void framebuffer_size_callback(GLFWwindow *window, int width,
     renderer_resize(user_window->renderer, width, height);
 }
 
-int window_new(window **out, arena *in, int width, int height,
+err window_new(window **out, arena *mem, int width, int height,
                const char *title, int vsync) {
-    int error = CORE_SUCCESS;
+    err err = CORE_SUCCESS;
 
-    glfwSetErrorCallback(error_callback);
+    glfwSetErrorCallback(err_callback);
 
-    error = arena_alloc((void **)out, in, sizeof(window), _Alignof(window));
-    if (error)
-        goto error;
-
-    if (!out || !title) {
-        error = CORE_INVALID_NULLPTR;
-        goto error;
+    if (!out || !mem || !title) {
+        err = CORE_INVALID_NULLPTR;
+        goto err;
     }
 
     if (!glfwInit()) {
-        error = CORE_FAILURE;
-        goto error;
+        err = CORE_GLFW;
+        goto err;
     }
+
+    err = arena_alloc((void **)out, mem, sizeof(window), _Alignof(window));
+    if (err)
+        goto err;
 
     (*out)->native = NULL;
     (*out)->native = glfwCreateWindow(width, height, title, NULL, NULL);
 
     if (!(*out)->native) {
-        arena_free_last(in);
+        arena_remove_last(mem);
         glfwTerminate();
-        error = CORE_FAILURE;
-        goto error;
+        err = CORE_GLFW;
+        goto err;
     }
 
     glfwMakeContextCurrent((*out)->native);
-    glfwSetWindowUserPointer((*out)->native, out);
+    glfwSetWindowUserPointer((*out)->native, *out);
     glfwSetFramebufferSizeCallback((*out)->native, framebuffer_size_callback);
     glfwSwapInterval(vsync);
-    return error;
+    return err;
 
-error:
-    logger_log(LOGGER_ERROR, "Failed to make new window", error);
-    return error;
+err:
+    logger_log(LOGGER_ERR, "Failed to make new window", err);
+    return err;
 }
 
-int window_delete(window *in) {
-    int error = CORE_SUCCESS;
+err window_delete(window *in) {
+    err err = CORE_SUCCESS;
 
     if (!in) {
-        error = CORE_INVALID_NULLPTR;
-        goto error;
+        err = CORE_INVALID_NULLPTR;
+        goto err;
     }
 
     glfwTerminate();
 
-    if (in->native) {
+    if (in->native)
         glfwDestroyWindow(in->native);
-    }
 
-    return error;
+    return err;
 
-error:
-    logger_log(LOGGER_ERROR, "Failed to delete window", error);
-    return error;
+err:
+    logger_log(LOGGER_ERR, "Failed to delete window", err);
+    return err;
 }
 
-int window_get_native_window(GLFWwindow **out, window *in) {
-    int error = CORE_SUCCESS;
+err window_get_native_window(GLFWwindow **out, window *in) {
+    err err = CORE_SUCCESS;
 
-    if (!in) {
-        error = CORE_INVALID_NULLPTR;
-        goto error;
-    }
-
-    if (!in->native) {
-        error = CORE_FAILURE;
-        goto error;
+    if (!in || !in->native) {
+        err = CORE_INVALID_NULLPTR;
+        goto err;
     }
 
     *out = in->native;
-    return error;
+    return err;
 
-error:
-    logger_log(LOGGER_ERROR, "Failed to get native window", error);
-    return error;
+err:
+    logger_log(LOGGER_ERR, "Failed to get native window", err);
+    return err;
 }
 
-int window_should_close(int *out, window *in) {
-    int error = CORE_SUCCESS;
+err window_should_close(int *out, window *in) {
+    err err = CORE_SUCCESS;
 
-    if (!out || !in) {
-        error = CORE_INVALID_NULLPTR;
-        goto error;
-    }
-
-    if (!in->native) {
-        error = CORE_FAILURE;
-        goto error;
+    if (!out || !in || !in->native) {
+        err = CORE_INVALID_NULLPTR;
+        goto err;
     }
 
     *out = glfwWindowShouldClose(in->native);
-    return error;
+    return err;
 
-error:
-    logger_log(LOGGER_ERROR, "Failed to get if window should close", error);
-    return error;
+err:
+    logger_log(LOGGER_ERR, "Failed to get if window should close", err);
+    return err;
 }
 
-int window_set_renderer(window *in, renderer *api) {
-    int error = CORE_INVALID_NULLPTR;
+err window_set_renderer(window *in, renderer *api) {
+    err err = CORE_SUCCESS;
 
     if (!in || !api) {
-        error = CORE_INVALID_NULLPTR;
-        goto error;
+        err = CORE_INVALID_NULLPTR;
+        goto err;
     }
 
     in->renderer = api;
-    return error;
+    return err;
 
-error:
-    logger_log(LOGGER_ERROR, "Failed to set window renderer api", error);
-    return error;
+err:
+    logger_log(LOGGER_ERR, "Failed to set window renderer api", err);
+    return err;
 }

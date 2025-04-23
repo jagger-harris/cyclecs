@@ -1,98 +1,217 @@
-#include "app.h"
-#include "../graphics/gl/gl_renderer.h"
-#include "../graphics/renderer.h"
-#include "../util/error.h"
-#include "../util/logger.h"
+#include "core/app/app.h"
+#include "core/ecs/ecs.h"
+#include "core/gfx/gl/renderer.h"
+#include "core/gfx/renderer.h"
+#include "core/util/logger.h"
 #include "window.h"
+#include <stdio.h>
 
 struct app {
-    window *window;
+    assets *assets;
+    ecs *ecs;
     renderer *renderer;
+    window *window;
 };
 
-int app_new(app **out, arena *in, int width, int height, const char *title) {
-    int error = CORE_SUCCESS;
+struct comp_test {
+    int a;
+    int b;
+    int c;
+};
 
-    if (!in || !title) {
-        error = CORE_INVALID_NULLPTR;
-        goto error;
+int system_test_fn(ecs *in, ecs_ctx *ctx) {
+    err err = CORE_SUCCESS;
+
+    array *comps = NULL;
+    err = ecs_comps_get(&comps, in, 0);
+    if (err)
+        goto err;
+
+    if (!ctx) {
+        err = CORE_INVALID_NULLPTR;
+        goto err;
     }
 
-    error = arena_alloc((void **)out, in, sizeof(app), _Alignof(app));
-    if (error)
-        goto error;
+    size_t length = 0;
+    array_length(&length, comps);
 
-    /* TODO: Eventually need to add checking vsync through an options file */
+    for (size_t i = 0; i < length; ++i) {
+        struct comp_test *element = NULL;
+        err = array_at((void **)&element, comps, i);
+
+        printf("Entity:\n");
+        printf("    a: %i\n", element->a);
+        printf("    b: %i\n", element->b);
+        printf("    c: %i\n", element->c);
+
+        element->a = element->a + 100;
+        element->b = element->b + 5;
+        element->c = element->c - 5;
+    }
+
+    return err;
+
+err:
+    logger_log(LOGGER_ERR, "Failed to perform this system", err);
+    return err;
+}
+
+err app_new(app **out, arena *mem, int width, int height, const char *title) {
+    err err = CORE_SUCCESS;
+
+    if (!out || !mem || !title) {
+        err = CORE_INVALID_NULLPTR;
+        goto err;
+    }
+
+    err = arena_alloc((void **)out, mem, sizeof(app), _Alignof(app));
+    if (err)
+        goto err;
+
+    /* TODO: Add checking vsync through an options file */
     int vsync = 1;
 
-    error = window_new(&(*out)->window, in, width, height, title, vsync);
-    if (error)
-        goto error;
+    err = ecs_new(&(*out)->ecs, mem);
+    if (err)
+        goto err;
 
-    error = renderer_init(&(*out)->renderer, in, gl_renderer_init,
-                          gl_renderer_swap_buffers, gl_renderer_on_resize,
-                          gl_renderer_clear);
-    if (error)
-        goto error;
+    ecs_comp_type comp_test = 0;
+    err = ecs_comp_type_add(&comp_test, (*out)->ecs, sizeof(struct comp_test));
 
-    return error;
+    ecs_system_type system_test = 0;
+    err = ecs_system_add(&system_test, (*out)->ecs, system_test_fn);
+    if (err)
+        goto err;
 
-error:
-    logger_log(LOGGER_ERROR, "Failed to make new app", error);
-    return error;
+    ecs_entity entity = 0;
+    err = ecs_entity_add(&entity, (*out)->ecs);
+    if (err)
+        goto err;
+
+    struct comp_test comp = {
+        .a = 1,
+        .b = 5,
+        .c = -20,
+    };
+
+    err = ecs_comp_add((*out)->ecs, entity, comp_test, &comp);
+
+    err = assets_new(&(*out)->assets, mem);
+    if (err)
+        goto err;
+
+    err = window_new(&(*out)->window, mem, width, height, title, vsync);
+    if (err)
+        goto err;
+
+    /* TODO: Add support for multiple apis through an options file */
+    err = renderer_new(&(*out)->renderer, mem, gl_renderer_init,
+                       gl_renderer_swap_buffers, gl_renderer_on_resize,
+                       gl_renderer_render_frame);
+    if (err)
+        goto err;
+
+    return err;
+
+err:
+    logger_log(LOGGER_ERR, "Failed to make new app", err);
+    return err;
 }
 
-int app_delete(app *in) {
-    int error = CORE_SUCCESS;
+err app_delete(app *in) {
+    err err = CORE_SUCCESS;
 
     if (!in) {
-        error = CORE_INVALID_NULLPTR;
-        goto error;
+        err = CORE_INVALID_NULLPTR;
+        goto err;
     }
 
-    error = window_delete(in->window);
-    if (error)
-        goto error;
+    ecs_delete(in->ecs);
+    assets_delete(in->assets);
+    window_delete(in->window);
 
-    return error;
+    return err;
 
-error:
-    logger_log(LOGGER_ERROR, "Failed to delete app", error);
-    return error;
+err:
+    logger_log(LOGGER_ERR, "Failed to delete app", err);
+    return err;
 }
 
-int app_run(app *in) {
-    int error = CORE_SUCCESS;
+err app_run(app *in, game_new game, game_update update) {
+    err err = CORE_SUCCESS;
 
-    if (!in) {
-        error = CORE_INVALID_NULLPTR;
-        goto error;
+    if (!in || !game || !update) {
+        err = CORE_INVALID_NULLPTR;
+        goto err;
     }
 
     GLFWwindow *current_native_window = NULL;
-    if (current_native_window == NULL) {
-        error = window_get_native_window(&current_native_window, in->window);
-        if (error)
-            goto error;
+    if (!current_native_window) {
+        err = window_get_native_window(&current_native_window, in->window);
+        if (err)
+            goto err;
     }
 
-    renderer_use(in->renderer);
+    err = renderer_use(in->renderer);
+    if (err)
+        goto err;
+
+    err = window_set_renderer(in->window, in->renderer);
+    if (err)
+        goto err;
+
+    err = game(in);
+    if (err)
+        goto err;
 
     int should_close = 0;
     while (!should_close) {
-        error = window_should_close(&should_close, in->window);
-        if (error)
-            goto error;
+        err = window_should_close(&should_close, in->window);
+        if (err)
+            goto err;
 
         glfwPollEvents();
 
-        renderer_clear(in->renderer);
-        renderer_swap_buffers(in->renderer, current_native_window);
+        ecs_ctx ctx = {.assets = in->assets,
+                       .renderer = in->renderer,
+                       .window = in->window};
+
+        err = ecs_update(in->ecs, &ctx);
+        if (err)
+            goto err;
+
+        err = update();
+        if (err)
+            goto err;
+
+        err = renderer_render_frame(in->renderer);
+        if (err)
+            goto err;
+
+        err = renderer_swap_buffers(in->renderer, current_native_window);
+        if (err)
+            goto err;
     }
 
-    return error;
+    return err;
 
-error:
-    logger_log(LOGGER_ERROR, "Failed to run app", error);
-    return error;
+err:
+    logger_log(LOGGER_ERR, "Failed to run app", err);
+    return err;
+}
+
+err app_get_assets(assets **out, app *in) {
+    err err = CORE_SUCCESS;
+
+    if (!in) {
+        err = CORE_INVALID_NULLPTR;
+        goto err;
+    }
+
+    *out = in->assets;
+    return err;
+
+err:
+    logger_log(LOGGER_ERR, "Failed to get assets", err);
+    return err;
 }

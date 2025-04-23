@@ -13,6 +13,7 @@ file(GLOB_RECURSE SOURCE_FILES src/*.c)
 
 # Create executable and add dependencies
 add_executable(${PROJECT_NAME} ${HEADER_FILES} ${SOURCE_FILES})
+target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/src)
 
 # Compiler and build types
 if (MSVC)
@@ -21,7 +22,7 @@ if (MSVC)
     )
 else()
     target_compile_options(${PROJECT_NAME} PRIVATE
-        $<$<CONFIG:Debug>:-g3 -O0 -Wall -Wextra -Wdeprecated -Wpointer-arith -Wstrict-aliasing -Wpedantic -Wstrict-aliasing -Werror>
+        $<$<CONFIG:Debug>:-g3 -O0 -Wall -Wextra -Wdeprecated -Wpointer-arith -Wstrict-aliasing -Wpedantic -Wstrict-aliasing -Werror -fsanitize=address,undefined>
         $<$<CONFIG:Release>:-O2 -DNDEBUG>
     )
     target_link_options(${PROJECT_NAME} PRIVATE
@@ -49,6 +50,12 @@ add_dependencies(${PROJECT_NAME} ASSETS)
 
 # Library directory
 set(LIB_DIR ${CMAKE_CURRENT_SOURCE_DIR}/libs)
+
+# CGLM
+set(CGLM_DIR ${LIB_DIR}/cglm)
+add_library(cglm INTERFACE)
+target_include_directories(cglm INTERFACE ${CGLM_DIR}/include)
+target_link_libraries(${PROJECT_NAME} PRIVATE cglm)
 
 # GLFW
 set(GLFW_DIR ${LIB_DIR}/glfw)

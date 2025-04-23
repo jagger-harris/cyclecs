@@ -1,8 +1,8 @@
-#include "arena.h"
-#include "error.h"
-#include "logger.h"
+#include "core/util/arena.h"
+#include "core/util/logger.h"
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 
 struct arena {
     void *memory;
@@ -11,60 +11,60 @@ struct arena {
     size_t last_offset;
 };
 
-int arena_new(arena **out, size_t capacity) {
-    int error = CORE_SUCCESS;
+err arena_new(arena **out, size_t capacity) {
+    err err = CORE_SUCCESS;
 
     *out = malloc(sizeof(arena));
-    if (!out) {
-        error = CORE_CANNOT_ALLOC_MEMORY;
-        goto error;
+    if (!(*out)) {
+        err = CORE_OUT_OF_MEMORY;
+        goto err;
     }
 
     (*out)->memory = malloc(capacity);
     if (!(*out)->memory) {
         free(out);
-        error = CORE_CANNOT_ALLOC_MEMORY;
-        goto error;
+        err = CORE_OUT_OF_MEMORY;
+        goto err;
     }
 
     (*out)->capacity = capacity;
     (*out)->used = 0;
     (*out)->last_offset = 0;
-    return error;
+    return err;
 
-error:
-    logger_log(LOGGER_ERROR, "Failed to make new arena", error);
-    return error;
+err:
+    logger_log(LOGGER_ERR, "Failed to make new arena", err);
+    return err;
 }
 
-int arena_delete(arena *in) {
-    int error = CORE_SUCCESS;
+err arena_delete(arena *in) {
+    err err = CORE_SUCCESS;
 
     if (!in || !in->memory) {
-        error = CORE_INVALID_NULLPTR;
-        goto error;
+        err = CORE_INVALID_NULLPTR;
+        goto err;
     }
 
     free(in->memory);
     free(in);
-    return error;
+    return err;
 
-error:
-    logger_log(LOGGER_ERROR, "Failed to delete arena", error);
-    return error;
+err:
+    logger_log(LOGGER_ERR, "Failed to delete arena", err);
+    return err;
 }
 
-int arena_alloc(void **out, arena *in, size_t size, size_t alignment) {
-    int error = CORE_SUCCESS;
+err arena_alloc(void **out, arena *in, size_t size, size_t alignment) {
+    err err = CORE_SUCCESS;
 
     if (!in) {
-        error = CORE_INVALID_NULLPTR;
-        goto error;
+        err = CORE_INVALID_NULLPTR;
+        goto err;
     }
 
     if (size == 0) {
-        error = CORE_INVALID_VAR;
-        goto error;
+        err = CORE_INVALID_ARGS;
+        goto err;
     }
 
     uintptr_t current = (uintptr_t)in->memory + in->used;
@@ -72,49 +72,50 @@ int arena_alloc(void **out, arena *in, size_t size, size_t alignment) {
     size_t padding = aligned - current;
 
     if (in->used + padding + size > in->capacity) {
-        error = CORE_OUT_OF_MEMORY;
-        goto error;
+        err = CORE_OUT_OF_MEMORY;
+        goto err;
     }
 
     in->last_offset = in->used;
     in->used += padding + size;
     *out = (void *)aligned;
-    return error;
+    memset(*out, 0, size);
+    return err;
 
-error:
-    logger_log(LOGGER_ERROR, "Failed to alloc to arena", error);
-    return error;
+err:
+    logger_log(LOGGER_ERR, "Failed to alloc to arena", err);
+    return err;
 }
 
-int arena_reset(arena *in) {
-    int error = CORE_SUCCESS;
+err arena_reset(arena *in) {
+    err err = CORE_SUCCESS;
 
     if (!in) {
-        error = CORE_INVALID_NULLPTR;
-        goto error;
+        err = CORE_INVALID_NULLPTR;
+        goto err;
     }
 
     in->used = 0;
     in->last_offset = 0;
-    return error;
+    return err;
 
-error:
-    logger_log(LOGGER_ERROR, "Failed to reset arena", error);
-    return error;
+err:
+    logger_log(LOGGER_ERR, "Failed to reset arena", err);
+    return err;
 }
 
-int arena_free_last(arena *in) {
-    int error = CORE_SUCCESS;
+err arena_remove_last(arena *in) {
+    err err = CORE_SUCCESS;
 
     if (!in) {
-        error = CORE_INVALID_NULLPTR;
-        goto error;
+        err = CORE_INVALID_NULLPTR;
+        goto err;
     }
 
     in->used = in->last_offset;
-    return error;
+    return err;
 
-error:
-    logger_log(LOGGER_ERROR, "Failed to free last in arena", error);
-    return error;
+err:
+    logger_log(LOGGER_ERR, "Failed to free last in arena", err);
+    return err;
 }

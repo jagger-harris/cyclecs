@@ -39,7 +39,7 @@ if $run; then
       ./executable
     else
       cd debug || exit
-      ./executable debug
+      ./executable debug 2> asan.log
     fi
   else
     echo "Build folder not located: ./build.sh build (release)"
