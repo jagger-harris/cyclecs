@@ -1,9 +1,9 @@
 #include "core/app/app.h"
+#include "core/app/window.h"
 #include "core/ecs/ecs.h"
 #include "core/gfx/gl/renderer.h"
 #include "core/gfx/renderer.h"
 #include "core/util/logger.h"
-#include "window.h"
 #include <stdio.h>
 
 struct app {
