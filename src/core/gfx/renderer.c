@@ -1,123 +1,203 @@
 #include "core/gfx/renderer.h"
+#include "core/gfx/camera.h"
 #include "core/util/logger.h"
+#include <cglm/cam.h>
+#include <cglm/vec3.h>
 
-struct renderer {
-    api_init init;
-    api_swap_buffers swap;
-    api_on_resize resize;
-    api_render_frame render_frame;
-};
+err renderer_init(struct renderer *out, float aspect_ratio, const api_init init,
+                  const api_swap_buffers swap, const api_on_resize resize,
+                  const api_render_frame render_frame) {
+    err status = CORE_SUCCESS;
 
-err renderer_new(renderer **out, arena *mem, api_init init,
-                 api_swap_buffers swap, api_on_resize resize,
-                 api_render_frame render_frame) {
-    err err = CORE_SUCCESS;
-
-    if (!out || !mem || !init || !swap || !resize || !render_frame) {
-        err = CORE_INVALID_NULLPTR;
+    if (!out || !init || !swap || !resize || !render_frame) {
+        status = CORE_NULLPTR;
         goto err;
     }
 
-    err = arena_alloc((void **)out, mem, sizeof(renderer), _Alignof(renderer));
-    if (err)
+    status = array_init(&out->opaque_draws, 64, sizeof(struct draw_call));
+    if (status)
         goto err;
 
-    (*out)->init = init;
-    (*out)->swap = swap;
-    (*out)->resize = resize;
-    (*out)->render_frame = render_frame;
-    return err;
+    status = array_init(&out->transparent_draws, 64, sizeof(struct draw_call));
+    if (status)
+        goto err;
+
+    out->camera = (struct camera){.view = {{0.0F}},
+                                  .projection = {{0.0F}},
+                                  .pos = {0.0F},
+                                  .rot = {0.0F},
+                                  .fov = 90.0F,
+                                  .near_clip = 0.1F,
+                                  .far_clip = 100.0F,
+                                  .aspect_ratio = aspect_ratio,
+                                  .ortho_size = 1.0F,
+                                  .orthographic = false,
+                                  .active = true,
+                                  .update = true};
+
+    out->init = init;
+    out->swap = swap;
+    out->resize = resize;
+    out->render_frame = render_frame;
+    return status;
 
 err:
-    logger_log(LOGGER_ERR, "Failed to init renderer api", err);
-    return err;
+    logger_log_err(LOGGER_ERR, status, "Initializing renderer failed");
+    return status;
 }
 
-err renderer_use(renderer *in) {
-    err err = CORE_SUCCESS;
+void renderer_destroy(struct renderer *in) {
+    if (!in)
+        return;
 
-    if (!in) {
-        err = CORE_INVALID_NULLPTR;
+    array_destroy(&in->opaque_draws);
+    array_destroy(&in->transparent_draws);
+}
+
+err renderer_draw_call_add(struct renderer *in, struct draw_call *call) {
+    err status = CORE_SUCCESS;
+
+    if (!in || !call) {
+        status = CORE_NULLPTR;
         goto err;
     }
 
-    err = in->init();
-    if (err)
-        goto err;
+    if (call->mat->transparent) {
+        status = array_push(&in->transparent_draws, call);
+        if (status)
+            goto err;
+    } else {
+        status = array_push(&in->opaque_draws, call);
+        if (status)
+            goto err;
+    }
 
-    return err;
+    return status;
 
 err:
-    logger_log(LOGGER_ERR, "Failed to use renderer api", err);
-    return err;
+    logger_log_err(LOGGER_ERR, status, "Adding draw to renderer queue failed");
+    return status;
 }
 
-err renderer_swap_buffers(renderer *in, GLFWwindow *window) {
-    err err = CORE_SUCCESS;
+err renderer_use(const struct renderer *in) {
+    err status = CORE_SUCCESS;
 
     if (!in) {
-        err = CORE_INVALID_NULLPTR;
+        status = CORE_NULLPTR;
         goto err;
     }
 
-    err = in->swap(window);
-    if (err)
+    status = in->init();
+    if (status)
         goto err;
 
-    return err;
+    return status;
 
 err:
-    logger_log(LOGGER_ERR, "Failed to swap buffers", err);
-    return err;
+    logger_log_err(LOGGER_ERR, status, "Using renderer failed");
+    return status;
 }
 
-err renderer_resize(renderer *in, int width, int height) {
-    err err = CORE_SUCCESS;
+err renderer_swap_buffers(struct renderer *in, GLFWwindow *window) {
+    err status = CORE_SUCCESS;
 
     if (!in) {
-        err = CORE_INVALID_NULLPTR;
+        status = CORE_NULLPTR;
+        goto err;
+    }
+
+    status = in->swap(window);
+    if (status)
+        goto err;
+
+    return status;
+
+err:
+    logger_log_err(LOGGER_ERR, status, "Swapping buffers failed");
+    return status;
+}
+
+err renderer_resize(struct renderer *in, int width, int height) {
+    err status = CORE_SUCCESS;
+
+    if (!in) {
+        status = CORE_NULLPTR;
         goto err;
     }
 
     in->resize(width, height);
-    return err;
+    return status;
 
 err:
-    logger_log(LOGGER_ERR, "Failed to resize renderer", err);
-    return err;
+    logger_log_err(LOGGER_ERR, status, "Resizing renderer failed");
+    return status;
 }
 
-err renderer_render_frame(renderer *in) {
-    err err = CORE_SUCCESS;
+err renderer_camera_update(struct renderer *in) {
+    err status = CORE_SUCCESS;
 
     if (!in) {
-        err = CORE_INVALID_NULLPTR;
+        status = CORE_NULLPTR;
         goto err;
     }
 
-    // Probably need to add the renderer to the render_frame, you decide
-    in->render_frame();
-    return err;
+    struct camera *cam = &in->camera;
+    vec3 forward = {0.0F};
+    vec3 target = {0.0F};
+    vec3 up = {0.0F, 1.0F, 0.0F};
+    float pitch = glm_rad(cam->rot[0]);
+    float yaw = glm_rad(cam->rot[1]);
+
+    forward[0] = cosf(pitch) * sinf(yaw);
+    forward[1] = sinf(pitch);
+    forward[2] = cosf(pitch);
+
+    glm_vec3_add(cam->pos, forward, target);
+    glm_lookat(cam->pos, target, up, cam->view);
+
+    if (cam->orthographic) {
+        float top = cam->ortho_size;
+        float bottom = -top;
+        float right = top * cam->aspect_ratio;
+        float left = -right;
+
+        glm_ortho(left, right, bottom, top, cam->near_clip, cam->far_clip,
+                  cam->projection);
+    } else {
+        glm_perspective(cam->fov, cam->aspect_ratio, cam->near_clip,
+                        cam->far_clip, cam->projection);
+    }
+
+    return status;
 
 err:
-    logger_log(LOGGER_ERR, "Failed to clear renderer", err);
-    return err;
+    logger_log_err(LOGGER_ERR, status, "Setting camera pos failed");
+    return status;
 }
 
-err renderer_draw_enqueue(renderer *in, struct material *mat,
-                          struct transform *tf) {
-    err err = CORE_SUCCESS;
+err renderer_render_frame(struct renderer *in, struct assets *assets) {
+    err status = CORE_SUCCESS;
 
-    if (!in || !mat || !tf) {
-        err = CORE_INVALID_NULLPTR;
+    if (!in) {
+        status = CORE_NULLPTR;
         goto err;
     }
 
-    // Add to rendering queue somehow
+    if (in->camera.update) {
+        renderer_camera_update(in);
+        in->camera.update = false;
+    }
 
-    return err;
+    status = in->render_frame(assets, &in->camera, &in->opaque_draws,
+                              &in->transparent_draws);
+    if (status)
+        goto err;
+
+    array_clear(&in->opaque_draws);
+    array_clear(&in->transparent_draws);
+    return status;
 
 err:
-    logger_log(LOGGER_ERR, "Failed to add draw to render queue", err);
-    return err;
+    logger_log_err(LOGGER_ERR, status, "Clearing renderer failed");
+    return status;
 }

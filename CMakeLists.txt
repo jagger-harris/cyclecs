@@ -15,6 +15,11 @@ file(GLOB_RECURSE SOURCE_FILES src/*.c)
 add_executable(${PROJECT_NAME} ${HEADER_FILES} ${SOURCE_FILES})
 target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/src)
 
+# Define DEBUG in debug builds
+target_compile_definitions(${PROJECT_NAME} PRIVATE
+    $<$<CONFIG:Debug>:DEBUG>
+)
+
 # Compiler and build types
 if (MSVC)
     target_compile_options(${PROJECT_NAME} PRIVATE
@@ -74,12 +79,6 @@ add_library(glad ${GLAD_DIR}/src/gl.c)
 target_include_directories(glad PRIVATE ${GLAD_DIR}/include)
 target_include_directories(${PROJECT_NAME} PRIVATE ${GLAD_DIR}/include)
 target_link_libraries(${PROJECT_NAME} PRIVATE glad)
-
-# Reservoir
-set(RSV_DIR ${LIB_DIR}/rsv)
-add_library(rsv INTERFACE)
-target_include_directories(rsv INTERFACE ${RSV_DIR}/include)
-target_link_libraries(${PROJECT_NAME} PRIVATE rsv)
 
 # STB
 set(STB_DIR ${LIB_DIR}/stb)

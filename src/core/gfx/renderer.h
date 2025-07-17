@@ -2,25 +2,37 @@
 #define GFX_RENDERER_H
 
 #include "core/app/assets.h"
-#include "core/app/window.h"
-#include "core/ecs/comp/transform.h"
-#include "core/util/arena.h"
+#include "core/gfx/camera.h"
+#include "core/gfx/draw_call.h"
+#include "core/util/array.h"
 #include <GLFW/glfw3.h>
 
-typedef int (*api_init)(void);
-typedef int (*api_swap_buffers)(GLFWwindow *);
+typedef err (*api_init)(void);
+typedef err (*api_swap_buffers)(GLFWwindow *);
 typedef void (*api_on_resize)(int, int);
-typedef void (*api_render_frame)(void);
-typedef struct renderer renderer;
+typedef err (*api_render_frame)(struct assets *, struct camera *,
+                                struct array *, struct array *);
 
-err renderer_new(renderer **out, arena *mem, api_init init,
-                 api_swap_buffers swap, api_on_resize resize,
-                 api_render_frame render_frame);
-err renderer_use(renderer *in);
-err renderer_swap_buffers(renderer *in, GLFWwindow *window);
-err renderer_resize(renderer *in, int width, int height);
-err renderer_render_frame(renderer *in);
-err renderer_draw_enqueue(renderer *in, struct material *mat,
-                          struct transform *tf);
+struct renderer {
+    struct camera camera;
+    struct array opaque_draws;
+    struct array transparent_draws;
+    api_init init;
+    api_swap_buffers swap;
+    api_on_resize resize;
+    api_render_frame render_frame;
+};
 
-#endif /* GFX_RENDERER_H */
+err renderer_init(struct renderer *out, const float aspect_ratio,
+                  const api_init init, const api_swap_buffers swap,
+                  const api_on_resize resize,
+                  const api_render_frame render_frame);
+void renderer_destroy(struct renderer *in);
+err renderer_draw_call_add(struct renderer *in, struct draw_call *call);
+err renderer_use(const struct renderer *in);
+err renderer_swap_buffers(struct renderer *in, GLFWwindow *window);
+err renderer_resize(struct renderer *in, int width, int height);
+err renderer_camera_update(struct renderer *in);
+err renderer_render_frame(struct renderer *in, struct assets *assets);
+
+#endif // GFX_RENDERER_H

@@ -1,40 +1,93 @@
 #include "base/game/game.h"
-#include "core/app/app.h"
+#include "base/ecs/sys/move_sys.h"
+#include "base/game/constants.h"
+#include "core/ecs/comp/transform_comp.h"
+#include "core/ecs/ecs.h"
+#include "core/ecs/sys/render_sys.h"
+#include "core/util/array.h"
 #include "core/util/logger.h"
 #include <stdint.h>
 
-enum materials { MATERIAL_CONTAINER };
+static struct vertex quad_vertices[] = {
+    {{-0.5F, -0.5F, 0.0F}, {0.0F, 0.0F, 1.0F}, {0.0F, 0.0F}},
+    {{0.5F, -0.5F, 0.0F}, {0.0F, 0.0F, 1.0F}, {1.0F, 0.0F}},
+    {{0.5F, 0.5F, 0.0F}, {0.0F, 0.0F, 1.0F}, {1.0F, 1.0F}},
+    {{-0.5F, 0.5F, 0.0F}, {0.0F, 0.0F, 1.0F}, {0.0F, 1.0F}}};
+static unsigned int quad_indices[] = {0, 1, 2, 2, 3, 0};
+static size_t vertex_count = ARRAY_SIZE(quad_vertices);
+static size_t index_count = ARRAY_SIZE(quad_indices);
+static uint32_t rect;
 
-static int counter = 0;
+err game_init(struct assets *assets, struct ecs *ecs,
+              struct renderer *renderer) {
+    err status = CORE_SUCCESS;
 
-err game_init(app *app) {
-    err err = CORE_SUCCESS;
-    assets *app_assets = NULL;
+    assets_material_add(assets, "container", "quad", "container.jpg");
+    assets_mesh_add(assets, "quad", quad_vertices, vertex_count, quad_indices,
+                    index_count);
 
-    err = app_get_assets(&app_assets, app);
-    if (err)
+    struct ecs_handles handles = {0};
+
+    status = ecs_comp_type_add(&handles.transformable, ecs,
+                               sizeof(struct transform_comp));
+    if (status)
         goto err;
 
-    assets_material_add(app_assets, MATERIAL_CONTAINER, "quad",
-                        "container.jpg");
+    status =
+        ecs_comp_type_add(&handles.drawable, ecs, sizeof(struct draw_call));
+    if (status)
+        goto err;
 
-    return err;
+    status = ecs_system_add(&handles.render_sys, ecs, render_sys, renderer);
+    if (status)
+        goto err;
+
+    status = ecs_system_add(&handles.move_sys, ecs, move_sys, NULL);
+    if (status)
+        goto err;
+
+    status = ecs_entity_add(&rect, ecs);
+    if (status)
+        goto err;
+
+    struct transform_comp rect_tf =
+        (struct transform_comp){.pos = {0.0F, 0.0F, 1.0F},
+                                .rot = {0.0F, 0.0F, 1.0F},
+                                .scale = {1.0F, 1.0F, 1.0F},
+                                .rot_deg = 45.0F};
+
+    status = ecs_comp_add(ecs, rect, handles.transformable, &rect_tf);
+    if (status)
+        goto err;
+
+    struct draw_call rect_draw = (struct draw_call){
+        .mat = NULL,
+        .mesh = NULL,
+        .tf = rect_tf,
+        .camera_dist = 0,
+        .visible = true,
+    };
+
+    assets_material_get(&rect_draw.mat, assets, "container");
+    assets_mesh_get(&rect_draw.mesh, assets, "quad");
+
+    status = ecs_comp_add(ecs, rect, handles.drawable, &rect_draw);
+    if (status)
+        goto err;
+
+    status = ecs_init_handles(ecs, &handles, sizeof(struct ecs_handles));
+    if (status)
+        goto err;
+
+    return status;
 
 err:
-    logger_log(LOGGER_ERR, "Failed to initialize game", err);
-    return err;
+    logger_log_err(LOGGER_ERR, status, "Initializing game failed");
+    return status;
 }
 
 err game_run(void) {
-    err err = CORE_SUCCESS;
+    err status = CORE_SUCCESS;
 
-    /* somehow draw rectangle with texture and shader */
-
-    // renderer_draw(material, vertices, other data...);
-
-    if (counter % 100 == 0)
-        logger_log(LOGGER_DEBUG, "Running the actual game...", 0);
-
-    counter++;
-    return err;
+    return status;
 }

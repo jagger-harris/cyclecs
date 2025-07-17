@@ -1,11 +1,11 @@
 #include "core/app/assets.h"
+#include "core/gfx/gl/mesh.h"
 #include "core/gfx/gl/shader.h"
 #include "core/gfx/gl/texture2d.h"
 #include "core/io/fimg.h"
 #include "core/io/ftxt.h"
-#include "core/util/array.h"
+#include "core/util/err.h"
 #include "core/util/logger.h"
-#include "core/util/table.h"
 #include <stddef.h>
 #include <string.h>
 
@@ -16,297 +16,345 @@
 #define ASSETS_SHADER_PATH ASSETS_DEFAULT_PATH "gfx/shaders/"
 #define ASSETS_TEXTURE_PATH ASSETS_DEFAULT_PATH "gfx/textures/"
 
-struct assets {
-    array *gl_materials;
-    table *gl_shaders;
-    table *gl_textures;
-};
-
-// static void assets_shader_remove(assets *in, char path[ASSETS_STR_MAX]) {
-//     err err = CORE_SUCCESS;
-//
-//     if (!in) {
-//         err = CORE_INVALID_NULLPTR;
-//         goto err;
-//     }
-//
-//     /* TODO: Support multiple apis */
-//     GLuint id = 0;
-//
-//     err = table_remove(&id, &in->gl_shaders, path);
-//     if (err)
-//         goto err;
-//
-//     err = gl_shader_delete(id);
-//     if (err)
-//         goto err;
-//
-//     return;
-//
-// err:
-//     logger_log(LOGGER_ERR, "Failed to remove shader from assets", err);
-// }
-//
-// static void assets_texture_remove(assets *in, char path[ASSETS_STR_MAX]) {
-//     err err = CORE_SUCCESS;
-//
-//     if (!in) {
-//         err = CORE_INVALID_NULLPTR;
-//         goto err;
-//     }
-//
-//     /* TODO: Support multiple apis */
-//     GLuint id = 0;
-//
-//     err = table_remove(&id, &in->gl_shaders, path);
-//     if (err)
-//         goto err;
-//
-//     err = gl_texture2d_delete(id);
-//     if (err)
-//         goto err;
-//
-//     return;
-//
-// err:
-//     logger_log(LOGGER_ERR, "Failed to remove shader from assets", 0);
-// }
-
-static void assets_shader_add(assets *in, char path[ASSETS_STR_MAX]) {
-    err err = CORE_SUCCESS;
-
-    if (!in || !path) {
-        err = CORE_INVALID_NULLPTR;
-        goto err;
-    }
-
-    unsigned int found = 0;
-    table_find(&found, in->gl_shaders, path);
-
-    if (found) {
-        err = CORE_INVALID_ARGS;
-        goto err;
-    }
-
-    char vert_path[STR_MAX] = {0};
-    char frag_path[STR_MAX] = {0};
-    strcat(vert_path, ASSETS_SHADER_PATH);
-    strcat(vert_path, path);
-    strcat(vert_path, ".vert");
-    strcat(frag_path, ASSETS_SHADER_PATH);
-    strcat(frag_path, path);
-    strcat(frag_path, ".frag");
-
+static void assets_shader_add(struct assets *in, const char *path) {
+    err status = CORE_SUCCESS;
     const char *vert_src = NULL;
     const char *frag_src = NULL;
 
-    err = ftxt_new(&vert_src, vert_path);
-    if (err)
-        goto cleanup;
+    if (!in || !path) {
+        status = CORE_NULLPTR;
+        goto err;
+    }
 
-    err = ftxt_new(&frag_src, frag_path);
-    if (err)
-        goto cleanup;
+    char shader_path[ASSETS_STR_MAX] = {0};
+    snprintf(shader_path, ASSETS_STR_MAX, "%s", path);
+
+    unsigned int found = 0;
+    table_find(&found, &in->shaders, shader_path);
+
+    if (found)
+        return;
+
+    char vert_path[ASSETS_STR_MAX] = {0};
+    char frag_path[ASSETS_STR_MAX] = {0};
+    strcat(vert_path, ASSETS_SHADER_PATH);
+    strcat(vert_path, shader_path);
+    strcat(vert_path, ".vert");
+    strcat(frag_path, ASSETS_SHADER_PATH);
+    strcat(frag_path, shader_path);
+    strcat(frag_path, ".frag");
+
+    status = ftxt_init(&vert_src, vert_path);
+    if (status)
+        goto err;
+
+    status = ftxt_init(&frag_src, frag_path);
+    if (status)
+        goto err;
 
     GLuint new_shader = 0;
-    err = gl_shader_new(&new_shader, vert_src, frag_src);
-    if (err)
-        goto cleanup;
-
-    err = ftxt_delete(vert_src);
-    if (err)
+    status = gl_shader_init(&new_shader, vert_src, frag_src);
+    if (status)
         goto err;
 
-    err = ftxt_delete(frag_src);
-    if (err)
-        goto err;
+    ftxt_destroy(vert_src);
+    ftxt_destroy(frag_src);
 
-    err = table_insert(in->gl_shaders, path, &new_shader);
-    if (err)
+    status = table_insert(&in->shaders, path, &new_shader);
+    if (status)
         goto err;
 
     return;
 
-cleanup:
+err:
     if (vert_src)
-        err = ftxt_delete(vert_src);
+        ftxt_destroy(vert_src);
 
     if (frag_src)
-        err = ftxt_delete(frag_src);
+        ftxt_destroy(frag_src);
 
-err:
-    logger_log(LOGGER_ERR, "Failed to add new shader to assets", err);
+    logger_log_err(LOGGER_ERR, status, "Adding new shader failed");
 }
 
-static void assets_texture_add(assets *in, char path[ASSETS_STR_MAX]) {
-    err err = CORE_SUCCESS;
+static void assets_texture_add(struct assets *in, const char *path) {
+    err status = CORE_SUCCESS;
+    struct fimg img = {0};
 
     if (!in || !path) {
-        err = CORE_INVALID_NULLPTR;
+        status = CORE_NULLPTR;
         goto err;
     }
+
+    char texture_path[ASSETS_STR_MAX] = {0};
+    snprintf(texture_path, ASSETS_STR_MAX, "%s", path);
 
     unsigned int found = 0;
-    table_find(&found, in->gl_textures, path);
+    table_find(&found, &in->textures, texture_path);
 
-    if (found) {
-        err = CORE_INVALID_ARGS;
-        goto err;
-    }
+    if (found)
+        return;
 
     char img_path[STR_MAX] = {0};
     strcat(img_path, ASSETS_TEXTURE_PATH);
-    strcat(img_path, path);
+    strcat(img_path, texture_path);
 
-    fimg *img = NULL;
-    err = fimg_new(&img, img_path);
-    if (err)
+    status = fimg_init(&img, img_path);
+    if (status)
         goto err;
 
-    int width = 0;
-    int height = 0;
-    int channels = 0;
-    unsigned char *data = NULL;
+    int width = img.width;
+    int height = img.height;
+    int channels = img.channels;
+    unsigned char *data = img.data;
 
-    err = fimg_get_dims(&width, &height, img);
-    if (err)
-        goto cleanup;
-
-    err = fimg_get_channels(&channels, img);
-    if (err)
-        goto cleanup;
-
-    err = fimg_get_data(&data, img);
-    if (err)
-        goto cleanup;
-
-    /* TODO: Support multiple apis */
+    // TODO: Support multiple apis
     GLuint new_texture = 0;
-    err = gl_texture2d_new(&new_texture, data, width, height, channels);
-    if (err)
-        goto cleanup;
-
-    err = fimg_delete(img);
-    if (err)
+    status = gl_texture2d_init(&new_texture, data, width, height, channels);
+    if (status)
         goto err;
 
-    err = table_insert(in->gl_textures, path, &new_texture);
-    if (err)
+    fimg_destroy(&img);
+
+    status = table_insert(&in->textures, path, &new_texture);
+    if (status)
         goto err;
 
     return;
 
-cleanup:
-    if (img)
-        fimg_delete(img);
-
 err:
-    logger_log(LOGGER_ERR, "Failed to add new texture to assets", err);
+    fimg_destroy(&img);
+    logger_log_err(LOGGER_ERR, status, "Adding new texture failed");
 }
 
-err assets_new(assets **out, arena *mem) {
-    err err = CORE_SUCCESS;
+err assets_init(struct assets *out, struct arena *mem) {
+    err status = CORE_SUCCESS;
 
     if (!out || !mem) {
-        err = CORE_INVALID_NULLPTR;
+        status = CORE_NULLPTR;
         goto err;
     }
 
-    err = arena_alloc((void **)out, mem, sizeof(assets), _Alignof(assets));
-    if (err)
+    status = arena_alloc((void **)out, mem, sizeof(struct assets),
+                         _Alignof(struct assets));
+    if (status)
         goto err;
 
-    /* TODO: Support multiple apis */
-    err = array_new(&(*out)->gl_materials, 16, sizeof(struct material));
-    if (err)
+    // TODO: Support multiple apis
+    status = table_init(&out->materials, DARRAY_START_SIZE,
+                        sizeof(char[ASSETS_STR_MAX]), sizeof(struct material));
+    if (status)
         goto err;
 
-    err = table_new(&(*out)->gl_shaders, DARRAY_START_SIZE,
-                    sizeof(char[ASSETS_STR_MAX]), sizeof(GLuint));
-    if (err)
+    status = table_init(&out->meshes, DARRAY_START_SIZE,
+                        sizeof(char[ASSETS_STR_MAX]), sizeof(struct gl_mesh));
+    if (status)
         goto err;
 
-    err = table_new(&(*out)->gl_textures, DARRAY_START_SIZE,
-                    sizeof(char[ASSETS_STR_MAX]), sizeof(GLuint));
-    if (err)
+    status = table_init(&out->shaders, DARRAY_START_SIZE,
+                        sizeof(char[ASSETS_STR_MAX]), sizeof(GLuint));
+    if (status)
         goto err;
 
-    return err;
+    status = table_init(&out->textures, DARRAY_START_SIZE,
+                        sizeof(char[ASSETS_STR_MAX]), sizeof(GLuint));
+    if (status)
+        goto err;
+
+    return status;
 
 err:
-    logger_log(LOGGER_ERR, "Failed to create new assets", err);
-    assets_delete(*out);
-    return err;
+    logger_log_err(LOGGER_ERR, status, "Init assets failed");
+    assets_destroy(out);
+    return status;
 }
 
-err assets_delete(assets *in) {
-    err err = CORE_SUCCESS;
+void assets_destroy(struct assets *in) {
+    if (!in)
+        return;
+
+    table_destroy(&in->materials);
+    table_destroy(&in->meshes);
+    table_destroy(&in->shaders);
+    table_destroy(&in->textures);
+}
+
+void assets_material_add(struct assets *in, const char *id,
+                         const char *shader_path, const char *texture_path) {
+    err status = CORE_SUCCESS;
 
     if (!in) {
-        err = CORE_INVALID_NULLPTR;
+        status = CORE_NULLPTR;
         goto err;
     }
 
-    array_delete(in->gl_materials);
-    table_delete(in->gl_shaders);
-    table_delete(in->gl_textures);
-    return err;
-
-err:
-    logger_log(LOGGER_ERR, "Failed to delete assets", err);
-    return err;
-}
-
-void assets_material_add(assets *in, int id, const char *shader_path,
-                         const char *texture_path) {
-    err err = CORE_SUCCESS;
-
-    if (!in) {
-        err = CORE_INVALID_NULLPTR;
-        goto err;
-    }
-
-    struct material material = {0};
+    struct material mat = {0};
     char final_shader_path[ASSETS_STR_MAX] = {0};
     char final_texture_path[ASSETS_STR_MAX] = {0};
 
     if (shader_path) {
         snprintf(final_shader_path, ASSETS_STR_MAX, "%s", shader_path);
         assets_shader_add(in, final_shader_path);
-        snprintf(material.shader_path, ASSETS_STR_MAX, "%s", final_shader_path);
+        snprintf(mat.shader_path, ASSETS_STR_MAX, "%s", final_shader_path);
     }
 
     if (texture_path) {
         snprintf(final_texture_path, ASSETS_STR_MAX, "%s", texture_path);
         assets_texture_add(in, final_texture_path);
-        snprintf(material.texture_path, ASSETS_STR_MAX, "%s",
-                 final_shader_path);
+        snprintf(mat.texture_path, ASSETS_STR_MAX, "%s", final_texture_path);
     }
 
-    err = array_insert(in->gl_materials, id, &material);
-    if (err)
+    char mat_id[ASSETS_STR_MAX] = {0};
+    snprintf(mat_id, ASSETS_STR_MAX, "%s", id);
+
+    status = table_insert(&in->materials, mat_id, &mat);
+    if (status)
         goto err;
 
     return;
 
 err:
-    logger_log(LOGGER_ERR, "Failed to add new material to assets", err);
+    logger_log_err(LOGGER_ERR, status, "Adding new material failed");
 }
 
-void assets_material_remove(assets *in, int id) {
-    err err = CORE_SUCCESS;
+void assets_material_remove(struct assets *in, const char *id) {
+    err status = CORE_SUCCESS;
 
-    if (!in) {
-        err = CORE_INVALID_NULLPTR;
+    if (!in || !id) {
+        status = CORE_NULLPTR;
         goto err;
     }
 
-    err = array_remove(in->gl_materials, id);
-    if (err)
+    char mat_id[ASSETS_STR_MAX] = {0};
+    snprintf(mat_id, ASSETS_STR_MAX, "%s", id);
+
+    status = table_remove(NULL, &in->materials, mat_id);
+    if (status)
         goto err;
 
     return;
 
 err:
-    logger_log(LOGGER_ERR, "Failed to remove material from assets", err);
+    logger_log_err(LOGGER_ERR, status, "Removing material failed");
+}
+
+void assets_material_get(struct material **out, const struct assets *in,
+                         const char *id) {
+    err status = CORE_SUCCESS;
+
+    if (!in || !id) {
+        status = CORE_NULLPTR;
+        goto err;
+    }
+
+    char mat_id[ASSETS_STR_MAX] = {0};
+    snprintf(mat_id, ASSETS_STR_MAX, "%s", id);
+    table_find_ptr((void *)out, &in->materials, mat_id);
+    return;
+
+err:
+    logger_log_err(LOGGER_ERR, status, "Getting material failed");
+}
+
+void assets_mesh_add(struct assets *in, const char *id,
+                     const struct vertex *vertices, size_t vertex_count,
+                     unsigned int *indices, size_t index_count) {
+    err status = CORE_SUCCESS;
+
+    if (!in || !id) {
+        status = CORE_NULLPTR;
+        goto err;
+    }
+
+    struct gl_mesh new_mesh = {0};
+    status =
+        gl_mesh_init(&new_mesh, vertices, vertex_count, indices, index_count);
+    if (status)
+        goto err;
+
+    char mesh_id[ASSETS_STR_MAX] = {0};
+    snprintf(mesh_id, ASSETS_STR_MAX, "%s", id);
+
+    status = table_insert(&in->meshes, mesh_id, &new_mesh);
+    if (status)
+        goto err;
+
+    return;
+
+err:
+    logger_log_err(LOGGER_ERR, status, "Adding new mesh failed");
+}
+
+void assets_mesh_remove(struct assets *in, const char *id) {
+    err status = CORE_SUCCESS;
+
+    if (!in || !id) {
+        status = CORE_NULLPTR;
+        goto err;
+    }
+
+    char mesh_id[ASSETS_STR_MAX] = {0};
+    snprintf(mesh_id, ASSETS_STR_MAX, "%s", id);
+
+    status = table_remove(NULL, &in->meshes, mesh_id);
+    if (status)
+        goto err;
+
+    return;
+
+err:
+    logger_log_err(LOGGER_ERR, status, "Removing mesh failed");
+}
+
+void assets_mesh_get(struct gl_mesh **out, const struct assets *in,
+                     const char *id) {
+    err status = CORE_SUCCESS;
+
+    if (!in || !id) {
+        status = CORE_NULLPTR;
+        goto err;
+    }
+
+    char mesh_id[ASSETS_STR_MAX] = {0};
+    snprintf(mesh_id, ASSETS_STR_MAX, "%s", id);
+    table_find_ptr((void *)out, &in->meshes, mesh_id);
+    return;
+
+err:
+    logger_log_err(LOGGER_ERR, status, "Getting mesh failed");
+}
+
+void assets_shader_get(unsigned int *out, const struct assets *in,
+                       const char *id) {
+    err status = CORE_SUCCESS;
+
+    if (!in || !id) {
+        status = CORE_NULLPTR;
+        goto err;
+    }
+
+    char shader_id[ASSETS_STR_MAX] = {0};
+    snprintf(shader_id, ASSETS_STR_MAX, "%s", id);
+    table_find((void *)out, &in->shaders, shader_id);
+    return;
+
+err:
+    logger_log_err(LOGGER_ERR, status, "Getting shader failed");
+}
+
+void assets_texture_get(unsigned int *out, const struct assets *in,
+                        const char *id) {
+    err status = CORE_SUCCESS;
+
+    if (!in || !id) {
+        status = CORE_NULLPTR;
+        goto err;
+    }
+
+    char texture_id[ASSETS_STR_MAX] = {0};
+    snprintf(texture_id, ASSETS_STR_MAX, "%s", id);
+    table_find((void *)out, &in->textures, texture_id);
+    return;
+
+err:
+    logger_log_err(LOGGER_ERR, status, "Getting texture failed");
 }

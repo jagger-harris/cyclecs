@@ -2,9 +2,9 @@
 #include "core/util/logger.h"
 #include <stddef.h>
 
-err gl_texture2d_new(GLuint *out, unsigned char *data, int width, int height,
-                     int channels) {
-    err err = CORE_SUCCESS;
+err gl_texture2d_init(GLuint *out, unsigned char *data, int width, int height,
+                      int channels) {
+    err status = CORE_SUCCESS;
     GLenum format = GL_RED;
 
     if (channels == 3)
@@ -26,46 +26,37 @@ err gl_texture2d_new(GLuint *out, unsigned char *data, int width, int height,
     glBindTexture(GL_TEXTURE_2D, 0);
 
     if (glGetError() != GL_NO_ERROR) {
-        err = CORE_INVALID_GFX_GL;
+        status = CORE_GL;
         goto err;
     }
 
-    return err;
+    return status;
 
 err:
-    logger_log(LOGGER_ERR, "Failed to make new gl texture", err);
-    return err;
+    logger_log_err(LOGGER_ERR, status, "Init gl texture2d failed");
+    return status;
 }
 
-err gl_texture2d_delete(GLuint texture) {
-    err err = CORE_SUCCESS;
-
-    if (glIsTexture(texture) == GL_FALSE) {
-        err = CORE_INVALID_GFX_GL;
-        goto err;
-    }
+void gl_texture2d_destroy(GLuint texture) {
+    if (glIsTexture(texture) == GL_FALSE)
+        return;
 
     glDeleteTextures(1, &texture);
-    return err;
-
-err:
-    logger_log(LOGGER_ERR, "Failed to delete gl texture", err);
-    return err;
 }
 
 err gl_texture2d_use(GLuint texture) {
-    err err = CORE_SUCCESS;
+    err status = CORE_SUCCESS;
 
     if (!glIsTexture(texture)) {
-        err = CORE_INVALID_ARGS;
+        status = CORE_ARGS;
         goto err;
     }
 
     glActiveTexture(0);
     glBindTexture(GL_TEXTURE_2D, texture);
-    return err;
+    return status;
 
 err:
-    logger_log(LOGGER_ERR, "Failed to use gl texture", err);
-    return err;
+    logger_log_err(LOGGER_ERR, status, "Using gl texture2d failed");
+    return status;
 }

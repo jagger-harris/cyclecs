@@ -3,12 +3,14 @@
 
 #include "core/util/err.h"
 
-typedef struct fimg fimg;
+struct fimg {
+    int width;
+    int height;
+    int channels;
+    unsigned char *data;
+};
 
-err fimg_new(fimg **out, const char *path);
-err fimg_delete(fimg *in);
-err fimg_get_dims(int *width, int *height, fimg *in);
-err fimg_get_channels(int *out, fimg *in);
-err fimg_get_data(unsigned char **out, fimg *in);
+err fimg_init(struct fimg *out, const char *path);
+void fimg_destroy(struct fimg *in);
 
-#endif /* IO_FIMG_H */
+#endif // IO_FIMG_H

@@ -3,7 +3,7 @@
 
 #include "core/util/err.h"
 
-err ftxt_new(const char **out, const char *path);
-err ftxt_delete(const char *in);
+err ftxt_init(const char **out, const char *path);
+void ftxt_destroy(const char *in);
 
-#endif /* IO_FTXT_H */
+#endif // IO_FTXT_H

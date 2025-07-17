@@ -4,12 +4,17 @@
 #include "core/util/err.h"
 #include <stddef.h>
 
-typedef struct arena arena;
+struct arena {
+    void *mem;
+    size_t capacity;
+    size_t used;
+    size_t last_offset;
+};
 
-err arena_new(arena **out, size_t capacity);
-err arena_delete(arena *in);
-err arena_alloc(void **out, arena *in, size_t size, size_t alignment);
-err arena_reset(arena *in);
-err arena_remove_last(arena *in);
+err arena_init(struct arena *out, size_t capacity);
+void arena_destroy(struct arena *in);
+err arena_alloc(void **out, struct arena *in, size_t size, size_t alignment);
+err arena_reset(struct arena *in);
+err arena_remove_last(struct arena *in);
 
-#endif /* UTIL_ARENA_H */
+#endif // UTIL_ARENA_H

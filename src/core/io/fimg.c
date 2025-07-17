@@ -5,116 +5,32 @@
 
 #define STR_MAX 512
 
-struct fimg {
-    int width;
-    int height;
-    int channels;
-    stbi_uc *data;
-};
-
-err fimg_new(fimg **out, const char *path) {
-    err err = CORE_SUCCESS;
-    char msg[STR_MAX] = {0};
+err fimg_init(struct fimg *out, const char *path) {
+    err status = CORE_SUCCESS;
 
     if (!path) {
-        err = CORE_INVALID_NULLPTR;
+        status = CORE_NULLPTR;
         goto err;
     }
 
-    /* TODO: Use arena/other allocator if possible */
-    *out = malloc(sizeof(fimg));
-    if (!(*out)) {
-        err = CORE_OUT_OF_MEMORY;
+    out->data = NULL;
+    out->data = stbi_load(path, &out->width, &out->height, &out->channels, 0);
+
+    if (!out->data) {
+        status = CORE_FAILURE;
         goto err;
     }
 
-    (*out)->data = NULL;
-    (*out)->data =
-        stbi_load(path, &(*out)->width, &(*out)->height, &(*out)->channels, 0);
-
-    if (!(*out)->data) {
-        err = CORE_FAILURE;
-        goto err;
-    }
-
-    return err;
+    return status;
 
 err:
-    snprintf(msg, STR_MAX, "Failed to read image: %s", path);
-    logger_log(LOGGER_ERR, msg, err);
-
-    if (*out)
-        free(*out);
-
-    return err;
+    logger_log_err(LOGGER_ERR, status, "Reading image failed: %s", path);
+    return status;
 }
 
-err fimg_delete(fimg *in) {
-    err err = CORE_SUCCESS;
-
-    if (!in) {
-        err = CORE_INVALID_NULLPTR;
-        goto err;
-    }
+void fimg_destroy(struct fimg *in) {
+    if (!in)
+        return;
 
     stbi_image_free(in->data);
-    free(in);
-    return err;
-
-err:
-    logger_log(LOGGER_ERR, "Failed to delete img", err);
-    return err;
-}
-
-err fimg_get_dims(int *width, int *height, fimg *in) {
-    err err = CORE_SUCCESS;
-
-    if (!in || (!width && !height)) {
-        err = CORE_INVALID_NULLPTR;
-        goto err;
-    }
-
-    if (width)
-        *width = in->width;
-
-    if (height)
-        *height = in->height;
-
-    return err;
-
-err:
-    logger_log(LOGGER_ERR, "Failed to get img dimensions", err);
-    return err;
-}
-
-err fimg_get_channels(int *out, fimg *in) {
-    err err = CORE_SUCCESS;
-
-    if (!out || !in) {
-        err = CORE_INVALID_NULLPTR;
-        goto err;
-    }
-
-    *out = in->channels;
-    return err;
-
-err:
-    logger_log(LOGGER_ERR, "Failed to get img channels", err);
-    return err;
-}
-
-err fimg_get_data(unsigned char **out, fimg *in) {
-    err err = CORE_SUCCESS;
-
-    if (!out || !in) {
-        err = CORE_INVALID_NULLPTR;
-        goto err;
-    }
-
-    *out = in->data;
-    return err;
-
-err:
-    logger_log(LOGGER_ERR, "Failed to get img channels", err);
-    return err;
 }
