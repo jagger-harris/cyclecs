@@ -2,9 +2,7 @@
 #include "base/ecs/sys/move_sys.h"
 #include "base/game/constants.h"
 #include "core/ecs/comp/transform_comp.h"
-#include "core/ecs/ecs.h"
 #include "core/ecs/sys/render_sys.h"
-#include "core/util/array.h"
 #include "core/util/logger.h"
 #include <stdint.h>
 
@@ -18,8 +16,10 @@ static size_t vertex_count = ARRAY_SIZE(quad_vertices);
 static size_t index_count = ARRAY_SIZE(quad_indices);
 static uint32_t rect;
 
-err game_init(struct assets *assets, struct ecs *ecs,
-              struct renderer *renderer) {
+err game_init(struct app *app) {
+    struct assets *assets = &app->assets;
+    struct ecs *ecs = &app->ecs;
+    struct renderer *renderer = &app->window.renderer;
     err status = CORE_SUCCESS;
 
     assets_material_add(assets, "container", "quad", "container.jpg");
@@ -42,7 +42,7 @@ err game_init(struct assets *assets, struct ecs *ecs,
     if (status)
         goto err;
 
-    status = ecs_system_add(&handles.move_sys, ecs, move_sys, NULL);
+    status = ecs_system_add(&handles.move_sys, ecs, move_sys, renderer);
     if (status)
         goto err;
 
@@ -82,12 +82,31 @@ err game_init(struct assets *assets, struct ecs *ecs,
     return status;
 
 err:
-    logger_log_err(LOGGER_ERR, status, "Initializing game failed");
+    logger_log_err(LOGGER_ERR, status, "Init game failed");
     return status;
 }
 
-err game_run(void) {
+err game_run(struct app *app) {
+    struct renderer *renderer = &app->window.renderer;
+    struct input *input = &app->window.input;
     err status = CORE_SUCCESS;
+
+    if (input->keys[GLFW_KEY_W])
+        renderer_camera_move(renderer, 0.0F, 0.01F, 0.0F);
+
+    if (input->keys[GLFW_KEY_S])
+        renderer_camera_move(renderer, 0.0F, -0.01F, 0.0F);
+
+    if (input->keys[GLFW_KEY_A])
+        renderer_camera_move(renderer, 0.01F, 0.0F, 0.0F);
+
+    if (input->keys[GLFW_KEY_D])
+        renderer_camera_move(renderer, -0.01F, 0.0F, 0.0F);
+
+    if (input->mouse_buttons[GLFW_MOUSE_BUTTON_LEFT]) {
+        logger_log(LOGGER_DEBUG, "%f %f", input->cursor_pos[0],
+                   input->cursor_pos[1]);
+    }
 
     return status;
 }

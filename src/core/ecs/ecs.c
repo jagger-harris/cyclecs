@@ -87,7 +87,7 @@ err ecs_init_handles(struct ecs *in, void *handles, size_t handles_size) {
     return status;
 
 err:
-    logger_log_err(LOGGER_ERR, status, "Initializing ecs handles failed");
+    logger_log_err(LOGGER_ERR, status, "Init ecs handles failed");
     return status;
 }
 

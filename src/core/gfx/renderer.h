@@ -33,6 +33,10 @@ err renderer_use(const struct renderer *in);
 err renderer_swap_buffers(struct renderer *in, GLFWwindow *window);
 err renderer_resize(struct renderer *in, int width, int height);
 err renderer_camera_update(struct renderer *in);
+err renderer_camera_set_pos(struct renderer *in, float pos_x, float pos_y,
+                            float pos_z);
+err renderer_camera_move(struct renderer *in, float pos_x, float pos_y,
+                         float pos_z);
 err renderer_render_frame(struct renderer *in, struct assets *assets);
 
 #endif // GFX_RENDERER_H

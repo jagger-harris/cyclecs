@@ -11,7 +11,7 @@ err move_sys(const struct ecs *in, void *ctx) {
     err status = CORE_SUCCESS;
     struct ecs_handles *handles = (struct ecs_handles *)in->handles;
 
-    if (ctx) {
+    if (!ctx) {
         status = CORE_NULLPTR;
         goto err;
     }

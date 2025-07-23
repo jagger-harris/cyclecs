@@ -126,36 +126,31 @@ err:
     logger_log_err(LOGGER_ERR, status, "Adding new texture failed");
 }
 
-err assets_init(struct assets *out, struct arena *mem) {
+err assets_init(struct assets *in) {
     err status = CORE_SUCCESS;
 
-    if (!out || !mem) {
+    if (!in) {
         status = CORE_NULLPTR;
         goto err;
     }
 
-    status = arena_alloc((void **)out, mem, sizeof(struct assets),
-                         _Alignof(struct assets));
-    if (status)
-        goto err;
-
     // TODO: Support multiple apis
-    status = table_init(&out->materials, DARRAY_START_SIZE,
+    status = table_init(&in->materials, DARRAY_START_SIZE,
                         sizeof(char[ASSETS_STR_MAX]), sizeof(struct material));
     if (status)
         goto err;
 
-    status = table_init(&out->meshes, DARRAY_START_SIZE,
+    status = table_init(&in->meshes, DARRAY_START_SIZE,
                         sizeof(char[ASSETS_STR_MAX]), sizeof(struct gl_mesh));
     if (status)
         goto err;
 
-    status = table_init(&out->shaders, DARRAY_START_SIZE,
+    status = table_init(&in->shaders, DARRAY_START_SIZE,
                         sizeof(char[ASSETS_STR_MAX]), sizeof(GLuint));
     if (status)
         goto err;
 
-    status = table_init(&out->textures, DARRAY_START_SIZE,
+    status = table_init(&in->textures, DARRAY_START_SIZE,
                         sizeof(char[ASSETS_STR_MAX]), sizeof(GLuint));
     if (status)
         goto err;
@@ -164,7 +159,7 @@ err assets_init(struct assets *out, struct arena *mem) {
 
 err:
     logger_log_err(LOGGER_ERR, status, "Init assets failed");
-    assets_destroy(out);
+    assets_destroy(in);
     return status;
 }
 

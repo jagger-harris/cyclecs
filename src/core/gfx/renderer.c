@@ -31,7 +31,7 @@ err renderer_init(struct renderer *out, float aspect_ratio, const api_init init,
                                   .far_clip = 100.0F,
                                   .aspect_ratio = aspect_ratio,
                                   .ortho_size = 1.0F,
-                                  .orthographic = false,
+                                  .orthographic = true,
                                   .active = true,
                                   .update = true};
 
@@ -42,7 +42,7 @@ err renderer_init(struct renderer *out, float aspect_ratio, const api_init init,
     return status;
 
 err:
-    logger_log_err(LOGGER_ERR, status, "Initializing renderer failed");
+    logger_log_err(LOGGER_ERR, status, "Init renderer failed");
     return status;
 }
 
@@ -171,7 +171,48 @@ err renderer_camera_update(struct renderer *in) {
     return status;
 
 err:
-    logger_log_err(LOGGER_ERR, status, "Setting camera pos failed");
+    logger_log_err(LOGGER_ERR, status, "Updating camera failed");
+    return status;
+}
+
+err renderer_camera_set_pos(struct renderer *in, float pos_x, float pos_y,
+                            float pos_z) {
+    err status = CORE_SUCCESS;
+
+    if (!in) {
+        status = CORE_NULLPTR;
+        goto err;
+    }
+
+    in->camera.pos[0] = pos_x;
+    in->camera.pos[1] = pos_y;
+    in->camera.pos[2] = pos_z;
+
+    in->camera.update = true;
+    return status;
+
+err:
+    logger_log_err(LOGGER_ERR, status, "Update camera failed");
+    return status;
+}
+
+err renderer_camera_move(struct renderer *in, float pos_x, float pos_y,
+                         float pos_z) {
+    err status = CORE_SUCCESS;
+
+    if (!in) {
+        status = CORE_NULLPTR;
+        goto err;
+    }
+
+    renderer_camera_set_pos(in, pos_x + in->camera.pos[0],
+                            pos_y + in->camera.pos[1],
+                            pos_z + in->camera.pos[2]);
+
+    return status;
+
+err:
+    logger_log_err(LOGGER_ERR, status, "Moving camera failed");
     return status;
 }
 

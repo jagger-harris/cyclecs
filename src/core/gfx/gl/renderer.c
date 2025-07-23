@@ -11,10 +11,6 @@
 err gl_renderer_init(void) {
     err status = CORE_SUCCESS;
 
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
-    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-
     if (!gladLoadGL((GLADloadfunc)glfwGetProcAddress)) {
         status = CORE_FAILURE;
         goto err;
@@ -25,7 +21,7 @@ err gl_renderer_init(void) {
 err:
     logger_log_err(
         LOGGER_ERR, status,
-        "Initializing OpenGL failed (old graphics drivers or unsupported GPU)");
+        "Init OpenGL failed (old graphics drivers or unsupported GPU)");
     return status;
 }
 

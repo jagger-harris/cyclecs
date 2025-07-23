@@ -3,7 +3,6 @@
 
 #include "core/gfx/gl/mesh.h"
 #include "core/gfx/material.h"
-#include "core/util/arena.h"
 #include "core/util/err.h"
 #include "core/util/table.h"
 #include <stdbool.h>
@@ -16,7 +15,7 @@ struct assets {
     struct table textures;
 };
 
-err assets_init(struct assets *out, struct arena *mem);
+err assets_init(struct assets *out);
 void assets_destroy(struct assets *in);
 void assets_material_add(struct assets *in, const char *id,
                          const char *shader_path, const char *texture_path);
