@@ -1,6 +1,7 @@
 #ifndef APP_INPUT_H
 #define APP_INPUT_H
 
+#include "core/util/error.h"
 #include <GLFW/glfw3.h>
 #include <cglm/cglm.h>
 
@@ -13,7 +14,7 @@ struct input {
     vec2 cursor_pos;
 };
 
-void input_key(struct input *in, int key, int action);
-void input_mouse_button(struct input *in, int button, int action);
+int input_key(struct input *in, int key, int action);
+int input_mouse_button(struct input *in, int button, int action);
 
 #endif // APP_INPUT_H

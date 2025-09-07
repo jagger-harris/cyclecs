@@ -1,32 +1,38 @@
 #include "base/game/game.h"
 #include "core/app/app.h"
-#include "core/util/err.h"
 #include "core/util/logger.h"
-#include <stdlib.h>
 
-#define MEM_SIZE 1024 * 1024
 #define WIN_WIDTH 1280
 #define WIN_HEIGHT 720
 #define WIN_TITLE "C ECS OpenGL Game Engine"
 
-err main(void) {
-    err status = CORE_SUCCESS;
+int main(void) {
+    LOGGER_LOG(LOGGER_INFO, "%s", "Starting app");
+
     struct app app = {0};
+    int status = app_init(&app, WIN_WIDTH, WIN_HEIGHT, WIN_TITLE);
+    if (status) {
+        LOGGER_LOG_ERROR(LOGGER_ERROR, status, "%s", "Init app failed");
+        goto cleanup;
+    }
 
-    logger_log(LOGGER_INFO, "Starting app");
+    struct game game = {0};
+    status = game_init(&game, &app);
+    if (status) {
+        LOGGER_LOG_ERROR(LOGGER_ERROR, status, "%s", "Init game failed");
+        goto cleanup;
+    }
 
-    status = app_init(&app, WIN_WIDTH, WIN_HEIGHT, WIN_TITLE);
-    if (status)
-        goto err;
+    status = app_run(&app, game_run);
+    if (status) {
+        LOGGER_LOG_ERROR(LOGGER_ERROR, status, "%s", "Running app failed");
+        goto cleanup;
+    }
 
-    status = app_run(&app, game_init, game_run);
-    if (status)
-        goto err;
+    return CORE_SUCCESS;
 
-    exit(EXIT_SUCCESS);
-
-err:
-    logger_log_err(LOGGER_FATAL, status, "Fatal error");
+cleanup:
+    LOGGER_LOG_ERROR(LOGGER_FATAL, status, "%s", "Fatal error");
     app_destroy(&app);
-    exit(EXIT_FAILURE);
+    return status;
 }

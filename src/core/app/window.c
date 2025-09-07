@@ -2,27 +2,24 @@
 #include "core/gfx/gl/renderer.h"
 #include "core/gfx/renderer.h"
 #include "core/util/logger.h"
-#include <GLFW/glfw3.h>
 
-static void err_callback(err err, const char *msg) {
-    logger_log_err(LOGGER_ERR, err, msg);
+static void error_callback(int status, const char *msg) {
+    LOGGER_LOG_ERROR(LOGGER_ERROR, status, "%s", msg);
 }
 
 static void framebuffer_size_callback(GLFWwindow *window, int width,
                                       int height) {
-    struct window *user_window =
+    struct window *glfw_user_window =
         (struct window *)glfwGetWindowUserPointer(window);
 
-    if (!user_window) {
-        logger_log_err(LOGGER_ERR, CORE_NULLPTR, "Framebuffer resize failed");
+    if (!glfw_user_window) {
+        LOGGER_LOG_ERROR(LOGGER_ERROR, CORE_NULLPTR, "%s",
+                         "Framebuffer resize failed");
         return;
     }
 
     glViewport(0, 0, width, height);
-    user_window->renderer.camera.aspect_ratio = (float)width / (float)height;
-    user_window->renderer.camera.update = true;
-
-    renderer_resize(&user_window->renderer, width, height);
+    renderer_resize(&glfw_user_window->renderer, width, height);
 }
 
 static void key_callback(GLFWwindow *window, int key, int scancode, int action,
@@ -42,38 +39,35 @@ static void mouse_button_callback(GLFWwindow *window, int button, int action,
     // Prevent unused warning
     (void)mods;
 
-    struct window *user_window =
+    struct window *glfw_user_window =
         (struct window *)glfwGetWindowUserPointer(window);
 
-    input_mouse_button(&user_window->input, button, action);
+    input_mouse_button(&glfw_user_window->input, button, action);
 }
 
 static void cursor_pos_callback(GLFWwindow *window, double xpos, double ypos) {
-    struct window *user_window =
+    struct window *glfw_user_window =
         (struct window *)glfwGetWindowUserPointer(window);
 
-    user_window->input.cursor_pos[0] = (float)xpos;
-    user_window->input.cursor_pos[1] = (float)ypos;
+    glfw_user_window->input.cursor_pos[0] = (float)xpos;
+    glfw_user_window->input.cursor_pos[1] = (float)ypos;
 }
 
-err window_init(struct window *in, int width, int height, const char *title,
-                int vsync) {
-    err status = CORE_SUCCESS;
+int window_init(struct window *in, int width, int height, const char *title,
+                bool vsync) {
+    if (!in || !title)
+        return CORE_NULLPTR;
 
-    glfwSetErrorCallback(err_callback);
+    glfwSetErrorCallback(error_callback);
 
-    if (!in || !title) {
-        status = CORE_NULLPTR;
-        goto err;
-    }
-
-    // TODO: FORCE TO USE X11 BECAUSE OF RENDERDOC, REMOVE THIS WHEN NOT
-    // DEBUGGING
+    // TODO: Use for renderdoc as renderdoc and address sanitizer clash
+#ifndef DEBUG
     glfwInitHint(GLFW_PLATFORM, GLFW_PLATFORM_X11);
+#endif
 
     if (!glfwInit()) {
-        status = CORE_GLFW;
-        goto err;
+        LOGGER_LOG_ERROR(LOGGER_ERROR, CORE_GLFW, "%s", "Init GLFW failed");
+        return CORE_GLFW;
     }
 
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
@@ -82,10 +76,11 @@ err window_init(struct window *in, int width, int height, const char *title,
 
     in->glfw_window = glfwCreateWindow(width, height, title, NULL, NULL);
     if (!in->glfw_window) {
+        LOGGER_LOG_ERROR(LOGGER_ERROR, CORE_GLFW, "%s",
+                         "Creating GLFW window failed");
         glfwTerminate();
         in->glfw_window = NULL;
-        status = CORE_GLFW;
-        goto err;
+        return CORE_GLFW;
     }
 
     glfwMakeContextCurrent(in->glfw_window);
@@ -97,21 +92,18 @@ err window_init(struct window *in, int width, int height, const char *title,
     glfwSwapInterval(vsync);
 
     // TODO: Add support for multiple apis via an options file
+    int status = CORE_SUCCESS;
     status = renderer_init(&in->renderer, (float)width / (float)height,
                            gl_renderer_init, gl_renderer_swap_buffers,
-                           gl_renderer_on_resize, gl_renderer_render_frame);
+                           gl_renderer_on_resize, gl_renderer_draw_frame);
     if (status)
-        goto err;
+        return status;
 
     status = renderer_use(&in->renderer);
     if (status)
-        goto err;
+        return status;
 
-    return status;
-
-err:
-    logger_log_err(LOGGER_ERR, status, "Init window failed");
-    return status;
+    return CORE_SUCCESS;
 }
 
 void window_destroy(struct window *in) {

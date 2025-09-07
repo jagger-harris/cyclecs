@@ -1,6 +1,7 @@
-#ifndef GLOBALS_H
-#define GLOBALS_H
+#ifndef UTIL_GLOBALS_H
+#define UTIL_GLOBALS_H
 
-#define ASSETS_STR_MAX 64
+#define GLOBALS_PATH_MAX 512
+#define GLOBALS_STR_ID_MAX 64
 
 #endif // UTIL_GLOBALS_H

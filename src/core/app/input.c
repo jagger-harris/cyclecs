@@ -1,14 +1,9 @@
 #include "core/app/input.h"
-#include "core/util/err.h"
-#include "core/util/logger.h"
+#include "core/util/error.h"
 
-void input_key(struct input *in, int key, int action) {
-    err status = CORE_SUCCESS;
-
-    if (!in) {
-        status = CORE_NULLPTR;
-        goto err;
-    }
+int input_key(struct input *in, int key, int action) {
+    if (!in)
+        return CORE_NULLPTR;
 
     if (action == GLFW_PRESS)
         in->keys[key] = true;
@@ -16,19 +11,12 @@ void input_key(struct input *in, int key, int action) {
     if (action == GLFW_RELEASE)
         in->keys[key] = false;
 
-    return;
-
-err:
-    logger_log_err(LOGGER_ERR, status, "Setting input key failed");
+    return CORE_SUCCESS;
 }
 
-void input_mouse_button(struct input *in, int button, int action) {
-    err status = CORE_SUCCESS;
-
-    if (!in) {
-        status = CORE_NULLPTR;
-        goto err;
-    }
+int input_mouse_button(struct input *in, int button, int action) {
+    if (!in)
+        return CORE_NULLPTR;
 
     if (action == GLFW_PRESS)
         in->mouse_buttons[button] = true;
@@ -36,8 +24,5 @@ void input_mouse_button(struct input *in, int button, int action) {
     if (action == GLFW_RELEASE)
         in->mouse_buttons[button] = false;
 
-    return;
-
-err:
-    logger_log_err(LOGGER_ERR, status, "Setting input mouse button failed");
+    return CORE_SUCCESS;
 }

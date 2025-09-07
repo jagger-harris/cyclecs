@@ -1,118 +1,131 @@
 #include "core/gfx/gl/renderer.h"
-#include "core/gfx/draw_call.h"
+#include "cglm/affine-pre.h"
+#include "core/app/assets.h"
+#include "core/ecs/component/renderable/sprite2d.h"
+#include "core/ecs/component/transform2d.h"
+#include "core/gfx/draw_call2d.h"
 #include "core/gfx/gl/mesh.h"
 #include "core/gfx/gl/shader.h"
 #include "core/gfx/gl/texture2d.h"
-#include "core/util/logger.h"
+#include "core/util/error.h"
 #include <cglm/cglm.h>
 #include <glad/gl.h>
 #include <string.h>
 
-err gl_renderer_init(void) {
-    err status = CORE_SUCCESS;
+struct render_context {
+    struct assets *assets;
+    struct camera *camera;
+    GLuint shader;
+    GLuint texture;
+    mat4 mvp;
+    mat4 model;
+};
 
-    if (!gladLoadGL((GLADloadfunc)glfwGetProcAddress)) {
-        status = CORE_FAILURE;
-        goto err;
-    }
+typedef int (*draw_fn)(struct render_context *ctx,
+                       struct draw_call2d *draw_call);
 
-    return status;
+int gl_renderer_init(void) {
+    if (!gladLoadGL((GLADloadfunc)glfwGetProcAddress))
+        return CORE_GL;
 
-err:
-    logger_log_err(
-        LOGGER_ERR, status,
-        "Init OpenGL failed (old graphics drivers or unsupported GPU)");
-    return status;
+    return CORE_SUCCESS;
 }
 
-err gl_renderer_swap_buffers(GLFWwindow *window) {
-    err status = CORE_SUCCESS;
-
-    if (!window) {
-        status = CORE_NULLPTR;
-        goto err;
-    }
+int gl_renderer_swap_buffers(GLFWwindow *window) {
+    if (!window)
+        return CORE_NULLPTR;
 
     glfwSwapBuffers(window);
-    return status;
-
-err:
-    logger_log_err(LOGGER_ERR, status, "Swapping buffers failed");
-    return status;
+    return CORE_SUCCESS;
 }
 
 void gl_renderer_on_resize(int width, int height) {
     glViewport(0, 0, width, height);
 }
 
-static int compare_draw_camera_dist(const void *a, const void *b) {
-    struct draw_call *draw_a = *(struct draw_call **)a;
-    struct draw_call *draw_b = *(struct draw_call **)b;
-    return (draw_b->camera_dist > draw_a->camera_dist) -
-           (draw_b->camera_dist < draw_a->camera_dist);
+static int render_mesh2d(struct render_context *ctx,
+                         struct draw_call2d *draw_call) {
+    if (!ctx || !draw_call)
+        return CORE_NULLPTR;
+
+    return CORE_SUCCESS;
 }
 
-err gl_renderer_render_frame(struct assets *assets, struct camera *camera,
-                             struct array *opaque_draws,
-                             struct array *transparent_draws) {
+static int render_sprite2d(struct render_context *ctx,
+                           struct draw_call2d *draw_call) {
+    if (!ctx || !draw_call)
+        return CORE_NULLPTR;
+
+    struct sprite2d *sprite = draw_call->component;
+
+    assets_shader_get(&ctx->shader, ctx->assets, "sprite2d");
+    assets_texture_get(&ctx->texture, ctx->assets, sprite->texture_path);
+    gl_shader_use(ctx->shader);
+    gl_texture2d_use(ctx->texture);
+
+    vec3 new_scale = {draw_call->transform->scale[0],
+                      draw_call->transform->scale[1], 1};
+    vec3 new_pos = {draw_call->transform->pos[0], draw_call->transform->pos[1],
+                    draw_call->transform->z_index};
+    vec3 rotation_pivot = {0.0F, 0.0F, 0.0F};
+    vec3 rotation_axis_2d = {0.0F, 0.0F, 1.0F};
+
+    glm_mat4_identity(ctx->model);
+    glm_scale(ctx->model, new_scale);
+    glm_rotate_at(ctx->model, rotation_pivot, draw_call->transform->rot_angle,
+                  rotation_axis_2d);
+    glm_rotate(ctx->model, draw_call->transform->rot_angle, rotation_axis_2d);
+    glm_translate(ctx->model, new_pos);
+
+    glm_mat4_identity(ctx->mvp);
+    glm_mat4_mul(ctx->mvp, ctx->camera->projection, ctx->mvp);
+    glm_mat4_mul(ctx->mvp, ctx->camera->view, ctx->mvp);
+    glm_mat4_mul(ctx->mvp, ctx->model, ctx->mvp);
+
+    gl_shader_set_mat4(ctx->shader, "mvp", &ctx->mvp);
+
+    struct gl_mesh *mesh = NULL;
+    assets_mesh_get(&mesh, ctx->assets, "sprite2d");
+    gl_mesh_draw(mesh);
+    return CORE_SUCCESS;
+}
+
+static draw_fn draw_functions[] = {
+    [MESH2D] = render_mesh2d, [SPRITE2D] = render_sprite2d};
+
+static int render_draw_calls(struct render_context *ctx,
+                             struct array *draw_calls) {
+    for (size_t i = 0; i < draw_calls->length; ++i) {
+        struct draw_call2d *draw_call = NULL;
+        array_get((void **)&draw_call, draw_calls, i);
+        if (!draw_call || draw_call->type >= DRAW_CALL2D_RENDER_TYPE_COUNT)
+            continue;
+
+        draw_fn draw = draw_functions[draw_call->type];
+        if (draw)
+            draw(ctx, draw_call);
+    }
+
+    return CORE_SUCCESS;
+}
+
+int gl_renderer_draw_frame(struct assets *assets, struct camera *camera,
+                           struct array *opaque_draws_2d,
+                           struct array *transparent_draws_2d,
+                           struct array *opaque_draws_3d,
+                           struct array *transparent_draws_3d) {
     glClearColor(0.2F, 0.3F, 0.4F, 1.0F);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    // TODO: Add batching draw calls to avoid frequent opengl state changes
+    struct render_context ctx = {
+        .assets = assets, .camera = camera, .shader = 0, .texture = 0};
 
-    GLuint shader = 0;
-    GLuint texture = 0;
+    glm_mat4_identity(ctx.mvp);
+    glm_mat4_identity(ctx.model);
 
-    for (size_t i = 0; i < opaque_draws->length; ++i) {
-        struct draw_call *draw = NULL;
-        array_get_ptr((void **)&draw, opaque_draws, i);
-
-        if (!draw || !draw->visible)
-            continue;
-
-        assets_shader_get(&shader, assets, draw->mat->shader_path);
-        assets_texture_get(&texture, assets, draw->mat->texture_path);
-
-        gl_shader_use(shader);
-        gl_texture2d_use(texture);
-
-        mat4 mvp = {0};
-        mat4 model = {0};
-        glm_mat4_identity(mvp);
-        glm_mat4_identity(model);
-
-        glm_scale(model, draw->tf.scale);
-        glm_rotate(model, draw->tf.rot_deg, draw->tf.rot);
-        glm_translate(model, draw->tf.pos);
-
-        glm_mat4_mul(mvp, camera->projection, mvp);
-        glm_mat4_mul(mvp, camera->view, mvp);
-        glm_mat4_mul(mvp, model, mvp);
-
-        gl_shader_set_mat4(shader, "mvp", &mvp);
-        gl_mesh_draw(draw->mesh);
-    }
-
-    if (0 < transparent_draws->length) {
-        struct draw_call **sorted = transparent_draws->data;
-        qsort(sorted, transparent_draws->length, sizeof(struct draw_call *),
-              compare_draw_camera_dist);
-    }
-
-    for (size_t i = 0; i < transparent_draws->length; ++i) {
-        struct draw_call *draw = NULL;
-        array_get_ptr((void **)&draw, transparent_draws, i);
-
-        if (!draw || !draw->visible)
-            continue;
-
-        assets_shader_get(&shader, assets, draw->mat->shader_path);
-        assets_texture_get(&texture, assets, draw->mat->shader_path);
-
-        gl_shader_use(shader);
-        gl_texture2d_use(texture);
-        gl_mesh_draw(draw->mesh);
-    }
-
-    return 0;
+    render_draw_calls(&ctx, opaque_draws_3d);
+    render_draw_calls(&ctx, transparent_draws_3d);
+    render_draw_calls(&ctx, opaque_draws_2d);
+    render_draw_calls(&ctx, transparent_draws_2d);
+    return CORE_SUCCESS;
 }

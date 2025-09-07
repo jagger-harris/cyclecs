@@ -5,8 +5,8 @@
 #include <stdbool.h>
 
 struct material {
-    char shader_path[ASSETS_STR_MAX];
-    char texture_path[ASSETS_STR_MAX];
+    char shader_path[GLOBALS_PATH_MAX];
+    char texture_path[GLOBALS_PATH_MAX];
     bool transparent;
 };
 

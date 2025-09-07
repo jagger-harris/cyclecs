@@ -4,14 +4,15 @@
 #include "core/app/assets.h"
 #include "core/gfx/camera.h"
 #include "core/util/array.h"
-#include "core/util/err.h"
 #include <GLFW/glfw3.h>
 
-err gl_renderer_init(void);
-err gl_renderer_swap_buffers(GLFWwindow *window);
+int gl_renderer_init(void);
+int gl_renderer_swap_buffers(GLFWwindow *window);
 void gl_renderer_on_resize(int width, int height);
-err gl_renderer_render_frame(struct assets *assets, struct camera *camera,
-                             struct array *opaque_draws,
-                             struct array *transparent_draws);
+int gl_renderer_draw_frame(struct assets *assets, struct camera *camera,
+                           struct array *opaque_draws_2d,
+                           struct array *transparent_draws_2d,
+                           struct array *opaque_draws_3d,
+                           struct array *transparent_draws_3d);
 
 #endif // GFX_GL_RENDERER_H

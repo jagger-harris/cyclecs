@@ -1,20 +1,12 @@
 #include "core/gfx/gl/mesh.h"
-#include "core/util/logger.h"
+#include "core/util/error.h"
+#include "core/util/types.h"
 
-err gl_mesh_init(struct gl_mesh *out, const struct vertex *vertices,
+int gl_mesh_init(struct gl_mesh *out, const struct vertex *vertices,
                  size_t vertex_count, unsigned int *indices,
                  size_t index_count) {
-    err status = CORE_SUCCESS;
-
-    if (!out) {
-        status = CORE_NULLPTR;
-        goto err;
-    }
-
-    if (!out) {
-        status = CORE_OUT_OF_MEMORY;
-        goto err;
-    }
+    if (!out || !vertices || !indices)
+        return CORE_NULLPTR;
 
     out->index_count = index_count;
 
@@ -29,8 +21,8 @@ err gl_mesh_init(struct gl_mesh *out, const struct vertex *vertices,
                  vertices, GL_STATIC_DRAW);
 
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, out->ebo);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, index_count * sizeof(uint32_t),
-                 indices, GL_STATIC_DRAW);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, index_count * sizeof(u32), indices,
+                 GL_STATIC_DRAW);
 
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(struct vertex),
                           (void *)offsetof(struct vertex, position));
@@ -42,12 +34,7 @@ err gl_mesh_init(struct gl_mesh *out, const struct vertex *vertices,
                           (void *)offsetof(struct vertex, uv));
     glEnableVertexAttribArray(2);
     glBindVertexArray(0);
-
-    return status;
-
-err:
-    logger_log_err(LOGGER_ERR, status, "Init gl mesh failed");
-    return status;
+    return CORE_SUCCESS;
 }
 
 void gl_mesh_destroy(struct gl_mesh *mesh) {
@@ -59,20 +46,12 @@ void gl_mesh_destroy(struct gl_mesh *mesh) {
     glDeleteBuffers(1, &mesh->ebo);
 }
 
-err gl_mesh_draw(const struct gl_mesh *mesh) {
-    err status = CORE_SUCCESS;
-
-    if (!mesh) {
-        status = CORE_NULLPTR;
-        goto err;
-    }
+int gl_mesh_draw(const struct gl_mesh *mesh) {
+    if (!mesh)
+        return CORE_NULLPTR;
 
     glBindVertexArray(mesh->vao);
     glDrawElements(GL_TRIANGLES, mesh->index_count, GL_UNSIGNED_INT, 0);
     glBindVertexArray(0);
-    return status;
-
-err:
-    logger_log_err(LOGGER_ERR, status, "Drawing gl mesh failed");
-    return status;
+    return CORE_SUCCESS;
 }

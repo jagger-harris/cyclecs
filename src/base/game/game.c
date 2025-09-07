@@ -1,8 +1,10 @@
 #include "base/game/game.h"
-#include "base/ecs/sys/move_sys.h"
-#include "base/game/constants.h"
-#include "core/ecs/comp/transform_comp.h"
-#include "core/ecs/sys/render_sys.h"
+#include "base/ecs/system/move.h"
+#include "core/ecs/component/renderable/mesh2d.h"
+#include "core/ecs/component/renderable/renderable2d.h"
+#include "core/ecs/component/renderable/sprite2d.h"
+#include "core/ecs/ecs.h"
+#include "core/ecs/world.h"
 #include "core/util/logger.h"
 #include <stdint.h>
 
@@ -14,82 +16,60 @@ static struct vertex quad_vertices[] = {
 static unsigned int quad_indices[] = {0, 1, 2, 2, 3, 0};
 static size_t vertex_count = ARRAY_SIZE(quad_vertices);
 static size_t index_count = ARRAY_SIZE(quad_indices);
-static uint32_t rect;
 
-err game_init(struct app *app) {
-    struct assets *assets = &app->assets;
-    struct ecs *ecs = &app->ecs;
-    struct renderer *renderer = &app->window.renderer;
-    err status = CORE_SUCCESS;
+static u64 sprite2d_entity_new(struct ecs_world *world, float pos_x,
+                               float pos_y, float scale_x, float scale_y,
+                               float rot_angle, float z_index) {
+    struct sprite2d board_sprite = {.texture_path = "container.jpg"};
+    struct renderable2d board_ren = {.visible = true, .opacity = 1.0F};
+    struct transform2d board_tf = {.pos = {pos_x, pos_y},
+                                   .scale = {scale_x, scale_y},
+                                   .rot_angle = rot_angle,
+                                   .z_index = z_index};
 
-    assets_material_add(assets, "container", "quad", "container.jpg");
-    assets_mesh_add(assets, "quad", quad_vertices, vertex_count, quad_indices,
-                    index_count);
-
-    struct ecs_handles handles = {0};
-
-    status = ecs_comp_type_add(&handles.transformable, ecs,
-                               sizeof(struct transform_comp));
-    if (status)
-        goto err;
-
-    status =
-        ecs_comp_type_add(&handles.drawable, ecs, sizeof(struct draw_call));
-    if (status)
-        goto err;
-
-    status = ecs_system_add(&handles.render_sys, ecs, render_sys, renderer);
-    if (status)
-        goto err;
-
-    status = ecs_system_add(&handles.move_sys, ecs, move_sys, renderer);
-    if (status)
-        goto err;
-
-    status = ecs_entity_add(&rect, ecs);
-    if (status)
-        goto err;
-
-    struct transform_comp rect_tf =
-        (struct transform_comp){.pos = {0.0F, 0.0F, 1.0F},
-                                .rot = {0.0F, 0.0F, 1.0F},
-                                .scale = {1.0F, 1.0F, 1.0F},
-                                .rot_deg = 45.0F};
-
-    status = ecs_comp_add(ecs, rect, handles.transformable, &rect_tf);
-    if (status)
-        goto err;
-
-    struct draw_call rect_draw = (struct draw_call){
-        .mat = NULL,
-        .mesh = NULL,
-        .tf = rect_tf,
-        .camera_dist = 0,
-        .visible = true,
-    };
-
-    assets_material_get(&rect_draw.mat, assets, "container");
-    assets_mesh_get(&rect_draw.mesh, assets, "quad");
-
-    status = ecs_comp_add(ecs, rect, handles.drawable, &rect_draw);
-    if (status)
-        goto err;
-
-    status = ecs_init_handles(ecs, &handles, sizeof(struct ecs_handles));
-    if (status)
-        goto err;
-
-    return status;
-
-err:
-    logger_log_err(LOGGER_ERR, status, "Init game failed");
-    return status;
+    u64 new_entity = UINT64_MAX;
+    ecs_world_entity_add(&new_entity, world);
+    ecs_world_component_add(world, new_entity, "sprite2d", &board_sprite);
+    ecs_world_component_add(world, new_entity, "renderable2d", &board_ren);
+    ecs_world_component_add(world, new_entity, "transform2d", &board_tf);
+    return new_entity;
 }
 
-err game_run(struct app *app) {
+int game_init(struct game *out, struct app *app) {
+    struct assets *assets = &app->assets;
+    struct ecs *ecs = &app->ecs;
+
+    // **************** ASSETS ****************
+    assets_material_add(assets, "container", "sprite2d", "container.jpg");
+    assets_mesh_add(assets, "sprite2d", quad_vertices, vertex_count,
+                    quad_indices, index_count);
+
+    // **************** ECS ****************
+    ecs_add_world(ecs, "world");
+
+    struct ecs_world *world = NULL;
+    ecs_get_world(&world, ecs, "world");
+
+    ecs_world_component_type_add(world, "transform2d",
+                                 sizeof(struct transform2d));
+    ecs_world_component_type_add(world, "renderable2d",
+                                 sizeof(struct renderable2d));
+    ecs_world_component_type_add(world, "mesh2d", sizeof(struct mesh2d));
+    ecs_world_component_type_add(world, "sprite2d", sizeof(struct sprite2d));
+    ecs_world_system_add(world, "move", move_sys);
+
+    // **************** GAME ****************
+    sprite2d_entity_new(world, 0.0F, 0.0F, 1.0F, 1.0F, 10.0F, 1);
+    sprite2d_entity_new(world, -0.5F, 0.75F, 0.25F, 1.0F, 10.0F, 1);
+    out->timelines = 0;
+    out->present = 0;
+
+    return CORE_SUCCESS;
+}
+
+int game_run(struct app *app) {
     struct renderer *renderer = &app->window.renderer;
     struct input *input = &app->window.input;
-    err status = CORE_SUCCESS;
 
     if (input->keys[GLFW_KEY_W])
         renderer_camera_move(renderer, 0.0F, 0.01F, 0.0F);
@@ -104,9 +84,9 @@ err game_run(struct app *app) {
         renderer_camera_move(renderer, -0.01F, 0.0F, 0.0F);
 
     if (input->mouse_buttons[GLFW_MOUSE_BUTTON_LEFT]) {
-        logger_log(LOGGER_DEBUG, "%f %f", input->cursor_pos[0],
+        LOGGER_LOG(LOGGER_DEBUG, "%f %f", input->cursor_pos[0],
                    input->cursor_pos[1]);
     }
 
-    return status;
+    return CORE_SUCCESS;
 }
