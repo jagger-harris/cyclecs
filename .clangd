@@ -1,0 +1,8 @@
+Diagnostics:
+    ClangTidy:
+        Add: []
+        Remove: ['*']
+    UnusedIncludes: None
+    MissingIncludes: None
+CompileFlags:
+    Add: [-ferror-limit=0]

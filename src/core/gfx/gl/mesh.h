@@ -3,7 +3,6 @@
 
 #include <cglm/cglm.h>
 #include <glad/gl.h>
-#include <stdint.h>
 
 struct vertex {
     vec3 position;
@@ -16,12 +15,24 @@ struct gl_mesh {
     GLuint vao;
     GLuint vbo;
     GLuint ebo;
+    GLuint instance_vbo;
+    GLsizeiptr instance_capacity;
+};
+
+struct gl_mesh_instance_data {
+    mat4 mvp;
+    vec4 tint;
+    vec2 uv_offset;
+    vec2 uv_scale;
 };
 
 int gl_mesh_init(struct gl_mesh *out, const struct vertex *vertices,
-                 size_t vertex_count, unsigned int *indices,
+                 size_t vertex_count, const unsigned int *indices,
                  size_t index_count);
 void gl_mesh_destroy(struct gl_mesh *mesh);
 int gl_mesh_draw(const struct gl_mesh *mesh);
+int gl_mesh_draw_instanced(struct gl_mesh *mesh,
+                           struct gl_mesh_instance_data *instances,
+                           GLsizei instance_count);
 
 #endif // GFX_GL_MESH_H

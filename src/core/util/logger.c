@@ -2,6 +2,7 @@
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include <string.h>
 #include <time.h>
 
 #define STR_MAX 32
@@ -15,44 +16,85 @@
 #define ANSI_WHITE "\x1b[37m"
 #define ANSI_DEFAULT "\x1b[0m"
 
-static void logger_log_(enum logger_level level, bool has_error, bool is_debug,
-                        int error, const char *file, const char *func, int line,
-                        const char *fmt, va_list args) {
+static void logger_log_all(enum logger_level level, bool has_error,
+                           bool is_debug, int error, const char *file,
+                           const char *func, int line, const char *fmt,
+                           va_list args) {
     char level_str[STR_MAX];
     char color_str[STR_MAX];
 
+    int ret = -1;
     switch (level) {
     case LOGGER_FATAL:
-        snprintf(level_str, STR_MAX, "FATAL");
-        snprintf(color_str, STR_MAX, ANSI_RED);
+        ret = snprintf(level_str, STR_MAX, "FATAL");
+        if (ret < 0)
+            return;
+
+        ret = snprintf(color_str, STR_MAX, ANSI_RED);
+        if (ret < 0)
+            return;
+
         break;
     case LOGGER_ERROR:
-        snprintf(level_str, STR_MAX, "ERROR");
-        snprintf(color_str, STR_MAX, ANSI_BRIGHT_RED);
+        ret = snprintf(level_str, STR_MAX, "ERROR");
+        if (ret < 0)
+            return;
+
+        ret = snprintf(color_str, STR_MAX, ANSI_BRIGHT_RED);
+        if (ret < 0)
+            return;
+
         break;
     case LOGGER_WARN:
-        snprintf(level_str, STR_MAX, "WARN");
-        snprintf(color_str, STR_MAX, ANSI_YELLOW);
+        ret = snprintf(level_str, STR_MAX, "WARN");
+        if (ret < 0)
+            return;
+
+        ret = snprintf(color_str, STR_MAX, ANSI_YELLOW);
+        if (ret < 0)
+            return;
+
         break;
     case LOGGER_INFO:
-        snprintf(level_str, STR_MAX, "INFO");
-        snprintf(color_str, STR_MAX, ANSI_BRIGHT_WHITE);
+        ret = snprintf(level_str, STR_MAX, "INFO");
+        if (ret < 0)
+            return;
+
+        ret = snprintf(color_str, STR_MAX, ANSI_BRIGHT_WHITE);
+        if (ret < 0)
+            return;
+
         break;
     case LOGGER_DEBUG:
-        snprintf(level_str, STR_MAX, "DEBUG");
-        snprintf(color_str, STR_MAX, ANSI_CYAN);
+        ret = snprintf(level_str, STR_MAX, "DEBUG");
+        if (ret < 0)
+            return;
+
+        ret = snprintf(color_str, STR_MAX, ANSI_CYAN);
+        if (ret < 0)
+            return;
+
         break;
     default:
-        snprintf(level_str, STR_MAX, "UNKWN");
-        snprintf(color_str, STR_MAX, ANSI_WHITE);
+        ret = snprintf(level_str, STR_MAX, "UNKWN");
+        if (ret < 0)
+            return;
+
+        ret = snprintf(color_str, STR_MAX, ANSI_WHITE);
+        if (ret < 0)
+            return;
+
         break;
     }
 
     time_t t = time(NULL);
-    struct tm *t_info = localtime(&t);
+    struct tm t_info;
 
-    printf("%s[%02d:%02d:%02d] [%s]", color_str, t_info->tm_hour,
-           t_info->tm_min, t_info->tm_sec, level_str);
+    if (localtime_r(&t, &t_info) == NULL)
+        memset(&t_info, 0, sizeof(t_info));
+
+    printf("%s[%02d:%02d:%02d] [%s]", color_str, t_info.tm_hour, t_info.tm_min,
+           t_info.tm_sec, level_str);
 
     if (has_error)
         printf(" [%d]", error);
@@ -72,7 +114,7 @@ static void logger_log_(enum logger_level level, bool has_error, bool is_debug,
 void logger_log(enum logger_level level, const char *fmt, ...) {
     va_list args;
     va_start(args, fmt);
-    logger_log_(level, false, false, 0, NULL, NULL, 0, fmt, args);
+    logger_log_all(level, false, false, 0, NULL, NULL, 0, fmt, args);
     va_end(args);
 }
 
@@ -80,7 +122,7 @@ void logger_log_debug(enum logger_level level, const char *file,
                       const char *func, int line, const char *fmt, ...) {
     va_list args;
     va_start(args, fmt);
-    logger_log_(level, false, true, 0, file, func, line, fmt, args);
+    logger_log_all(level, false, true, 0, file, func, line, fmt, args);
     va_end(args);
 }
 
@@ -88,7 +130,7 @@ void logger_log_error(enum logger_level level, int error, const char *fmt,
                       ...) {
     va_list args;
     va_start(args, fmt);
-    logger_log_(level, true, false, error, NULL, NULL, 0, fmt, args);
+    logger_log_all(level, true, false, error, NULL, NULL, 0, fmt, args);
     va_end(args);
 }
 
@@ -97,6 +139,6 @@ void logger_log_error_debug(enum logger_level level, int error,
                             const char *fmt, ...) {
     va_list args;
     va_start(args, fmt);
-    logger_log_(level, true, true, error, file, func, line, fmt, args);
+    logger_log_all(level, true, true, error, file, func, line, fmt, args);
     va_end(args);
 }

@@ -3,18 +3,17 @@
 build=false
 release=false
 run=false
+x11=false
 
-if [ "$1" = "build" ]; then
-  build=true;
-
-  if [ "$2" = "release" ]; then
-    release=true;
-  fi
-fi
-
-if [ "$1" = "run" ] || [ "$2" = "run" ] || [ "$3" = "run" ]; then
-  run=true;
-fi
+# Parse args
+for arg in "$@"; do
+  case $arg in
+    build) build=true ;;
+    release) release=true ;;
+    run) run=true ;;
+    force-x11) x11=true ;;
+  esac
+done
 
 if $build; then
   if $release; then
@@ -36,10 +35,18 @@ if $run; then
     
     if $release; then
       cd release || exit
-      ./executable
+      if $x11; then
+        XDG_SESSION_TYPE=x11 ./executable
+      else
+        ./executable
+      fi
     else
       cd debug || exit
-      ./executable debug 2> asan.log
+      if $x11; then
+        XDG_SESSION_TYPE=x11 ./executable debug 2> asan.log
+      else
+        ./executable debug 2> asan.log
+      fi
     fi
   else
     echo "Build folder not located: ./build.sh build (release)"
@@ -47,5 +54,5 @@ if $run; then
 fi
 
 if ! $build && ! $run; then
-  echo "Command usage: ./build.sh command [command: build (release), run, build (release) run]"
+  echo "Command usage: ./build.sh [build (release)] [run] [force-x11]"
 fi

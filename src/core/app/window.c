@@ -1,117 +1,193 @@
 #include "core/app/window.h"
-#include "core/gfx/gl/renderer.h"
-#include "core/gfx/renderer.h"
+#include "core/gfx/renderer/plugins/plugins.h"
 #include "core/util/logger.h"
 
-static void error_callback(int status, const char *msg) {
-    LOGGER_LOG_ERROR(LOGGER_ERROR, status, "%s", msg);
+static void error_callback(int error, const char *msg) {
+    LOGGER_LOG_ERROR(LOGGER_ERROR, error, "GLFW error: %s", msg);
 }
 
-static void framebuffer_size_callback(GLFWwindow *window, int width,
+static void framebuffer_size_callback(GLFWwindow *glfw_window, int width,
                                       int height) {
-    struct window *glfw_user_window =
-        (struct window *)glfwGetWindowUserPointer(window);
+    struct window *window =
+        (struct window *)glfwGetWindowUserPointer(glfw_window);
 
-    if (!glfw_user_window) {
-        LOGGER_LOG_ERROR(LOGGER_ERROR, CORE_NULLPTR, "%s",
+    if (!window) {
+        LOGGER_LOG_ERROR(LOGGER_ERROR, CORE_GLFW, "%s",
                          "Framebuffer resize failed");
         return;
     }
 
-    glViewport(0, 0, width, height);
-    renderer_resize(&glfw_user_window->renderer, width, height);
+    if (width == 0 || height == 0)
+        return;
+
+    window->size[0] = width;
+    window->size[1] = height;
+    window->aspect_ratio = (height > 0) ? (float)width / (float)height : 1.0f;
+    renderer_on_resize(&window->renderer, width, height);
 }
 
-static void key_callback(GLFWwindow *window, int key, int scancode, int action,
-                         int mods) {
-    // Prevent unused warning
+static void key_callback(GLFWwindow *glfw_window, int key, int scancode,
+                         int action, int mods) {
     (void)scancode;
     (void)mods;
 
-    struct window *user_window =
-        (struct window *)glfwGetWindowUserPointer(window);
+    struct window *window =
+        (struct window *)glfwGetWindowUserPointer(glfw_window);
 
-    input_key(&user_window->input, key, action);
+    if (!window) {
+        LOGGER_LOG_ERROR(LOGGER_ERROR, CORE_GLFW, "%s", "Getting key failed");
+        return;
+    }
+
+    int error = input_key(&window->input, key, action);
+    if (error)
+        return;
 }
 
-static void mouse_button_callback(GLFWwindow *window, int button, int action,
-                                  int mods) {
-    // Prevent unused warning
+static void mouse_button_callback(GLFWwindow *glfw_window, int button,
+                                  int action, int mods) {
     (void)mods;
 
-    struct window *glfw_user_window =
-        (struct window *)glfwGetWindowUserPointer(window);
+    struct window *window =
+        (struct window *)glfwGetWindowUserPointer(glfw_window);
 
-    input_mouse_button(&glfw_user_window->input, button, action);
+    if (!window) {
+        LOGGER_LOG_ERROR(LOGGER_ERROR, CORE_GLFW, "%s",
+                         "Getting mouse button failed");
+        return;
+    }
+
+    int error = input_mouse_button(&window->input, button, action);
+    if (error)
+        return;
 }
 
-static void cursor_pos_callback(GLFWwindow *window, double xpos, double ypos) {
-    struct window *glfw_user_window =
-        (struct window *)glfwGetWindowUserPointer(window);
+static void scroll_callback(GLFWwindow *glfw_window, double offset_x,
+                            double offset_y) {
+    struct window *window =
+        (struct window *)glfwGetWindowUserPointer(glfw_window);
 
-    glfw_user_window->input.cursor_pos[0] = (float)xpos;
-    glfw_user_window->input.cursor_pos[1] = (float)ypos;
+    if (!window) {
+        LOGGER_LOG_ERROR(LOGGER_ERROR, CORE_GLFW, "%s",
+                         "Getting mouse button failed");
+        return;
+    }
+
+    glm_vec2_copy((vec2){(float)offset_x, (float)offset_y},
+                  window->input.scroll_offset);
 }
 
-int window_init(struct window *in, int width, int height, const char *title,
-                bool vsync) {
-    if (!in || !title)
+static void cursor_pos_callback(GLFWwindow *glfw_window, double pos_x,
+                                double pos_y) {
+    struct window *window =
+        (struct window *)glfwGetWindowUserPointer(glfw_window);
+
+    if (!window) {
+        LOGGER_LOG_ERROR(LOGGER_ERROR, CORE_GLFW, "%s",
+                         "Getting cursor pos failed");
+        return;
+    }
+
+    glm_vec2_copy((vec2){(float)pos_x, (float)pos_y}, window->input.cursor_pos);
+}
+
+int window_init(struct window *out, struct gfx_api *api, ivec2 size,
+                const char *title, bool vsync, struct color bg_color) {
+    if (!out || !title)
         return CORE_NULLPTR;
 
     glfwSetErrorCallback(error_callback);
 
-    // TODO: Use for renderdoc as renderdoc and address sanitizer clash
-#ifndef DEBUG
-    glfwInitHint(GLFW_PLATFORM, GLFW_PLATFORM_X11);
-#endif
-
+    int error = CORE_SUCCESS;
     if (!glfwInit()) {
         LOGGER_LOG_ERROR(LOGGER_ERROR, CORE_GLFW, "%s", "Init GLFW failed");
-        return CORE_GLFW;
+        error = CORE_GLFW;
+        goto cleanup;
     }
 
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
-    in->glfw_window = glfwCreateWindow(width, height, title, NULL, NULL);
-    if (!in->glfw_window) {
+    out->glfw_window = glfwCreateWindow(size[0], size[1], title, NULL, NULL);
+    if (!out->glfw_window) {
         LOGGER_LOG_ERROR(LOGGER_ERROR, CORE_GLFW, "%s",
                          "Creating GLFW window failed");
         glfwTerminate();
-        in->glfw_window = NULL;
-        return CORE_GLFW;
+        error = CORE_GLFW;
+        goto cleanup;
     }
 
-    glfwMakeContextCurrent(in->glfw_window);
-    glfwSetWindowUserPointer(in->glfw_window, in);
-    glfwSetFramebufferSizeCallback(in->glfw_window, framebuffer_size_callback);
-    glfwSetKeyCallback(in->glfw_window, key_callback);
-    glfwSetMouseButtonCallback(in->glfw_window, mouse_button_callback);
-    glfwSetCursorPosCallback(in->glfw_window, cursor_pos_callback);
+    glfwMakeContextCurrent(out->glfw_window);
+    glfwSetWindowUserPointer(out->glfw_window, out);
+    glfwSetCursorPosCallback(out->glfw_window, cursor_pos_callback);
+    glfwSetFramebufferSizeCallback(out->glfw_window, framebuffer_size_callback);
+    glfwSetKeyCallback(out->glfw_window, key_callback);
+    glfwSetMouseButtonCallback(out->glfw_window, mouse_button_callback);
+    glfwSetScrollCallback(out->glfw_window, scroll_callback);
     glfwSwapInterval(vsync);
 
-    // TODO: Add support for multiple apis via an options file
-    int status = CORE_SUCCESS;
-    status = renderer_init(&in->renderer, (float)width / (float)height,
-                           gl_renderer_init, gl_renderer_swap_buffers,
-                           gl_renderer_on_resize, gl_renderer_draw_frame);
-    if (status)
-        return status;
+    error = ui_init(&out->ui);
+    if (error) {
+        LOGGER_LOG_ERROR(LOGGER_ERROR, error, "%s", "Init window gui failed");
+        goto cleanup;
+    }
 
-    status = renderer_use(&in->renderer);
-    if (status)
-        return status;
+    error = input_init(&out->input);
+    if (error) {
+        LOGGER_LOG_ERROR(LOGGER_ERROR, error, "%s", "Init window input failed");
+        goto cleanup;
+    }
 
+    error = renderer_init(&out->renderer, api, bg_color);
+    if (error) {
+        LOGGER_LOG_ERROR(LOGGER_ERROR, error, "%s",
+                         "Init window renderer failed");
+        goto cleanup;
+    }
+
+    error = timing_init(&out->timing);
+    if (error) {
+        LOGGER_LOG_ERROR(LOGGER_ERROR, error, "%s",
+                         "Init window timing failed");
+        goto cleanup;
+    }
+
+    glfwGetFramebufferSize(out->glfw_window, &out->size[0], &out->size[1]);
     return CORE_SUCCESS;
+
+cleanup:
+    window_destroy(out);
+    return error;
 }
 
 void window_destroy(struct window *in) {
     if (!in)
         return;
 
-    if (in->glfw_window)
+    if (in->glfw_window) {
         glfwDestroyWindow(in->glfw_window);
+        in->glfw_window = NULL;
+    }
 
+    ui_destroy(&in->ui);
+    renderer_destroy(&in->renderer);
     glfwTerminate();
+}
+
+int window_should_close(bool *out, struct window *in) {
+    if (!out || !in)
+        return CORE_NULLPTR;
+
+    *out = glfwWindowShouldClose(in->glfw_window);
+    return CORE_SUCCESS;
+}
+
+int window_size_get(ivec2 out, struct window *in) {
+    if (!out || !in)
+        return CORE_NULLPTR;
+
+    out[0] = in->size[0];
+    out[1] = in->size[1];
+    return CORE_SUCCESS;
 }

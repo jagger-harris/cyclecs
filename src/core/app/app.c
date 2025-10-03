@@ -1,60 +1,69 @@
 #include "core/app/app.h"
-#include "core/ecs/ecs.h"
-#include "core/gfx/renderer.h"
-#include "core/util/error.h"
+#include "core/gfx/gl/renderer.h"
+#include "core/gfx/gl/shader.h"
 #include "core/util/logger.h"
 
-#define ARENA_MEM_SIZE 1024 * 1024
-
-int app_init(struct app *in, int width, int height, const char *title) {
-    if (!in)
+int app_init(struct app *out, void *game_state, ivec2 window_size,
+             const char *title, struct color bg_color) {
+    if (!out || !title)
         return CORE_NULLPTR;
 
-    if (!title)
-        return CORE_INVALID_ARGS;
-
-    int status = arena_init(&in->arena, ARENA_MEM_SIZE);
-    if (status) {
-        LOGGER_LOG_ERROR(LOGGER_ERROR, status, "%s", "Init app arena failed");
-        return status;
-    }
-
-    status = ecs_init(&in->ecs);
-    if (status) {
-        LOGGER_LOG_ERROR(LOGGER_ERROR, status, "%s", "Init app ecs failed");
-        return status;
-    }
-
-    status = assets_init(&in->assets);
-    if (status) {
-        LOGGER_LOG_ERROR(LOGGER_ERROR, status, "%s", "Init app assets failed");
-        return status;
-    }
-
-    status = app_time_init(&in->time);
-    if (status) {
-        LOGGER_LOG_ERROR(LOGGER_ERROR, status, "%s", "Init app time failed");
-        return status;
-    }
+    *out = (struct app){
+        // TODO: Add renderer api type via an options file
+        .api = (struct gfx_api){.type = GL,
+                                .init = gl_renderer_init,
+                                .swap_buffers = gl_renderer_swap_buffers,
+                                .on_resize = gl_renderer_on_resize,
+                                .draw_frame = gl_renderer_draw_frame,
+                                .shader_init = gl_shader_init,
+                                .shader_destroy = gl_shader_destroy,
+                                .shader_use = gl_shader_use,
+                                .texture2d_init = gl_texture2d_init,
+                                .texture2d_destroy = gl_texture2d_destroy,
+                                .texture2d_use = gl_texture2d_use},
+        .game_state = game_state};
 
     // TODO: Add checking vsync via an options file
     bool vsync = true;
-    status = window_init(&in->window, width, height, title, vsync);
-    if (status) {
-        LOGGER_LOG_ERROR(LOGGER_ERROR, status, "%s", "Init app window failed");
-        return status;
+    int error = window_init(&out->window, &out->api, window_size, title, vsync,
+                            bg_color);
+    if (error) {
+        LOGGER_LOG_ERROR(LOGGER_ERROR, error, "%s", "Init app window failed");
+        goto cleanup;
+    }
+
+    error = assets_init(&out->assets, &out->api);
+    if (error) {
+        LOGGER_LOG_ERROR(LOGGER_ERROR, error, "%s", "Init app assets failed");
+        goto cleanup;
+    }
+
+    error = ecs_init(&out->ecs);
+    if (error) {
+        LOGGER_LOG_ERROR(LOGGER_ERROR, error, "%s", "Init app ecs failed");
+        goto cleanup;
+    }
+
+    error = event_queue_init(&out->event_queue);
+    if (error) {
+        LOGGER_LOG_ERROR(LOGGER_ERROR, error, "%s",
+                         "Init app event queue failed");
+        goto cleanup;
     }
 
     return CORE_SUCCESS;
+cleanup:
+    app_destroy(out);
+    return error;
 }
 
 void app_destroy(struct app *in) {
     if (!in)
         return;
 
-    arena_destroy(&in->arena);
-    ecs_destroy(&in->ecs);
     assets_destroy(&in->assets);
+    ecs_destroy(&in->ecs);
+    event_queue_destroy(&in->event_queue);
     window_destroy(&in->window);
 }
 
@@ -62,46 +71,72 @@ int app_run(struct app *in, const game_update_fn game_update) {
     if (!in || !game_update)
         return CORE_NULLPTR;
 
-    int status = CORE_SUCCESS;
-    while (!glfwWindowShouldClose(in->window.glfw_window)) {
-        glfwPollEvents();
+    bool close = false;
+    int error = window_should_close(&close, &in->window);
+    if (error)
+        return error;
 
-        status = game_update(in);
-        if (status)
-            LOGGER_LOG_ERROR(LOGGER_ERROR, status, "%s",
-                             "Updating game failed");
+    while (!close) {
+        error = window_should_close(&close, &in->window);
+        if (error)
+            break;
 
-        status = ecs_update_all_worlds(&in->ecs);
-        if (status)
-            LOGGER_LOG_ERROR(LOGGER_ERROR, status, "%s",
-                             "Updating all ecs worlds failed");
-
-        struct table_iterator iter;
-        if (table_iterator_init(&iter, &in->ecs.worlds) == CORE_SUCCESS) {
-            while (table_iterator_next(&iter)) {
-                int status = renderer_draw_frame(&in->window.renderer,
-                                                 &in->assets, iter.value);
-                if (status) {
-                    LOGGER_LOG_ERROR(LOGGER_ERROR, status, "%s",
-                                     "Drawing frame from ecs world failed");
-                }
-            }
+        error = timing_update(&in->window.timing);
+        if (error) {
+            LOGGER_LOG_ERROR(LOGGER_ERROR, error, "%s",
+                             "Updating window time failed");
+            break;
         }
 
-        status =
+        error = input_update(&in->window.input);
+        if (error) {
+            LOGGER_LOG_ERROR(LOGGER_ERROR, error, "%s",
+                             "Updating window input failed");
+            break;
+        }
+
+        error = ui_handle_input(&in->window.ui, &in->window.input);
+        if (error) {
+            LOGGER_LOG_ERROR(LOGGER_ERROR, error, "%s",
+                             "Handling window ui input failed");
+            break;
+        }
+
+        error = event_queue_update(&in->event_queue);
+        if (error) {
+            LOGGER_LOG_ERROR(LOGGER_ERROR, error, "%s",
+                             "Dispatching event queue failed");
+            break;
+        }
+
+        error = game_update(in);
+        if (error) {
+            LOGGER_LOG_ERROR(LOGGER_ERROR, error, "%s", "Updating game failed");
+            break;
+        }
+
+        error = ecs_update_all_worlds(&in->ecs, in);
+        if (error) {
+            LOGGER_LOG_ERROR(LOGGER_ERROR, error, "%s",
+                             "Updating all ecs worlds failed");
+            break;
+        }
+
+        error = renderer_draw_frame(&in->window.renderer, in);
+        if (error) {
+            LOGGER_LOG_ERROR(LOGGER_ERROR, error, "%s",
+                             "Renderer drawing frame failed");
+            break;
+        }
+
+        error =
             renderer_swap_buffers(&in->window.renderer, in->window.glfw_window);
-        if (status)
-            LOGGER_LOG_ERROR(LOGGER_ERROR, status, "%s",
-                             "Swapping buffers failed");
-
-        status = app_time_update(&in->time);
-        if (status)
-            LOGGER_LOG_ERROR(LOGGER_ERROR, status, "%s",
-                             "Updating app time failed");
-
-        int fps = round(in->time.fps_avg);
-        LOGGER_LOG(LOGGER_DEBUG, "FPS: %i", fps);
+        if (error) {
+            LOGGER_LOG_ERROR(LOGGER_ERROR, error, "%s",
+                             "Renderer swapping buffers failed");
+            break;
+        }
     }
 
-    return CORE_SUCCESS;
+    return error;
 }

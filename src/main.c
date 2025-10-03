@@ -7,32 +7,32 @@
 #define WIN_TITLE "C ECS OpenGL Game Engine"
 
 int main(void) {
-    LOGGER_LOG(LOGGER_INFO, "%s", "Starting app");
-
+    struct game_state state = {0};
     struct app app = {0};
-    int status = app_init(&app, WIN_WIDTH, WIN_HEIGHT, WIN_TITLE);
-    if (status) {
-        LOGGER_LOG_ERROR(LOGGER_ERROR, status, "%s", "Init app failed");
+    int error = app_init(&app, &state, (ivec2){WIN_WIDTH, WIN_HEIGHT},
+                         WIN_TITLE, (struct color){10, 15, 30, 255});
+    if (error) {
+        LOGGER_LOG_ERROR(LOGGER_ERROR, error, "%s", "Init app failed");
         goto cleanup;
     }
 
-    struct game game = {0};
-    status = game_init(&game, &app);
-    if (status) {
-        LOGGER_LOG_ERROR(LOGGER_ERROR, status, "%s", "Init game failed");
+    error = game_init(&state, &app);
+    if (error) {
+        LOGGER_LOG_ERROR(LOGGER_ERROR, error, "%s", "Init game failed");
         goto cleanup;
     }
 
-    status = app_run(&app, game_run);
-    if (status) {
-        LOGGER_LOG_ERROR(LOGGER_ERROR, status, "%s", "Running app failed");
+    error = app_run(&app, game_update);
+    if (error) {
+        LOGGER_LOG_ERROR(LOGGER_ERROR, error, "%s", "Running app failed");
         goto cleanup;
     }
 
+    app_destroy(&app);
     return CORE_SUCCESS;
 
 cleanup:
-    LOGGER_LOG_ERROR(LOGGER_FATAL, status, "%s", "Fatal error");
+    LOGGER_LOG_ERROR(LOGGER_FATAL, error, "%s", "Fatal error");
     app_destroy(&app);
-    return status;
+    return error;
 }

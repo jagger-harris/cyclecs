@@ -3,13 +3,11 @@
 
 #include <stddef.h>
 
-#define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
-
 struct array {
-    void *data;
     size_t capacity;
     size_t length;
     size_t elem_size;
+    void *data;
 };
 
 int array_init(struct array *out, size_t start_capacity, size_t elem_size);
@@ -22,5 +20,6 @@ int array_push(struct array *in, void *data);
 int array_pop(struct array *in);
 int array_insert(struct array *in, size_t index, void *data);
 int array_remove(struct array *in, size_t index);
+int array_concat(struct array *a, const struct array *b);
 
 #endif // UTIL_ARRAY_H

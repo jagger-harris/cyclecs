@@ -1,7 +1,7 @@
 #include "core/util/table.h"
 #include "core/util/error.h"
 #include "core/util/logger.h"
-#include "core/util/xxhash64.h"
+#include "core/util/xxhash32.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -10,12 +10,43 @@
 #define TABLE_MAX_LOAD_FACTOR 0.75
 #define TABLE_GROWTH_FACTOR 2
 #define TABLE_SHRINK_FACTOR 0.5
+#define SLOT_METADATA_SIZE 8
+
+static size_t table_calculate_slot_size(size_t key_size, size_t value_size) {
+    return SLOT_METADATA_SIZE + key_size + value_size;
+}
+
+static int table_get_slot(void **out, const struct table *in, size_t index) {
+    if (!out || !in)
+        return CORE_NULLPTR;
+
+    *out = (u8 *)in->slots + index * in->slot_size;
+    return CORE_SUCCESS;
+}
+
+static int table_get_metadata(u8 **out, const struct table *in, size_t index) {
+    if (!out || !in)
+        return CORE_NULLPTR;
+
+    void *slot = NULL;
+    int error = table_get_slot(&slot, in, index);
+    if (error)
+        return error;
+
+    *out = (u8 *)slot;
+    return CORE_SUCCESS;
+}
 
 static int table_get_key(void **out, const struct table *in, size_t index) {
     if (!out || !in)
         return CORE_NULLPTR;
 
-    *out = (u8 *)in->data + index * (in->key_size + in->value_size);
+    void *slot = NULL;
+    int error = table_get_slot(&slot, in, index);
+    if (error)
+        return error;
+
+    *out = (u8 *)slot + SLOT_METADATA_SIZE;
     return CORE_SUCCESS;
 }
 
@@ -23,9 +54,53 @@ static int table_get_value(void **out, const struct table *in, size_t index) {
     if (!out || !in)
         return CORE_NULLPTR;
 
-    *out =
-        (u8 *)in->data + index * (in->key_size + in->value_size) + in->key_size;
+    void *slot = NULL;
+    int error = table_get_slot(&slot, in, index);
+    if (error)
+        return error;
+
+    *out = (u8 *)slot + SLOT_METADATA_SIZE + in->key_size;
     return CORE_SUCCESS;
+}
+
+static int table_insert_no_resize(struct table *in, const void *key,
+                                  const void *value) {
+    if (!in)
+        return CORE_NULLPTR;
+
+    u32 hash = xxhash32(key, in->key_size, 0);
+    u8 fingerprint = (hash & 0x7f) | 0x80;
+    u32 index = hash & (in->capacity - 1);
+
+    for (size_t i = 0; i < in->capacity; ++i) {
+        u32 probe = (index + i) & (in->capacity - 1);
+        u8 *probe_metadata = NULL;
+        int error = table_get_metadata(&probe_metadata, in, probe);
+        if (error)
+            return error;
+
+        if (*probe_metadata == 0) {
+            void *key_ptr = NULL;
+            void *value_ptr = NULL;
+
+            error = table_get_key(&key_ptr, in, probe);
+            if (error)
+                return error;
+
+            error = table_get_value(&value_ptr, in, probe);
+            if (error)
+                return error;
+
+            memcpy(key_ptr, key, in->key_size);
+            memcpy(value_ptr, value, in->value_size);
+
+            *probe_metadata = fingerprint;
+            in->length++;
+            return CORE_SUCCESS;
+        }
+    }
+
+    return CORE_OUT_OF_MEMORY;
 }
 
 static int table_resize(struct table *in, size_t new_capacity) {
@@ -33,38 +108,62 @@ static int table_resize(struct table *in, size_t new_capacity) {
         return CORE_NULLPTR;
 
     struct table new_table = {0};
-    int status = CORE_SUCCESS;
-    status = table_init(&new_table, new_capacity, in->key_size, in->value_size);
-    if (status)
+    int error = CORE_SUCCESS;
+
+    new_table.capacity = new_capacity;
+    new_table.length = 0;
+    new_table.key_size = in->key_size;
+    new_table.value_size = in->value_size;
+    new_table.slot_size = in->slot_size;
+
+    new_table.slots = malloc(new_capacity * new_table.slot_size);
+    if (!new_table.slots) {
+        error = CORE_OUT_OF_MEMORY;
         goto cleanup;
+    }
+
+    for (size_t i = 0; i < new_capacity; ++i) {
+        u8 *metadata = NULL;
+        int error = table_get_metadata(&metadata, &new_table, i);
+        if (error)
+            goto cleanup;
+        *metadata = 0;
+    }
 
     for (size_t i = 0; i < in->capacity; ++i) {
-        if (in->metadata[i] != 0) {
+        u8 *metadata = NULL;
+        int error = table_get_metadata(&metadata, in, i);
+        if (error)
+            goto cleanup;
+
+        if (*metadata != 0) {
             void *key_ptr = NULL;
             void *value_ptr = NULL;
 
-            status = table_get_key(&key_ptr, in, i);
-            if (status)
+            error = table_get_key(&key_ptr, in, i);
+            if (error)
                 goto cleanup;
 
-            status = table_get_value(&value_ptr, in, i);
-            if (status)
+            error = table_get_value(&value_ptr, in, i);
+            if (error)
                 goto cleanup;
 
-            status = table_insert(&new_table, key_ptr, value_ptr);
-            if (status)
+            error = table_insert_no_resize(&new_table, key_ptr, value_ptr);
+            if (error)
                 goto cleanup;
         }
     }
 
-    free(in->metadata);
-    free(in->data);
-    memcpy(in, &new_table, sizeof(struct table));
+    free(in->slots);
+    in->slots = new_table.slots;
+    in->capacity = new_table.capacity;
     return CORE_SUCCESS;
 
 cleanup:
-    table_destroy(&new_table);
-    return status;
+    if (new_table.slots)
+        free(new_table.slots);
+
+    return error;
 }
 
 int table_init(struct table *out, size_t start_capacity, size_t key_size,
@@ -72,134 +171,100 @@ int table_init(struct table *out, size_t start_capacity, size_t key_size,
     if (!out)
         return CORE_NULLPTR;
 
-    int status = CORE_SUCCESS;
+    size_t slot_size = table_calculate_slot_size(key_size, value_size);
 
-    out->capacity = start_capacity;
-    out->length = 0;
-    out->key_size = key_size;
-    out->value_size = value_size;
-    out->metadata = malloc(start_capacity * sizeof(u8));
-    if (!out->metadata) {
-        status = CORE_OUT_OF_MEMORY;
-        LOGGER_LOG_ERROR(LOGGER_ERROR, status, "%s",
-                         "Allocating table metadata failed");
-        goto cleanup;
-    }
-    out->data = malloc(start_capacity * (key_size + value_size));
-    if (!out->data) {
-        status = CORE_OUT_OF_MEMORY;
-        LOGGER_LOG_ERROR(LOGGER_ERROR, status, "%s",
-                         "Allocating table data failed");
-        goto cleanup;
+    *out = (struct table){.capacity = start_capacity,
+                          .length = 0,
+                          .key_size = key_size,
+                          .value_size = value_size,
+                          .slot_size = slot_size,
+                          .slots = NULL};
+
+    out->slots = malloc(start_capacity * slot_size);
+    if (!out->slots) {
+        LOGGER_LOG_ERROR(LOGGER_ERROR, CORE_OUT_OF_MEMORY, "%s",
+                         "Allocating table slots failed");
+        return CORE_OUT_OF_MEMORY;
     }
 
-    for (size_t i = 0; i < out->capacity; ++i)
-        memset(&out->metadata[i], 0, sizeof(u8));
+    for (size_t i = 0; i < out->capacity; ++i) {
+        u8 *metadata = NULL;
+        int error = table_get_metadata(&metadata, out, i);
+        if (error) {
+            free(out->slots);
+            out->slots = NULL;
+            return error;
+        }
+
+        *metadata = 0;
+    }
 
     return CORE_SUCCESS;
-
-cleanup:
-    if (out->metadata)
-        free(out->metadata);
-
-    if (out->data)
-        free(out->data);
-
-    return status;
 }
 
 void table_destroy(struct table *in) {
     if (!in)
         return;
 
-    if (in->metadata)
-        free(in->metadata);
-
-    if (in->data)
-        free(in->data);
+    if (in->slots) {
+        free(in->slots);
+        in->slots = NULL;
+    }
 }
 
 int table_insert(struct table *in, const void *key, const void *value) {
-    if (!in)
+    if (!in || !key || !value)
         return CORE_NULLPTR;
 
-    int status = CORE_SUCCESS;
-    if ((float)in->length / in->capacity > TABLE_MAX_LOAD_FACTOR) {
-        status = table_resize(in, in->capacity * TABLE_GROWTH_FACTOR);
-        if (status)
-            return status;
+    if ((double)in->length / (double)in->capacity > TABLE_MAX_LOAD_FACTOR) {
+        int error = table_resize(in, in->capacity * TABLE_GROWTH_FACTOR);
+        if (error)
+            return error;
     }
 
-    u64 hash = xxhash64(key, in->key_size, 0);
-    u8 fingerprint = (hash & 0x7F) | 0x80;
-    u64 index = hash & (in->capacity - 1);
-
-    for (size_t i = 0; i < in->capacity; ++i) {
-        u64 probe = (index + i) & (in->capacity - 1);
-        u8 probe_metadata = in->metadata[probe];
-
-        if (probe_metadata == 0) {
-            void *key_ptr = NULL;
-            void *value_ptr = NULL;
-
-            status = table_get_key(&key_ptr, in, probe);
-            if (status)
-                return status;
-
-            status = table_get_value(&value_ptr, in, probe);
-            if (status)
-                return status;
-
-            memcpy(key_ptr, key, in->key_size);
-            memcpy(value_ptr, value, in->value_size);
-
-            in->metadata[probe] = fingerprint;
-            in->length++;
-            return CORE_SUCCESS;
-        }
-    }
-
-    return CORE_SUCCESS;
+    return table_insert_no_resize(in, key, value);
 }
 
 int table_remove(void *out, struct table *in, const void *key) {
     if (!in || !key)
         return CORE_NULLPTR;
 
-    u64 hash = xxhash64(key, in->key_size, 0);
-    u8 hash_metadata = (hash & 0x7F) | 0x80;
-    u64 index = hash & (in->capacity - 1);
+    u32 hash = xxhash32(key, in->key_size, 0);
+    u8 hash_metadata = (hash & 0x7f) | 0x80;
+    u32 index = hash & (in->capacity - 1);
 
-    int status = CORE_SUCCESS;
-    u64 probe = 0;
-    u8 probe_metadata = 0;
     for (size_t i = 0; i < in->capacity; ++i) {
-        probe = (index + i) & (in->capacity - 1);
-        probe_metadata = in->metadata[probe];
+        u32 probe = (index + i) & (in->capacity - 1);
+        u8 *probe_metadata = NULL;
+        int error = table_get_metadata(&probe_metadata, in, probe);
+        if (error)
+            return error;
 
-        if (probe_metadata == 0)
+        if (*probe_metadata == 0)
             return CORE_SUCCESS;
 
         void *key_ptr = NULL;
         void *value_ptr = NULL;
 
-        status = table_get_key(&key_ptr, in, probe);
-        if (status)
-            return status;
+        error = table_get_key(&key_ptr, in, probe);
+        if (error)
+            return error;
 
-        status = table_get_value(&value_ptr, in, probe);
-        if (status)
-            return status;
+        error = table_get_value(&value_ptr, in, probe);
+        if (error)
+            return error;
 
-        if (probe_metadata == hash_metadata &&
+        if (*probe_metadata == hash_metadata &&
             memcmp(key_ptr, key, in->key_size) == 0) {
             in->length--;
-            in->metadata[probe] = 0;
+            *probe_metadata = 0;
 
-            if ((float)in->length / in->capacity < TABLE_MIN_LOAD_FACTOR) {
-                status = table_resize(in, in->capacity * TABLE_SHRINK_FACTOR);
-                if (status)
-                    return status;
+            if ((double)in->length / (double)in->capacity <
+                TABLE_MIN_LOAD_FACTOR) {
+                error = table_resize(
+                    in, (size_t)((double)in->capacity * TABLE_SHRINK_FACTOR));
+                if (error)
+                    return error;
             }
 
             if (out)
@@ -216,43 +281,49 @@ int table_find(void **out, const struct table *in, const void *key) {
     if (!out || !in || !key)
         return CORE_NULLPTR;
 
-    u64 hash = xxhash64(key, in->key_size, 0);
-    u8 fingerprint = (hash & 0x7F) | 0x80;
-    u64 index = hash & (in->capacity - 1);
+    u32 hash = xxhash32(key, in->key_size, 0);
+    u8 fingerprint = (hash & 0x7f) | 0x80;
+    u32 index = hash & (in->capacity - 1);
 
     for (size_t i = 0; i < in->capacity; ++i) {
-        u64 probe = (index + i) & (in->capacity - 1);
-        u8 probe_metadata = in->metadata[probe];
-        if (probe_metadata == 0)
-            return CORE_NOT_FOUND;
+        u32 probe = (index + i) & (in->capacity - 1);
+        u8 *probe_metadata = NULL;
+        int error = table_get_metadata(&probe_metadata, in, probe);
+        if (error)
+            return error;
+
+        if (*probe_metadata == 0) {
+            *out = NULL;
+            return CORE_SUCCESS;
+        }
 
         void *key_ptr = NULL;
         void *value_ptr = NULL;
-        int status = CORE_SUCCESS;
-        status = table_get_key(&key_ptr, in, probe);
-        if (status)
-            return status;
 
-        status = table_get_value(&value_ptr, in, probe);
-        if (status)
-            return status;
+        error = table_get_key(&key_ptr, in, probe);
+        if (error)
+            return error;
 
-        if (probe_metadata == fingerprint &&
+        error = table_get_value(&value_ptr, in, probe);
+        if (error)
+            return error;
+
+        if (*probe_metadata == fingerprint &&
             memcmp(key_ptr, key, in->key_size) == 0) {
             *out = value_ptr;
-            return status;
+            return CORE_SUCCESS;
         }
     }
 
-    return CORE_NOT_FOUND;
+    *out = NULL;
+    return CORE_SUCCESS;
 }
 
 int table_find_cpy(void *out, const struct table *in, const void *key) {
     void *value = NULL;
-    int status = CORE_SUCCESS;
-    status = table_find(&value, in, key);
-    if (status)
-        return status;
+    int error = table_find(&value, in, key);
+    if (error)
+        return error;
 
     if (value != NULL)
         memcpy(out, value, in->value_size);
@@ -278,19 +349,27 @@ bool table_iterator_next(struct table_iterator *iter) {
         return false;
 
     while (iter->current_index < iter->table->capacity) {
-        if (iter->table->metadata[iter->current_index] != 0) {
-            int status = CORE_SUCCESS;
+        u8 *metadata = NULL;
+        int error =
+            table_get_metadata(&metadata, iter->table, iter->current_index);
+        if (error)
+            return false;
 
-            status =
-                table_get_key(&iter->key, iter->table, iter->current_index);
-            if (status)
+        if (*metadata != 0) {
+            void *key_ptr = NULL;
+            void *value_ptr = NULL;
+
+            error = table_get_key(&key_ptr, iter->table, iter->current_index);
+            if (error)
                 return false;
 
-            status =
-                table_get_value(&iter->value, iter->table, iter->current_index);
-            if (status)
+            error =
+                table_get_value(&value_ptr, iter->table, iter->current_index);
+            if (error)
                 return false;
 
+            iter->key = key_ptr;
+            iter->value = value_ptr;
             iter->current_index++;
             return true;
         }
@@ -310,29 +389,5 @@ int table_iterator_reset(struct table_iterator *iter) {
     iter->key = NULL;
     iter->value = NULL;
 
-    return CORE_SUCCESS;
-}
-
-void *table_iterator_get_key(const struct table_iterator *iter) {
-    return iter ? iter->key : NULL;
-}
-
-void *table_iterator_get_value(const struct table_iterator *iter) {
-    return iter ? iter->value : NULL;
-}
-
-int table_iterator_get_key_cpy(const struct table_iterator *iter, void *out) {
-    if (!iter || !out || !iter->key)
-        return CORE_NULLPTR;
-
-    memcpy(out, iter->key, iter->table->key_size);
-    return CORE_SUCCESS;
-}
-
-int table_iterator_get_value_cpy(const struct table_iterator *iter, void *out) {
-    if (!iter || !out || !iter->value)
-        return CORE_NULLPTR;
-
-    memcpy(out, iter->value, iter->table->value_size);
     return CORE_SUCCESS;
 }

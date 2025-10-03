@@ -1,92 +1,284 @@
 #include "base/game/game.h"
+#include "base/ecs/component/board.h"
+#include "base/ecs/component/board_button.h"
+#include "base/ecs/system/board_button.h"
 #include "base/ecs/system/move.h"
-#include "core/ecs/component/renderable/mesh2d.h"
-#include "core/ecs/component/renderable/renderable2d.h"
-#include "core/ecs/component/renderable/sprite2d.h"
-#include "core/ecs/ecs.h"
-#include "core/ecs/world.h"
-#include "core/util/logger.h"
+#include "core/app/app.h"
+#include "core/app/assets.h"
+#include "core/app/component/renderable/mesh.h"
+#include "core/app/component/renderable/renderable.h"
+#include "core/app/component/renderable/sprite.h"
+#include "core/app/ecs.h"
+#include "core/app/event_queue.h"
+#include "core/app/ui.h"
+#include "core/gfx/color.h"
+#include "core/gfx/renderer/renderer.h"
+#include "core/gfx/texture2d.h"
+#include "core/gfx/transform.h"
+#include "core/util/array.h"
+#include "core/util/error.h"
+#include "core/util/table.h"
+#include "core/util/types.h"
+#include <cglm/types.h>
+#include <cglm/vec2.h>
+#include <math.h>
+#include <stdalign.h>
 #include <stdint.h>
+#include <stdio.h>
+#include <string.h>
 
-static struct vertex quad_vertices[] = {
-    {{-0.5F, -0.5F, 0.0F}, {0.0F, 0.0F, 1.0F}, {0.0F, 0.0F}},
-    {{0.5F, -0.5F, 0.0F}, {0.0F, 0.0F, 1.0F}, {1.0F, 0.0F}},
-    {{0.5F, 0.5F, 0.0F}, {0.0F, 0.0F, 1.0F}, {1.0F, 1.0F}},
-    {{-0.5F, 0.5F, 0.0F}, {0.0F, 0.0F, 1.0F}, {0.0F, 1.0F}}};
-static unsigned int quad_indices[] = {0, 1, 2, 2, 3, 0};
-static size_t vertex_count = ARRAY_SIZE(quad_vertices);
-static size_t index_count = ARRAY_SIZE(quad_indices);
+int fps_event(void *ctx, void *data) {
+    struct ui_widget_label *label = ctx;
+    float *fps = (float *)data;
 
-static u64 sprite2d_entity_new(struct ecs_world *world, float pos_x,
-                               float pos_y, float scale_x, float scale_y,
-                               float rot_angle, float z_index) {
-    struct sprite2d board_sprite = {.texture_path = "container.jpg"};
-    struct renderable2d board_ren = {.visible = true, .opacity = 1.0F};
-    struct transform2d board_tf = {.pos = {pos_x, pos_y},
-                                   .scale = {scale_x, scale_y},
-                                   .rot_angle = rot_angle,
-                                   .z_index = z_index};
+    int ret =
+        snprintf(label->text, UI_WIDGET_TEXT_MAX, "FPS: %i", (int)roundf(*fps));
+    if (ret < 0)
+        return CORE_FAILURE;
 
-    u64 new_entity = UINT64_MAX;
+    return CORE_SUCCESS;
+}
+
+int game_init(struct game_state *out, struct app *app) {
+    struct assets *assets = &app->assets;
+    struct ecs *ecs = &app->ecs;
+    struct ui *ui = &app->window.ui;
+    struct renderer *renderer = &app->window.renderer;
+
+    // **************** ASSETS ****************
+    assets_font_add(assets, "humansans_regular.otf", 64);
+    assets_texture2d_add(assets, "xo.png", TEXTURE_FILTER_LINEAR,
+                         TEXTURE_WRAP_CLAMP);
+
+    // **************** ECS ****************
+    ecs_add_world(ecs, "main_world");
+
+    struct ecs_world *world = NULL;
+    ecs_get_world(&world, ecs, "main_world");
+
+    ecs_world_component_type_add(world, "transform", sizeof(struct transform));
+    ecs_world_component_type_add(world, "renderable",
+                                 sizeof(struct renderable));
+    ecs_world_component_type_add(world, "mesh", sizeof(struct mesh));
+    ecs_world_component_type_add(world, "sprite", sizeof(struct sprite));
+    ecs_world_component_type_add(world, "board", sizeof(struct board));
+    ecs_world_component_type_add(world, "board_button",
+                                 sizeof(struct board_button));
+    ecs_world_system_add(world, "move", move_system);
+    ecs_world_system_add(world, "board_button", board_button_system);
+
+    // **************** GAME ****************
+    u32 present_bar_entity = game_mesh2d_entity_new(
+        world, "quad", "", (vec2){0.0f, 0.0f}, (vec2){400.0f, 999999.0f}, 0.0f,
+        -0.5f, (struct color){255, 100, 100, 255});
+
+    *out = (struct game_state){.turn = PLAYER_X,
+                               .timelines = 0,
+                               .present = 0,
+                               .winner = PLAYER_NONE,
+                               .present_bar_entity = present_bar_entity};
+    struct game_state *state = out;
+
+    renderer_add_camera_ortho(renderer, "main_camera", (vec3){0.0f, 0.0f, 0.0f},
+                              0.0f, (float)app->window.size[0],
+                              (float)app->window.size[1], 0.0f, 1.0f, -1.0f,
+                              1.0f);
+    renderer_active_camera_set(renderer, "main_camera");
+
+    enum player board_state[9] = {PLAYER_NONE};
+    game_board_entity_new(world, PLAYER_X, (vec2){0.0f, 0.0f}, state->present,
+                          state->timelines, board_state);
+
+    ui_widget_add_label(ui, "test_label",
+                        "THE QUICK BROWN FOX JUMPED OVER THE LAZY DOG", 64,
+                        "humansans_regular.otf", true,
+                        (struct transform){.pos = {100.0f, 500.0f, 1.0f},
+                                           .scale = {100.0f, 100.0f, 1.0f}},
+                        (struct color){255, 255, 255, 255}, NULL, NULL);
+
+    ui_widget_add_label(ui, "fps_label", "FPS: ", 20, "humansans_regular.otf",
+                        true,
+                        (struct transform){.pos = {10.0f, 25.0f, 1.0f},
+                                           .scale = {100.0f, 100.0f, 1.0f}},
+                        (struct color){255, 255, 255, 255}, NULL, NULL);
+
+    char fps_widget_id[GLOBALS_STR_ID_MAX] = {0};
+    int ret = snprintf(fps_widget_id, GLOBALS_STR_ID_MAX, "%s", "fps_label");
+    if (ret < 0)
+        return CORE_FAILURE;
+
+    struct ui_widget *fps_widget = NULL;
+    int error = table_find((void **)&fps_widget, &ui->widgets, fps_widget_id);
+    if (error)
+        return error;
+
+    struct ui_widget_label *label = NULL;
+    error = array_get((void **)&label, &ui->labels, fps_widget->data_index);
+    if (error)
+        return error;
+
+    event_queue_add_subject(&app->event_queue, "fps_text");
+    event_queue_subject_add_observer(&app->event_queue, "fps_text", fps_event,
+                                     label);
+    return CORE_SUCCESS;
+}
+
+int game_update(struct app *app) {
+    int error = event_queue_push(&app->event_queue, "fps_text",
+                                 &app->window.timing.fps_avg);
+    if (error)
+        return error;
+
+    return CORE_SUCCESS;
+}
+
+u32 game_mesh2d_entity_new(struct ecs_world *world, const char *mesh_id,
+                           const char *texture_id, vec2 pos, vec2 scale,
+                           float rot_angle, float z_index, struct color tint) {
+    struct mesh mesh = {.tint = tint};
+    struct renderable ren = {.visible = true, .opacity = 1.0f};
+    struct transform tf = {.pos = {pos[0], pos[1], z_index},
+                           .scale = {scale[0], scale[1], 1.0f},
+                           .rot_axis = {0.0f, 0.0f, 1.0f},
+                           .rot_angle = rot_angle};
+
+    int ret =
+        snprintf(mesh.texture_id, sizeof(mesh.texture_id), "%s", texture_id);
+    if (ret < 0)
+        return U32_MAX;
+
+    ret = snprintf(mesh.mesh_id, sizeof(mesh.mesh_id), "%s", mesh_id);
+    if (ret < 0)
+        return U32_MAX;
+
+    u32 new_entity = U32_MAX;
     ecs_world_entity_add(&new_entity, world);
-    ecs_world_component_add(world, new_entity, "sprite2d", &board_sprite);
-    ecs_world_component_add(world, new_entity, "renderable2d", &board_ren);
-    ecs_world_component_add(world, new_entity, "transform2d", &board_tf);
+    ecs_world_component_add(world, new_entity, "mesh", &mesh);
+    ecs_world_component_add(world, new_entity, "renderable", &ren);
+    ecs_world_component_add(world, new_entity, "transform", &tf);
     return new_entity;
 }
 
-int game_init(struct game *out, struct app *app) {
-    struct assets *assets = &app->assets;
-    struct ecs *ecs = &app->ecs;
+u32 game_sprite_entity_new(struct ecs_world *world, const char *texture_id,
+                           vec2 pos, vec2 scale, float rot_angle, float z_index,
+                           struct color tint, vec2 uv_offset, vec2 uv_scale,
+                           bool visible) {
+    struct sprite sprite = {.tint = tint,
+                            .uv_offset = {uv_offset[0], uv_offset[1]},
+                            .uv_scale = {uv_scale[0], uv_scale[1]}};
+    struct renderable ren = {.visible = visible, .opacity = 1.0f};
+    struct transform tf = {.pos = {pos[0], pos[1], z_index},
+                           .scale = {scale[0], scale[1]},
+                           .rot_axis = {0.0f, 0.0f, 1.0f},
+                           .rot_angle = rot_angle};
 
-    // **************** ASSETS ****************
-    assets_material_add(assets, "container", "sprite2d", "container.jpg");
-    assets_mesh_add(assets, "sprite2d", quad_vertices, vertex_count,
-                    quad_indices, index_count);
+    int ret = snprintf(sprite.texture_id, sizeof(sprite.texture_id), "%s",
+                       texture_id);
+    if (ret < 0)
+        return U32_MAX;
 
-    // **************** ECS ****************
-    ecs_add_world(ecs, "world");
-
-    struct ecs_world *world = NULL;
-    ecs_get_world(&world, ecs, "world");
-
-    ecs_world_component_type_add(world, "transform2d",
-                                 sizeof(struct transform2d));
-    ecs_world_component_type_add(world, "renderable2d",
-                                 sizeof(struct renderable2d));
-    ecs_world_component_type_add(world, "mesh2d", sizeof(struct mesh2d));
-    ecs_world_component_type_add(world, "sprite2d", sizeof(struct sprite2d));
-    ecs_world_system_add(world, "move", move_sys);
-
-    // **************** GAME ****************
-    sprite2d_entity_new(world, 0.0F, 0.0F, 1.0F, 1.0F, 10.0F, 1);
-    sprite2d_entity_new(world, -0.5F, 0.75F, 0.25F, 1.0F, 10.0F, 1);
-    out->timelines = 0;
-    out->present = 0;
-
-    return CORE_SUCCESS;
+    u32 new_entity = U32_MAX;
+    ecs_world_entity_add(&new_entity, world);
+    ecs_world_component_add(world, new_entity, "sprite", &sprite);
+    ecs_world_component_add(world, new_entity, "renderable", &ren);
+    ecs_world_component_add(world, new_entity, "transform", &tf);
+    return new_entity;
 }
 
-int game_run(struct app *app) {
-    struct renderer *renderer = &app->window.renderer;
-    struct input *input = &app->window.input;
+u32 game_board_button_entity_new(struct ecs_world *world, u32 board_entity,
+                                 size_t id, vec2 pos, vec2 scale,
+                                 enum player turn) {
+    bool visible = false;
+    struct color color = {0};
+    vec2 uv_offset = {0};
+    if (turn == PLAYER_X || turn == PLAYER_O)
+        visible = true;
 
-    if (input->keys[GLFW_KEY_W])
-        renderer_camera_move(renderer, 0.0F, 0.01F, 0.0F);
-
-    if (input->keys[GLFW_KEY_S])
-        renderer_camera_move(renderer, 0.0F, -0.01F, 0.0F);
-
-    if (input->keys[GLFW_KEY_A])
-        renderer_camera_move(renderer, 0.01F, 0.0F, 0.0F);
-
-    if (input->keys[GLFW_KEY_D])
-        renderer_camera_move(renderer, -0.01F, 0.0F, 0.0F);
-
-    if (input->mouse_buttons[GLFW_MOUSE_BUTTON_LEFT]) {
-        LOGGER_LOG(LOGGER_DEBUG, "%f %f", input->cursor_pos[0],
-                   input->cursor_pos[1]);
+    switch (turn) {
+    case PLAYER_X:
+        visible = true;
+        color = (struct color){255, 100, 100, 255};
+        glm_vec2_copy((vec2){0.0f, 0.0f}, uv_offset);
+        break;
+    case PLAYER_O:
+        visible = true;
+        color = (struct color){100, 100, 255, 255};
+        glm_vec2_copy((vec2){0.5f, 0.0f}, uv_offset);
+        break;
+    case PLAYER_NONE:
+    default:
+        break;
     }
 
-    return CORE_SUCCESS;
+    u32 background_entity =
+        game_mesh2d_entity_new(world, "quad", "", pos, scale, 0.0f, 0.5f,
+                               (struct color){0, 0, 0, 255});
+    u32 new_entity =
+        game_sprite_entity_new(world, "xo.png", pos, scale, 0.0f, 0.75f, color,
+                               uv_offset, (vec2){0.5f, 0.5f}, visible);
+    struct board_button button = {.id = id,
+                                  .turn = turn,
+                                  .background_entity = background_entity,
+                                  .board_entity = board_entity};
+
+    ecs_world_component_add(world, new_entity, "board_button", &button);
+    return new_entity;
+}
+
+u32 game_board_entity_new(struct ecs_world *world, enum player owner, vec2 pos,
+                          unsigned int present, unsigned int timeline,
+                          enum player state[9]) {
+    int rows = 3;
+    float button_size = 200.0f;
+    float gap = 6.0f;
+    float spacing = button_size + gap;
+
+    float grid_width = ((float)rows - 1.0f) * spacing;
+    float grid_height = ((float)rows - 1.0f) * spacing;
+
+    float start_x = -grid_width * 0.5f;
+    float start_y = grid_height * 0.5f;
+
+    float board_border_size =
+        gap * ((float)rows + 1.0f) + (button_size * (float)rows);
+
+    struct color bg_tint = owner == PLAYER_X
+                               ? (struct color){255, 100, 100, 255}
+                               : (struct color){100, 100, 255, 255};
+
+    u32 background = game_mesh2d_entity_new(
+        world, "quad", "", pos, (vec2){board_border_size, board_border_size},
+        0.0f, 0.0f, bg_tint);
+
+    float board_background_size =
+        gap * ((float)rows - 1.0f) + (button_size * (float)rows);
+
+    game_mesh2d_entity_new(world, "quad", "", pos,
+                           (vec2){board_background_size, board_background_size},
+                           0.0f, 0.25f, (struct color){255, 255, 255, 255});
+
+    struct board board = {.owner = owner,
+                          .background_entity = background,
+                          .present = present,
+                          .timeline = timeline,
+                          .has_next_board = false};
+    memcpy(board.state, state, sizeof(board.state));
+
+    u32 new_entity = U32_MAX;
+    ecs_world_entity_add(&new_entity, world);
+    ecs_world_component_add(world, new_entity, "board", &board);
+
+    for (int i = 0; i < rows * rows; ++i) {
+        int col = i % rows;
+        int row = i / rows;
+
+        float x = pos[0] + start_x + (float)col * spacing;
+        float y = pos[1] + start_y - (float)row * spacing;
+
+        game_board_button_entity_new(world, new_entity, i, (vec2){x, y},
+                                     (vec2){button_size, button_size},
+                                     board.state[i]);
+    }
+
+    return new_entity;
 }

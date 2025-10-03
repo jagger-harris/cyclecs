@@ -1,17 +1,14 @@
 Checks:
-  - bugprone-*
-  - cert-*
-  - clang-analyzer-*
-  - cppcoreguidelines-*
-  - misc-*
-  - modernize-use-using
-  - performance-*
-  - readability-identifier-length
+  - bugprone-*,-bugprone-easily-swappable-parameters
+  - cert-*,
+  - clang-analyzer-*,-clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling
+  - misc-*,-misc-include-cleaner
+  - performance-*,-performance-no-int-to-ptr
   - readability-identifier-naming
-  - readability-magic-numbers
+  - readability-isolate-declaration
 
 WarningsAsErrors:
-  - '*'
+  "*"
 
 CheckOptions:
   - key: readability-identifier-naming.VariableCase
@@ -19,7 +16,7 @@ CheckOptions:
   - key: readability-identifier-naming.FunctionCase
     value: lower_case
   - key: readability-identifier-naming.ConstantCase
-    value: UPPER_CASE
+    value: lower_case
   - key: readability-identifier-naming.MacroDefinitionCase
     value: UPPER_CASE
   - key: readability-identifier-naming.ParameterCase
@@ -36,14 +33,5 @@ CheckOptions:
     value: lower_case
   - key: readability-identifier-naming.GlobalConstantCase
     value: UPPER_CASE
-  - key: readability-magic-numbers.IgnoreMagicNumbersRegex
-    value: '^0|1$'  # allows 0 and 1 as exceptions
-  - key: cppcoreguidelines-pro-type-const-cast
-    value: 'true'
-  - key: cppcoreguidelines-pro-type-vararg
-    value: 'true'
-  - key: bugprone-use-after-move
-    value: 'true'
-  - key: bugprone-sizeof-expression
-    value: 'true'
-
+  - key: MiscIncludeCleaner.CheckHeaders
+    value: used

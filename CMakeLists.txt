@@ -6,14 +6,19 @@ project(executable C)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_C_STANDARD 17)
 set(CMAKE_C_STANDARD_REQUIRED ON)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 # Get all sources
-file(GLOB_RECURSE HEADER_FILES src/*.h)
-file(GLOB_RECURSE SOURCE_FILES src/*.c)
+file(GLOB_RECURSE SOURCES CONFIGURE_DEPENDS src/*.c)
 
 # Create executable and add dependencies
-add_executable(${PROJECT_NAME} ${HEADER_FILES} ${SOURCE_FILES})
-target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/src)
+add_executable(${PROJECT_NAME} ${SOURCES})
+target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+
+# Clang-tidy only for project
+set_target_properties(${PROJECT_NAME} PROPERTIES
+    C_CLANG_TIDY $<$<CONFIG:Debug>:clang-tidy>
+)
 
 # Define DEBUG in debug builds
 target_compile_definitions(${PROJECT_NAME} PRIVATE
@@ -28,7 +33,7 @@ if (MSVC)
 else()
     target_compile_options(${PROJECT_NAME} PRIVATE
         $<$<CONFIG:Debug>:-g3 -O0 -Wall -Wextra -Wdeprecated -Wpointer-arith -Wstrict-aliasing -Wpedantic -Wstrict-aliasing -Werror -fsanitize=address,undefined>
-        $<$<CONFIG:Release>:-O2 -DNDEBUG>
+        $<$<CONFIG:Release>:-O3 -DNDEBUG>
     )
     target_link_options(${PROJECT_NAME} PRIVATE
         $<$<CONFIG:Debug>:-fsanitize=address,undefined>
@@ -39,7 +44,7 @@ endif()
 set(ASSETS_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/data)
 set(ASSETS_DEST_DIR ${CMAKE_CURRENT_BINARY_DIR}/data)
 
-if (CMAKE_BUILD_TYPE STREQUAL debug)
+if (CMAKE_BUILD_TYPE STREQUAL Debug)
     add_custom_target(ASSETS
         COMMAND ${CMAKE_COMMAND} -E create_symlink ${ASSETS_SOURCE_DIR} ${ASSETS_DEST_DIR}
         COMMENT "Creating symbolic link for assets in debug mode"
@@ -62,6 +67,21 @@ add_library(cglm INTERFACE)
 target_include_directories(cglm INTERFACE ${CGLM_DIR}/include)
 target_link_libraries(${PROJECT_NAME} PRIVATE cglm)
 
+# FreeType
+set(FREETYPE_DIR ${LIB_DIR}/freetype)
+set(FT_DISABLE_ZLIB ON CACHE BOOL "" FORCE)
+set(FT_DISABLE_BZIP2 ON CACHE BOOL "" FORCE)
+set(FT_DISABLE_PNG ON CACHE BOOL "" FORCE)
+set(FT_DISABLE_HARFBUZZ ON CACHE BOOL "" FORCE)
+set(FT_DISABLE_BROTLI ON CACHE BOOL "" FORCE)
+set(FT_WITH_ZLIB OFF CACHE BOOL "" FORCE)
+set(FT_WITH_BZIP2 OFF CACHE BOOL "" FORCE)
+set(FT_WITH_PNG OFF CACHE BOOL "" FORCE)
+set(FT_WITH_HARFBUZZ OFF CACHE BOOL "" FORCE)
+set(FT_WITH_BROTLI OFF CACHE BOOL "" FORCE)
+add_subdirectory(${FREETYPE_DIR} ${CMAKE_BINARY_DIR}/freetype_build)
+target_link_libraries(${PROJECT_NAME} PRIVATE freetype)
+
 # GLFW
 set(GLFW_DIR ${LIB_DIR}/glfw)
 set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
@@ -70,14 +90,12 @@ set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(GLFW_INSTALL OFF CACHE BOOL "" FORCE)
 add_subdirectory("${GLFW_DIR}")
 target_link_libraries(${PROJECT_NAME} PRIVATE glfw)
-target_include_directories(${PROJECT_NAME} PRIVATE ${GLFW_DIR}/include)
 target_compile_definitions(${PROJECT_NAME} PRIVATE GLFW_INCLUDE_NONE)
 
 # Glad
 set(GLAD_DIR ${LIB_DIR}/glad)
 add_library(glad ${GLAD_DIR}/src/gl.c)
-target_include_directories(glad PRIVATE ${GLAD_DIR}/include)
-target_include_directories(${PROJECT_NAME} PRIVATE ${GLAD_DIR}/include)
+target_include_directories(glad PUBLIC ${GLAD_DIR}/include)
 target_link_libraries(${PROJECT_NAME} PRIVATE glad)
 
 # STB
