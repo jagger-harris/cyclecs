@@ -15,7 +15,6 @@ int arena_init(struct arena *out, size_t size) {
     if (!out->mem)
         return CORE_OUT_OF_MEMORY;
 
-    memset(out->mem, 0, size);
     return CORE_SUCCESS;
 }
 
@@ -57,8 +56,6 @@ int arena_clear(struct arena *in) {
 
     in->used = 0;
     in->last_offset = 0;
-
-    memset(in->mem, 0, in->size);
     return CORE_SUCCESS;
 }
 

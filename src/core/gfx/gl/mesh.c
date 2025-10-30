@@ -68,14 +68,14 @@ int gl_mesh_draw_instanced(struct gl_mesh *mesh,
         glGenBuffers(1, &mesh->instance_vbo);
         glBindVertexArray(mesh->vao);
         glBindBuffer(GL_ARRAY_BUFFER, mesh->instance_vbo);
-        glBufferData(
-            GL_ARRAY_BUFFER,
-            (GLsizeiptr)(instance_count * sizeof(struct gl_mesh_instance_data)),
-            NULL, GL_DYNAMIC_DRAW);
+        glBufferData(GL_ARRAY_BUFFER,
+                     (GLsizeiptr)((size_t)instance_count *
+                                  sizeof(struct gl_mesh_instance_data)),
+                     NULL, GL_DYNAMIC_DRAW);
 
         GLsizei stride = sizeof(struct gl_mesh_instance_data);
         size_t offset_mvp = offsetof(struct gl_mesh_instance_data, mvp);
-        for (int i = 0; i < 4; ++i) {
+        for (GLuint i = 0; i < 4; ++i) {
             glEnableVertexAttribArray(3 + i);
             glVertexAttribPointer(
                 3 + i, 4, GL_FLOAT, GL_FALSE, stride,
@@ -105,8 +105,8 @@ int gl_mesh_draw_instanced(struct gl_mesh *mesh,
     }
 
     glBindBuffer(GL_ARRAY_BUFFER, mesh->instance_vbo);
-    GLsizeiptr size =
-        (GLsizeiptr)(instance_count * sizeof(struct gl_mesh_instance_data));
+    GLsizeiptr size = (GLsizeiptr)((size_t)instance_count *
+                                   sizeof(struct gl_mesh_instance_data));
 
     if (size > mesh->instance_capacity) {
         glBufferData(GL_ARRAY_BUFFER, size, instances, GL_DYNAMIC_DRAW);

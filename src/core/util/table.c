@@ -2,6 +2,7 @@
 #include "core/util/error.h"
 #include "core/util/logger.h"
 #include "core/util/xxhash32.h"
+#include <stdalign.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -12,8 +13,16 @@
 #define TABLE_SHRINK_FACTOR 0.5
 #define SLOT_METADATA_SIZE 8
 
+static inline size_t align_round_up(size_t x, size_t align) {
+    return (x + (align - 1)) & ~(align - 1);
+}
+
 static size_t table_calculate_slot_size(size_t key_size, size_t value_size) {
-    return SLOT_METADATA_SIZE + key_size + value_size;
+    const size_t meta = SLOT_METADATA_SIZE;
+    const size_t align = alignof(max_align_t);
+    size_t key_offset = align_round_up(meta, align);
+    size_t value_offset = align_round_up(key_offset + key_size, align);
+    return value_offset + value_size;
 }
 
 static int table_get_slot(void **out, const struct table *in, size_t index) {
@@ -46,7 +55,9 @@ static int table_get_key(void **out, const struct table *in, size_t index) {
     if (error)
         return error;
 
-    *out = (u8 *)slot + SLOT_METADATA_SIZE;
+    const size_t align = alignof(max_align_t);
+    size_t key_offset = align_round_up(SLOT_METADATA_SIZE, align);
+    *out = (u8 *)slot + key_offset;
     return CORE_SUCCESS;
 }
 
@@ -59,7 +70,10 @@ static int table_get_value(void **out, const struct table *in, size_t index) {
     if (error)
         return error;
 
-    *out = (u8 *)slot + SLOT_METADATA_SIZE + in->key_size;
+    const size_t align = alignof(max_align_t);
+    size_t key_offset = align_round_up(SLOT_METADATA_SIZE, align);
+    size_t value_offset = align_round_up(key_offset + in->key_size, align);
+    *out = (u8 *)slot + value_offset;
     return CORE_SUCCESS;
 }
 
@@ -68,14 +82,18 @@ static int table_insert_no_resize(struct table *in, const void *key,
     if (!in)
         return CORE_NULLPTR;
 
-    u32 hash = xxhash32(key, in->key_size, 0);
+    u32 hash = 0;
+    int error = xxhash32(&hash, key, in->key_size, 0);
+    if (error)
+        return error;
+
     u8 fingerprint = (hash & 0x7f) | 0x80;
-    u32 index = hash & (in->capacity - 1);
+    u32 index = hash & ((u32)in->capacity - 1);
 
     for (size_t i = 0; i < in->capacity; ++i) {
-        u32 probe = (index + i) & (in->capacity - 1);
+        u32 probe = (u32)(index + i) & (u32)(in->capacity - 1);
         u8 *probe_metadata = NULL;
-        int error = table_get_metadata(&probe_metadata, in, probe);
+        error = table_get_metadata(&probe_metadata, in, probe);
         if (error)
             return error;
 
@@ -124,7 +142,7 @@ static int table_resize(struct table *in, size_t new_capacity) {
 
     for (size_t i = 0; i < new_capacity; ++i) {
         u8 *metadata = NULL;
-        int error = table_get_metadata(&metadata, &new_table, i);
+        error = table_get_metadata(&metadata, &new_table, i);
         if (error)
             goto cleanup;
         *metadata = 0;
@@ -132,7 +150,7 @@ static int table_resize(struct table *in, size_t new_capacity) {
 
     for (size_t i = 0; i < in->capacity; ++i) {
         u8 *metadata = NULL;
-        int error = table_get_metadata(&metadata, in, i);
+        error = table_get_metadata(&metadata, in, i);
         if (error)
             goto cleanup;
 
@@ -229,14 +247,18 @@ int table_remove(void *out, struct table *in, const void *key) {
     if (!in || !key)
         return CORE_NULLPTR;
 
-    u32 hash = xxhash32(key, in->key_size, 0);
+    u32 hash = 0;
+    int error = xxhash32(&hash, key, in->key_size, 0);
+    if (error)
+        return error;
+
     u8 hash_metadata = (hash & 0x7f) | 0x80;
-    u32 index = hash & (in->capacity - 1);
+    u32 index = hash & (u32)(in->capacity - 1);
 
     for (size_t i = 0; i < in->capacity; ++i) {
-        u32 probe = (index + i) & (in->capacity - 1);
+        u32 probe = (u32)(index + i) & (u32)(in->capacity - 1);
         u8 *probe_metadata = NULL;
-        int error = table_get_metadata(&probe_metadata, in, probe);
+        error = table_get_metadata(&probe_metadata, in, probe);
         if (error)
             return error;
 
@@ -281,14 +303,18 @@ int table_find(void **out, const struct table *in, const void *key) {
     if (!out || !in || !key)
         return CORE_NULLPTR;
 
-    u32 hash = xxhash32(key, in->key_size, 0);
+    u32 hash = 0;
+    int error = xxhash32(&hash, key, in->key_size, 0);
+    if (error)
+        return error;
+
     u8 fingerprint = (hash & 0x7f) | 0x80;
-    u32 index = hash & (in->capacity - 1);
+    u32 index = hash & (u32)(in->capacity - 1);
 
     for (size_t i = 0; i < in->capacity; ++i) {
-        u32 probe = (index + i) & (in->capacity - 1);
+        u32 probe = (u32)(index + i) & (u32)(in->capacity - 1);
         u8 *probe_metadata = NULL;
-        int error = table_get_metadata(&probe_metadata, in, probe);
+        error = table_get_metadata(&probe_metadata, in, probe);
         if (error)
             return error;
 
@@ -331,6 +357,23 @@ int table_find_cpy(void *out, const struct table *in, const void *key) {
     return CORE_SUCCESS;
 }
 
+int table_clear(struct table *in) {
+    if (!in)
+        return CORE_NULLPTR;
+
+    for (size_t i = 0; i < in->capacity; ++i) {
+        u8 *metadata = NULL;
+        int error = table_get_metadata(&metadata, in, i);
+        if (error)
+            return error;
+
+        *metadata = 0;
+    }
+
+    in->length = 0;
+    return CORE_SUCCESS;
+}
+
 int table_iterator_init(struct table_iterator *iter,
                         const struct table *table) {
     if (!iter || !table)
@@ -344,16 +387,16 @@ int table_iterator_init(struct table_iterator *iter,
     return CORE_SUCCESS;
 }
 
-bool table_iterator_next(struct table_iterator *iter) {
+int table_iterator_next(bool *out, struct table_iterator *iter) {
     if (!iter || !iter->table)
-        return false;
+        return CORE_NULLPTR;
 
     while (iter->current_index < iter->table->capacity) {
         u8 *metadata = NULL;
         int error =
             table_get_metadata(&metadata, iter->table, iter->current_index);
         if (error)
-            return false;
+            return error;
 
         if (*metadata != 0) {
             void *key_ptr = NULL;
@@ -361,33 +404,35 @@ bool table_iterator_next(struct table_iterator *iter) {
 
             error = table_get_key(&key_ptr, iter->table, iter->current_index);
             if (error)
-                return false;
+                return error;
 
             error =
                 table_get_value(&value_ptr, iter->table, iter->current_index);
             if (error)
-                return false;
+                return error;
 
             iter->key = key_ptr;
             iter->value = value_ptr;
             iter->current_index++;
-            return true;
+            *out = true;
+            return CORE_SUCCESS;
         }
+
         iter->current_index++;
     }
 
     iter->key = NULL;
     iter->value = NULL;
-    return false;
+    *out = false;
+    return CORE_SUCCESS;
 }
 
-int table_iterator_reset(struct table_iterator *iter) {
+int table_iterator_clear(struct table_iterator *iter) {
     if (!iter)
         return CORE_NULLPTR;
 
     iter->current_index = 0;
     iter->key = NULL;
     iter->value = NULL;
-
     return CORE_SUCCESS;
 }

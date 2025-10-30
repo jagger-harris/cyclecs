@@ -25,8 +25,8 @@ int gl_texture2d_init(struct texture2d *out, struct texture2d_info *info) {
 
     glGenTextures(1, &out->gl.id);
     glBindTexture(GL_TEXTURE_2D, out->gl.id);
-    glTexImage2D(GL_TEXTURE_2D, 0, format, info->width, info->height, 0, format,
-                 GL_UNSIGNED_BYTE, info->data);
+    glTexImage2D(GL_TEXTURE_2D, 0, format, info->width, info->height, 0,
+                 (GLenum)format, GL_UNSIGNED_BYTE, info->data);
     glGenerateMipmap(GL_TEXTURE_2D);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filter);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filter);

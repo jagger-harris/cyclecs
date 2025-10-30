@@ -7,12 +7,7 @@
 struct board_button {
     enum player turn;
     size_t id;
-    u64 background_entity;
-    u64 board_entity;
-    bool pressed;
-    bool released;
-    bool down;
-    bool hovered;
+    u32 board_entity;
 };
 
 #endif // ECS_COMPONENT_BOARD_BUTTON_H

@@ -3,6 +3,7 @@
 #include "core/util/error.h"
 #include "core/util/globals.h"
 #include "core/util/types.h"
+#include "freetype/ftmodapi.h"
 #include <freetype/freetype.h>
 #include <freetype/ftimage.h>
 #include <math.h>
@@ -15,11 +16,13 @@
 #define FFONT_MIN_ATLAS_SIZE 128
 #define FFONT_MAX_ATLAS_SIZE 2048
 #define FFONT_GLYPH_PADDING 2 // Prevents texture bleeding
+#define FFONT_SDF_SPREAD 8 // SDF spread in pixels
 
 struct ffont_meta {
     unsigned int atlas_width;
     unsigned int atlas_height;
     int pixel_size;
+    u8 sdf_spread;
 };
 
 static unsigned int next_pow2(unsigned int i) {
@@ -45,14 +48,14 @@ static int ffont_save(const struct ffont *in, const char *path) {
         return CORE_FAILURE;
 
     size_t size = (size_t)in->atlas_width * (size_t)in->atlas_height;
-    u8 *new_atlas = malloc(size);
-    if (!new_atlas)
+    u8 *atlas = malloc(size);
+    if (!atlas)
         return CORE_OUT_OF_MEMORY;
 
     for (size_t i = 0; i < size; ++i)
-        new_atlas[i] = in->atlas[i];
+        atlas[i] = in->atlas[i];
 
-    struct fimage atlas_image = {.data = new_atlas,
+    struct fimage atlas_image = {.data = atlas,
                                  .width = (int)in->atlas_width,
                                  .height = (int)in->atlas_height,
                                  .channels = 1};
@@ -74,7 +77,8 @@ static int ffont_save(const struct ffont *in, const char *path) {
 
     struct ffont_meta meta = {.atlas_width = in->atlas_width,
                               .atlas_height = in->atlas_height,
-                              .pixel_size = in->pixel_size};
+                              .pixel_size = in->pixel_size,
+                              .sdf_spread = FFONT_SDF_SPREAD};
     unsigned long length = fwrite(&meta, sizeof(meta), 1, file);
     if (length < 1) {
         error = CORE_ACCESS_DENIED;
@@ -95,9 +99,9 @@ static int ffont_save(const struct ffont *in, const char *path) {
     return CORE_SUCCESS;
 
 cleanup:
-    if (new_atlas) {
-        free(new_atlas);
-        new_atlas = NULL;
+    if (atlas) {
+        free(atlas);
+        atlas = NULL;
     }
 
     return error;
@@ -175,7 +179,8 @@ int ffont_init(struct ffont *out, FT_Library ft, const char *path,
         return CORE_NULLPTR;
 
     char cache_path[GLOBALS_PATH_MAX] = {0};
-    int ret = snprintf(cache_path, GLOBALS_PATH_MAX, "%s_%i", path, pixel_size);
+    int ret =
+        snprintf(cache_path, GLOBALS_PATH_MAX, "%s_%i_sdf", path, pixel_size);
     if (ret < 0)
         return CORE_FAILURE;
 
@@ -186,14 +191,21 @@ int ffont_init(struct ffont *out, FT_Library ft, const char *path,
     if (FT_New_Face(ft, path, 0, &out->face))
         return CORE_FILE_NOT_FOUND;
 
-    FT_Set_Pixel_Sizes(out->face, 0, pixel_size);
+    FT_Set_Pixel_Sizes(out->face, 0, (FT_UInt)pixel_size);
     out->pixel_size = pixel_size;
+
+    // Set SDF property for the face
+    FT_Property_Set(ft, "sdf", "spread", &(FT_Int){FFONT_SDF_SPREAD});
 
     unsigned int total_area = 0;
     unsigned int max_width = 0;
     unsigned int max_height = 0;
-    for (unsigned char c = FFONT_CHAR_START; c <= FFONT_CHAR_END; ++c) {
-        if (FT_Load_Char(out->face, c, FT_LOAD_RENDER))
+    for (u8 c = FFONT_CHAR_START; c <= FFONT_CHAR_END; ++c) {
+        // Load with SDF render mode
+        if (FT_Load_Char(out->face, c, FT_LOAD_DEFAULT))
+            continue;
+
+        if (FT_Render_Glyph(out->face->glyph, FT_RENDER_MODE_SDF))
             continue;
 
         FT_Bitmap *bmp = &out->face->glyph->bitmap;
@@ -223,8 +235,11 @@ int ffont_init(struct ffont *out, FT_Library ft, const char *path,
         unsigned int test_shelf_height = 0;
         packing_success = true;
 
-        for (unsigned char c = FFONT_CHAR_START; c <= FFONT_CHAR_END; ++c) {
-            if (FT_Load_Char(out->face, c, FT_LOAD_RENDER))
+        for (u8 c = FFONT_CHAR_START; c <= FFONT_CHAR_END; ++c) {
+            if (FT_Load_Char(out->face, c, FT_LOAD_DEFAULT))
+                continue;
+
+            if (FT_Render_Glyph(out->face->glyph, FT_RENDER_MODE_SDF))
                 continue;
 
             FT_Bitmap *bmp = &out->face->glyph->bitmap;
@@ -261,8 +276,12 @@ int ffont_init(struct ffont *out, FT_Library ft, const char *path,
     unsigned int shelf_y = 0;
     unsigned int shelf_height = 0;
 
-    for (unsigned char c = FFONT_CHAR_START; c <= FFONT_CHAR_END; ++c) {
-        if (FT_Load_Char(out->face, c, FT_LOAD_RENDER))
+    for (u8 c = FFONT_CHAR_START; c <= FFONT_CHAR_END; ++c) {
+        if (FT_Load_Char(out->face, c, FT_LOAD_DEFAULT))
+            continue;
+
+        // Render glyph as SDF
+        if (FT_Render_Glyph(out->face->glyph, FT_RENDER_MODE_SDF))
             continue;
 
         FT_GlyphSlot slot = out->face->glyph;
@@ -276,13 +295,14 @@ int ffont_init(struct ffont *out, FT_Library ft, const char *path,
             shelf_height = 0;
         }
 
-        // Copy glyph data to atlas
+        // Copy SDF glyph data to atlas
         for (unsigned int row = 0; row < glyph_height; ++row) {
             for (unsigned int col = 0; col < glyph_width; ++col) {
                 unsigned int x = shelf_x + col;
                 unsigned int y = shelf_y + row;
                 out->atlas[y * out->atlas_width + x] =
-                    slot->bitmap.buffer[row * slot->bitmap.pitch + col];
+                    slot->bitmap
+                        .buffer[row * (unsigned int)slot->bitmap.pitch + col];
             }
         }
 

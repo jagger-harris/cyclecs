@@ -7,7 +7,10 @@ out vec4 frag_color;
 uniform sampler2D u_tex;
 
 void main() {
-    float alpha = texture(u_tex, uv).r;
+    float distance = texture(u_tex, uv).r;
+    float sdf = distance;
+    float width = fwidth(sdf);
+    float alpha = smoothstep(0.5f - width, 0.5f + width, sdf);
     if (alpha < 0.01f)
         discard;
 

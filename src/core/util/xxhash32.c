@@ -40,7 +40,7 @@ static u32 xxh32_avalanche(u32 h32) {
     return h32;
 }
 
-u32 xxhash32(const void *input, size_t length, u32 seed) {
+int xxhash32(u32 *out, const void *input, size_t length, u32 seed) {
     const u8 *p = input;
     const u8 *const b_end = p + length;
     u32 h32;
@@ -53,28 +53,29 @@ u32 xxhash32(const void *input, size_t length, u32 seed) {
         u32 v4 = seed - XXH_PRIME32_1;
 
         do {
-            u32 input = 0;
-            int error = read32le(&input, p);
+            u32 val = 0;
+            int error = read32le(&val, p);
             if (error)
                 return error;
-            v1 = xxh32_round(v1, input);
+            v1 = xxh32_round(v1, val);
             p += 4;
-            error = read32le(&input, p);
+
+            error = read32le(&val, p);
             if (error)
                 return error;
-            v2 = xxh32_round(v2, input);
+            v2 = xxh32_round(v2, val);
             p += 4;
-            error = read32le(&input, p);
+
+            error = read32le(&val, p);
             if (error)
                 return error;
-            read32le(&input, p);
-            v3 = xxh32_round(v3, input);
+            v3 = xxh32_round(v3, val);
             p += 4;
-            error = read32le(&input, p);
+
+            error = read32le(&val, p);
             if (error)
                 return error;
-            read32le(&input, p);
-            v4 = xxh32_round(v4, input);
+            v4 = xxh32_round(v4, val);
             p += 4;
         } while (p <= limit);
 
@@ -86,12 +87,11 @@ u32 xxhash32(const void *input, size_t length, u32 seed) {
     h32 += (u32)length;
 
     while (p + 4 <= b_end) {
-        u32 input = 0;
-        int error = read32le(&input, p);
+        u32 val = 0;
+        int error = read32le(&val, p);
         if (error)
             return error;
-
-        h32 += input * XXH_PRIME32_3;
+        h32 += val * XXH_PRIME32_3;
         h32 = rotl32(h32, 17) * XXH_PRIME32_4;
         p += 4;
     }
@@ -102,5 +102,6 @@ u32 xxhash32(const void *input, size_t length, u32 seed) {
         p++;
     }
 
-    return xxh32_avalanche(h32);
+    *out = xxh32_avalanche(h32);
+    return CORE_SUCCESS;
 }

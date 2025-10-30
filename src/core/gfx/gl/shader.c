@@ -65,7 +65,7 @@ int gl_shader_init(struct shader *out, const struct shader_info *info) {
     glAttachShader(out->gl.id, frag);
     glLinkProgram(out->gl.id);
 
-    int gl_error = glGetError();
+    int gl_error = (int)glGetError();
     if (gl_error != GL_NO_ERROR) {
         LOGGER_LOG_ERROR(LOGGER_WARN, error, "%s", "Adding gl shader failed");
         return CORE_GL;

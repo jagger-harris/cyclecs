@@ -4,12 +4,12 @@
 #include "core/util/types.h"
 #include <stdbool.h>
 
-enum player { PLAYER_NONE = 0, PLAYER_X, PLAYER_O };
+enum player { PLAYER_NULL = 0, PLAYER_NONE, PLAYER_X, PLAYER_O };
 
 struct board {
     enum player state[9];
     enum player owner;
-    u64 background_entity;
+    u32 background_entity;
     unsigned int present;
     unsigned int timeline;
     bool has_next_board;

@@ -1,4 +1,5 @@
 #include "core/app/assets.h"
+#include "cglm/io.h"
 #include "core/gfx/api.h"
 #include "core/gfx/material.h"
 #include "core/gfx/quad.h"
@@ -15,6 +16,8 @@
 #define ASSETS_FONT_PATH ASSETS_DEFAULT_PATH "gfx/fonts/"
 #define ASSETS_SHADER_PATH ASSETS_DEFAULT_PATH "gfx/shaders/"
 #define ASSETS_TEXTURE2D_PATH ASSETS_DEFAULT_PATH "gfx/texture2ds/"
+#define ASSETS_TEXTURE2D_DEFAULT_BLANK "DEFAULT_BLANK"
+#define ASSETS_TEXTURE2D_DEFAULT_MISSING "DEFAULT_MISSING"
 
 static int load_missing_texture(struct assets *in) {
     static u8 missingno[16] = {
@@ -26,17 +29,18 @@ static int load_missing_texture(struct assets *in) {
                                   .channels = 4,
                                   .filter = TEXTURE_FILTER_NEAREST,
                                   .wrap = TEXTURE_WRAP_REPEAT};
-    struct texture2d new_texture = {0};
-    int error = in->api->texture2d_init(&new_texture, &info);
+    struct texture2d texture = {0};
+    int error = in->api->texture2d_init(&texture, &info);
     if (error)
         return error;
 
-    char path[GLOBALS_PATH_MAX] = {0};
-    int ret = snprintf(path, GLOBALS_PATH_MAX, "%s", "DEFAULT_MISSING");
-    if (ret < 0)
-        return CORE_FAILURE;
+    u32 id = 0;
+    error = xxhash32(&id, ASSETS_TEXTURE2D_DEFAULT_MISSING,
+                     strlen(ASSETS_TEXTURE2D_DEFAULT_MISSING), 0);
+    if (error)
+        return error;
 
-    error = table_insert(&in->texture2ds, path, &new_texture);
+    error = table_insert(&in->texture2ds, &id, &texture);
     if (error)
         return error;
 
@@ -51,17 +55,18 @@ static int load_blank_texture(struct assets *in) {
                                   .channels = 4,
                                   .filter = TEXTURE_FILTER_NEAREST,
                                   .wrap = TEXTURE_WRAP_CLAMP};
-    struct texture2d new_texture = {0};
-    int error = in->api->texture2d_init(&new_texture, &info);
+    struct texture2d texture = {0};
+    int error = in->api->texture2d_init(&texture, &info);
     if (error)
         return error;
 
-    char path[GLOBALS_PATH_MAX] = {0};
-    int ret = snprintf(path, GLOBALS_PATH_MAX, "%s", "DEFAULT_BLANK");
-    if (ret < 0)
-        return CORE_FAILURE;
+    u32 id = 0;
+    error = xxhash32(&id, ASSETS_TEXTURE2D_DEFAULT_BLANK,
+                     strlen(ASSETS_TEXTURE2D_DEFAULT_BLANK), 0);
+    if (error)
+        return error;
 
-    error = table_insert(&in->texture2ds, path, &new_texture);
+    error = table_insert(&in->texture2ds, &id, &texture);
     if (error)
         return error;
 
@@ -74,6 +79,7 @@ static int assets_load_defaults(struct assets *in) {
     assets_shader_add(in, "font");
     assets_shader_add(in, "mesh");
     assets_shader_add(in, "sprite");
+    assets_font_add(in, "human_sans-regular.otf", 64);
     int error = load_missing_texture(in);
     if (error)
         return error;
@@ -97,28 +103,28 @@ int assets_init(struct assets *out, struct gfx_api *api) {
         return error;
     }
 
-    error = table_init(&out->fonts, ASSETS_START_CAPACITY, GLOBALS_PATH_MAX,
+    error = table_init(&out->fonts, ASSETS_START_CAPACITY, sizeof(u32),
                        sizeof(struct ffont));
     if (error)
         goto cleanup;
 
-    error = table_init(&out->materials, ASSETS_START_CAPACITY, GLOBALS_PATH_MAX,
+    error = table_init(&out->materials, ASSETS_START_CAPACITY, sizeof(u32),
                        sizeof(struct material));
     if (error)
         goto cleanup;
 
-    error = table_init(&out->meshes, ASSETS_START_CAPACITY, GLOBALS_PATH_MAX,
+    error = table_init(&out->meshes, ASSETS_START_CAPACITY, sizeof(u32),
                        sizeof(struct gl_mesh));
     if (error)
         goto cleanup;
 
-    error = table_init(&out->shaders, ASSETS_START_CAPACITY, GLOBALS_PATH_MAX,
+    error = table_init(&out->shaders, ASSETS_START_CAPACITY, sizeof(u32),
                        sizeof(GLuint));
     if (error)
         goto cleanup;
 
-    error = table_init(&out->texture2ds, ASSETS_START_CAPACITY,
-                       GLOBALS_PATH_MAX, sizeof(struct texture2d));
+    error = table_init(&out->texture2ds, sizeof(u32), sizeof(u32),
+                       sizeof(struct texture2d));
     if (error)
         goto cleanup;
 
@@ -142,7 +148,9 @@ void assets_destroy(struct assets *in) {
     if (error)
         return;
 
-    while (table_iterator_next(&iter)) {
+    bool iter_next = false;
+    while (table_iterator_next(&iter_next, &iter) == CORE_SUCCESS &&
+           iter_next) {
         struct ffont *font = iter.value;
         ffont_destroy(font);
     }
@@ -163,13 +171,13 @@ void assets_font_add(struct assets *in, const char *font_path, int pixel_size) {
     if (!in || !font_path)
         return;
 
-    char id[GLOBALS_PATH_MAX] = {0};
-    int ret = snprintf(id, GLOBALS_PATH_MAX, "%s", font_path);
-    if (ret < 0)
+    u32 id = 0;
+    int error = xxhash32(&id, font_path, strlen(font_path), 0);
+    if (error)
         return;
 
     struct ffont *found = NULL;
-    int error = table_find((void **)&found, &in->fonts, id);
+    error = table_find((void **)&found, &in->fonts, &id);
     if (error)
         return;
 
@@ -179,54 +187,49 @@ void assets_font_add(struct assets *in, const char *font_path, int pixel_size) {
         return;
     }
 
-    char path[GLOBALS_PATH_MAX] = {0};
-    ret = snprintf(path, GLOBALS_PATH_MAX, ASSETS_FONT_PATH "%s", font_path);
+    char font_full_path[GLOBALS_PATH_MAX] = {0};
+    int ret = snprintf(font_full_path, GLOBALS_PATH_MAX, ASSETS_FONT_PATH "%s",
+                       font_path);
     if (ret < 0)
         return;
 
-    struct ffont new_font = {0};
-    error = ffont_init(&new_font, in->ft, path, pixel_size);
+    struct ffont font = {0};
+    error = ffont_init(&font, in->ft, font_full_path, pixel_size);
     if (error) {
         LOGGER_LOG_ERROR(LOGGER_WARN, error,
-                         "Adding font to assets failed (%s)", path);
+                         "Adding font to assets failed (%s)", font_path);
         return;
     }
 
-    struct texture2d_info info = {.data = new_font.atlas,
-                                  .width = (int)new_font.atlas_width,
-                                  .height = (int)new_font.atlas_height,
+    struct texture2d_info info = {.data = font.atlas,
+                                  .width = (int)font.atlas_width,
+                                  .height = (int)font.atlas_height,
                                   .channels = 1,
                                   .filter = TEXTURE_FILTER_LINEAR,
                                   .wrap = TEXTURE_WRAP_CLAMP};
-    struct texture2d new_texture = {0};
+    struct texture2d texture = {0};
 
-    error = in->api->texture2d_init(&new_texture, &info);
+    error = in->api->texture2d_init(&texture, &info);
     if (error)
         LOGGER_LOG(LOGGER_ERROR, "Init api texture2d failed (%s)", font_path);
 
-    error = table_insert(&in->fonts, id, &new_font);
+    error = table_insert(&in->fonts, &id, &font);
     if (error)
         return;
 
-    error = table_insert(&in->texture2ds, id, &new_texture);
+    error = table_insert(&in->texture2ds, &id, &texture);
     if (error)
         return;
 
-    LOGGER_LOG(LOGGER_INFO, "Loaded font successfully (%s)", path);
+    LOGGER_LOG(LOGGER_INFO, "Loaded font successfully (%s)", font_path);
     return;
 }
 
-int assets_font_get(struct ffont **out, const struct assets *in,
-                    const char *font_id) {
+int assets_font_get(struct ffont **out, const struct assets *in, u32 font_id) {
     if (!out || !in || !font_id)
         return CORE_NULLPTR;
 
-    char id[GLOBALS_PATH_MAX] = {0};
-    int ret = snprintf(id, GLOBALS_PATH_MAX, "%s", font_id);
-    if (ret < 0)
-        return CORE_FAILURE;
-
-    int error = table_find((void **)out, &in->fonts, id);
+    int error = table_find((void **)out, &in->fonts, &font_id);
     if (error)
         return error;
 
@@ -237,13 +240,13 @@ void assets_shader_add(struct assets *in, const char *shader_path) {
     if (!in || !shader_path)
         return;
 
-    char path[GLOBALS_PATH_MAX] = {0};
-    int ret = snprintf(path, GLOBALS_PATH_MAX, "%s", shader_path);
-    if (ret < 0)
+    u32 id = 0;
+    int error = xxhash32(&id, shader_path, strlen(shader_path), 0);
+    if (error)
         return;
 
     struct shader *found = NULL;
-    int error = table_find((void **)&found, &in->shaders, path);
+    error = table_find((void **)&found, &in->shaders, &id);
     if (error)
         return;
 
@@ -256,15 +259,15 @@ void assets_shader_add(struct assets *in, const char *shader_path) {
 
     char vert_path[GLOBALS_PATH_MAX] = {0};
     char frag_path[GLOBALS_PATH_MAX] = {0};
-    ret = snprintf(
+    int ret = snprintf(
         vert_path, GLOBALS_PATH_MAX, "%s%.*s.vert", ASSETS_SHADER_PATH,
-        (int)(GLOBALS_PATH_MAX - strlen(ASSETS_SHADER_PATH) - 6), path);
+        (int)(GLOBALS_PATH_MAX - strlen(ASSETS_SHADER_PATH) - 6), shader_path);
     if (ret < 0)
         return;
 
     ret = snprintf(
         frag_path, GLOBALS_PATH_MAX, "%s%.*s.frag", ASSETS_SHADER_PATH,
-        (int)(GLOBALS_PATH_MAX - strlen(ASSETS_SHADER_PATH) - 6), path);
+        (int)(GLOBALS_PATH_MAX - strlen(ASSETS_SHADER_PATH) - 6), shader_path);
     if (ret < 0)
         return;
 
@@ -288,21 +291,21 @@ void assets_shader_add(struct assets *in, const char *shader_path) {
         goto cleanup;
 
     struct shader_info info = {.vert_src = vert_src, .frag_src = frag_src};
-    struct shader new_shader = {0};
-    error = in->api->shader_init(&new_shader, &info);
+    struct shader shader = {0};
+    error = in->api->shader_init(&shader, &info);
     if (error) {
-        LOGGER_LOG(LOGGER_ERROR, "Init api shader failed (%s)", path);
+        LOGGER_LOG(LOGGER_ERROR, "Init api shader failed (%s)", shader_path);
         goto cleanup;
     }
 
     fascii_destroy(&vert_src);
     fascii_destroy(&frag_src);
 
-    error = table_insert(&in->shaders, path, &new_shader);
+    error = table_insert(&in->shaders, &id, &shader);
     if (error)
         goto cleanup;
 
-    LOGGER_LOG(LOGGER_INFO, "Loaded shader successfully (%s)", path);
+    LOGGER_LOG(LOGGER_INFO, "Loaded shader successfully (%s)", shader_path);
     return;
 
 cleanup:
@@ -311,16 +314,11 @@ cleanup:
 }
 
 int assets_shader_get(struct shader **out, const struct assets *in,
-                      const char *shader_id) {
+                      u32 shader_id) {
     if (!in || !shader_id)
         return CORE_NULLPTR;
 
-    char id[GLOBALS_PATH_MAX] = {0};
-    int ret = snprintf(id, GLOBALS_PATH_MAX, "%s", shader_id);
-    if (ret < 0)
-        return CORE_FAILURE;
-
-    int error = table_find((void **)out, &in->shaders, id);
+    int error = table_find((void **)out, &in->shaders, &shader_id);
     if (error)
         return error;
 
@@ -334,27 +332,31 @@ void assets_texture2d_add(struct assets *in, const char *texture2d_path,
     if (!in || !texture2d_path)
         return;
 
-    char path[GLOBALS_PATH_MAX] = {0};
-    int ret = snprintf(path, GLOBALS_PATH_MAX, "%s", texture2d_path);
-    if (ret < 0)
+    if (!texture2d_path[0])
+        return;
+
+    u32 id = 0;
+    int error = xxhash32(&id, texture2d_path, strlen(texture2d_path), 0);
+    if (error)
         return;
 
     struct texture2d *found = NULL;
-    int error = table_find((void **)&found, &in->texture2ds, path);
+    error = table_find((void **)&found, &in->texture2ds, &id);
     if (error)
         return;
 
     if (found) {
         LOGGER_LOG(LOGGER_WARN,
                    "Duplicate texture2d in assets, not adding texture2d (%s)",
-                   path);
+                   texture2d_path);
         return;
     }
 
     char img_path[GLOBALS_PATH_MAX] = {0};
-    ret = snprintf(img_path, GLOBALS_PATH_MAX, "%s%.*s", ASSETS_TEXTURE2D_PATH,
-                   (int)(GLOBALS_PATH_MAX - strlen(ASSETS_TEXTURE2D_PATH) - 1),
-                   path);
+    int ret =
+        snprintf(img_path, GLOBALS_PATH_MAX, "%s%.*s", ASSETS_TEXTURE2D_PATH,
+                 (int)(GLOBALS_PATH_MAX - strlen(ASSETS_TEXTURE2D_PATH)),
+                 texture2d_path);
     if (ret < 0)
         return;
 
@@ -371,8 +373,8 @@ void assets_texture2d_add(struct assets *in, const char *texture2d_path,
                                   .channels = img.channels,
                                   .filter = filter,
                                   .wrap = wrap};
-    struct texture2d new_texture = {0};
-    error = in->api->texture2d_init(&new_texture, &info);
+    struct texture2d texture = {0};
+    error = in->api->texture2d_init(&texture, &info);
     if (error) {
         LOGGER_LOG(LOGGER_ERROR, "Init api texture2d failed (%s)", img_path);
         goto cleanup;
@@ -380,7 +382,7 @@ void assets_texture2d_add(struct assets *in, const char *texture2d_path,
 
     fimage_destroy(&img);
 
-    error = table_insert(&in->texture2ds, path, &new_texture);
+    error = table_insert(&in->texture2ds, &id, &texture);
     if (error)
         goto cleanup;
 
@@ -392,46 +394,50 @@ cleanup:
 }
 
 int assets_texture2d_get(struct texture2d **out, const struct assets *in,
-                         const char *texture_id) {
-    if (!in || !texture_id)
+                         u32 texture2d_id) {
+    if (!in || !texture2d_id)
         return CORE_NULLPTR;
 
-    char id[GLOBALS_PATH_MAX] = {0};
-    int ret = snprintf(id, GLOBALS_PATH_MAX, "%s", texture_id);
-    if (ret < 0)
-        return CORE_FAILURE;
-
     struct texture2d *found = NULL;
-    bool has_texture = texture_id[0] ? true : false;
 
+    u32 null_texture_id = 0;
+    int error = xxhash32(&null_texture_id, "", strlen(""), 0);
+    if (error)
+        return error;
+
+    bool has_texture = texture2d_id != null_texture_id;
     if (has_texture) {
-        int error = table_find((void **)&found, &in->texture2ds, id);
+        error = table_find((void **)&found, &in->texture2ds, &texture2d_id);
         if (error)
             return error;
 
         if (!found) {
-            char missing_id[GLOBALS_PATH_MAX] = {0};
-            int ret =
-                snprintf(missing_id, GLOBALS_PATH_MAX, "%s", "DEFAULT_MISSING");
-            if (ret < 0)
-                return CORE_FAILURE;
+            u32 missing_id = 0;
+            error = xxhash32(&missing_id, ASSETS_TEXTURE2D_DEFAULT_MISSING,
+                             strlen(ASSETS_TEXTURE2D_DEFAULT_MISSING), 0);
+            if (error)
+                return error;
 
-            error = table_find((void **)&found, &in->texture2ds, missing_id);
+            error = table_find((void **)&found, &in->texture2ds, &missing_id);
             if (error) {
                 LOGGER_LOG_ERROR(LOGGER_ERROR, error, "%s",
-                                 "Unable to load missing texture");
+                                 "Unable to get missing texture");
                 return error;
             }
         }
     } else {
-        char blank_id[GLOBALS_PATH_MAX] = {0};
-        int ret = snprintf(blank_id, GLOBALS_PATH_MAX, "%s", "DEFAULT_BLANK");
-        if (ret < 0)
-            return CORE_FAILURE;
-
-        int error = table_find((void **)&found, &in->texture2ds, blank_id);
+        u32 blank_id = 0;
+        error = xxhash32(&blank_id, ASSETS_TEXTURE2D_DEFAULT_BLANK,
+                         strlen(ASSETS_TEXTURE2D_DEFAULT_BLANK), 0);
         if (error)
             return error;
+
+        error = table_find((void **)&found, &in->texture2ds, &blank_id);
+        if (error) {
+            LOGGER_LOG_ERROR(LOGGER_ERROR, error, "%s",
+                             "Unable to get blank texture");
+            return error;
+        }
     }
 
     *out = found;
@@ -444,19 +450,18 @@ void assets_mesh_add(struct assets *in, const char *mesh_id,
     if (!in || !mesh_id || !vertices || !indices)
         return;
 
-    struct gl_mesh new_mesh = {0};
-    int error =
-        gl_mesh_init(&new_mesh, vertices, vertex_count, indices, index_count);
+    u32 id = 0;
+    int error = xxhash32(&id, mesh_id, strlen(mesh_id), 0);
     if (error)
         return;
 
-    char id[GLOBALS_PATH_MAX] = {0};
-    int ret = snprintf(id, GLOBALS_PATH_MAX, "%s", mesh_id);
-    if (ret < 0)
+    struct gl_mesh mesh = {0};
+    error = gl_mesh_init(&mesh, vertices, vertex_count, indices, index_count);
+    if (error)
         return;
 
     struct mesh *found = NULL;
-    error = table_find((void **)&found, &in->meshes, id);
+    error = table_find((void **)&found, &in->meshes, &id);
     if (error)
         return;
 
@@ -466,7 +471,7 @@ void assets_mesh_add(struct assets *in, const char *mesh_id,
         return;
     }
 
-    error = table_insert(&in->meshes, id, &new_mesh);
+    error = table_insert(&in->meshes, &id, &mesh);
     if (error)
         return;
 
@@ -474,33 +479,12 @@ void assets_mesh_add(struct assets *in, const char *mesh_id,
     return;
 }
 
-int assets_mesh_remove(struct assets *in, const char *mesh_id) {
-    if (!in || !mesh_id)
-        return CORE_NULLPTR;
-
-    char id[GLOBALS_PATH_MAX] = {0};
-    int ret = snprintf(id, GLOBALS_PATH_MAX, "%s", mesh_id);
-    if (ret)
-        return CORE_FAILURE;
-
-    int error = table_remove(NULL, &in->meshes, id);
-    if (error)
-        return error;
-
-    return CORE_SUCCESS;
-}
-
 int assets_mesh_get(struct gl_mesh **out, const struct assets *in,
-                    const char *mesh_id) {
+                    u32 mesh_id) {
     if (!out || !in || !mesh_id)
         return CORE_NULLPTR;
 
-    char id[GLOBALS_PATH_MAX] = {0};
-    int ret = snprintf(id, GLOBALS_PATH_MAX, "%s", mesh_id);
-    if (ret < 0)
-        return CORE_FAILURE;
-
-    int error = table_find((void **)out, &in->meshes, id);
+    int error = table_find((void **)out, &in->meshes, &mesh_id);
     if (error)
         return error;
 

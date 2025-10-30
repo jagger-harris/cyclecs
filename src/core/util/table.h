@@ -20,6 +20,7 @@ int table_insert(struct table *in, const void *key, const void *value);
 int table_remove(void *out, struct table *in, const void *key);
 int table_find(void **out, const struct table *in, const void *key);
 int table_find_cpy(void *out, const struct table *in, const void *key);
+int table_clear(struct table *in);
 
 struct table_iterator {
     const struct table *table;
@@ -29,7 +30,7 @@ struct table_iterator {
 };
 
 int table_iterator_init(struct table_iterator *iter, const struct table *table);
-bool table_iterator_next(struct table_iterator *iter);
-int table_iterator_reset(struct table_iterator *iter);
+int table_iterator_next(bool *out, struct table_iterator *iter);
+int table_iterator_clear(struct table_iterator *iter);
 
 #endif // UTIL_TABLE_H

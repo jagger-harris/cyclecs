@@ -20,11 +20,6 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
     C_CLANG_TIDY $<$<CONFIG:Debug>:clang-tidy>
 )
 
-# Define DEBUG in debug builds
-target_compile_definitions(${PROJECT_NAME} PRIVATE
-    $<$<CONFIG:Debug>:DEBUG>
-)
-
 # Compiler and build types
 if (MSVC)
     target_compile_options(${PROJECT_NAME} PRIVATE
@@ -32,11 +27,11 @@ if (MSVC)
     )
 else()
     target_compile_options(${PROJECT_NAME} PRIVATE
-        $<$<CONFIG:Debug>:-g3 -O0 -Wall -Wextra -Wdeprecated -Wpointer-arith -Wstrict-aliasing -Wpedantic -Wstrict-aliasing -Werror -fsanitize=address,undefined>
-        $<$<CONFIG:Release>:-O3 -DNDEBUG>
+        $<$<CONFIG:Debug>:-g3 -O0 -Wall -Wextra -Wpedantic -Wmisleading-indentation -Wunused -Wuninitialized -Wshadow -Wconversion -Wdeprecated -Wpointer-arith -Wstrict-aliasing -Werror -fsanitize=address,leak,undefined>
+        $<$<CONFIG:Release>:-O3 -DNDEBUG -DENABLE_PROFILER>
     )
     target_link_options(${PROJECT_NAME} PRIVATE
-        $<$<CONFIG:Debug>:-fsanitize=address,undefined>
+        $<$<CONFIG:Debug>:-fsanitize=address,leak,undefined>
     )
 endif()
 
@@ -95,11 +90,11 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE GLFW_INCLUDE_NONE)
 # Glad
 set(GLAD_DIR ${LIB_DIR}/glad)
 add_library(glad ${GLAD_DIR}/src/gl.c)
-target_include_directories(glad PUBLIC ${GLAD_DIR}/include)
+target_include_directories(glad SYSTEM PUBLIC ${GLAD_DIR}/include)
 target_link_libraries(${PROJECT_NAME} PRIVATE glad)
 
 # STB
 set(STB_DIR ${LIB_DIR}/stb)
 add_library(stb INTERFACE)
-target_include_directories(stb INTERFACE ${STB_DIR})
+target_include_directories(stb SYSTEM INTERFACE ${STB_DIR})
 target_link_libraries(${PROJECT_NAME} PRIVATE stb)

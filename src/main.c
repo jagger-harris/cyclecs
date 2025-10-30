@@ -1,5 +1,6 @@
 #include "base/game/game.h"
 #include "core/app/app.h"
+#include "core/util/error.h"
 #include "core/util/logger.h"
 
 #define WIN_WIDTH 1280
@@ -10,7 +11,7 @@ int main(void) {
     struct game_state state = {0};
     struct app app = {0};
     int error = app_init(&app, &state, (ivec2){WIN_WIDTH, WIN_HEIGHT},
-                         WIN_TITLE, (struct color){10, 15, 30, 255});
+                         WIN_TITLE, (ivec4){5, 10, 20, 255});
     if (error) {
         LOGGER_LOG_ERROR(LOGGER_ERROR, error, "%s", "Init app failed");
         goto cleanup;

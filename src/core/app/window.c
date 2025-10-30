@@ -1,5 +1,5 @@
 #include "core/app/window.h"
-#include "core/gfx/renderer/plugins/plugins.h"
+#include "core/util/error.h"
 #include "core/util/logger.h"
 
 static void error_callback(int error, const char *msg) {
@@ -13,17 +13,15 @@ static void framebuffer_size_callback(GLFWwindow *glfw_window, int width,
 
     if (!window) {
         LOGGER_LOG_ERROR(LOGGER_ERROR, CORE_GLFW, "%s",
-                         "Framebuffer resize failed");
+                         "GLFW framebuffer resize failed");
         return;
     }
 
-    if (width == 0 || height == 0)
-        return;
-
     window->size[0] = width;
     window->size[1] = height;
-    window->aspect_ratio = (height > 0) ? (float)width / (float)height : 1.0f;
-    renderer_on_resize(&window->renderer, width, height);
+    int error = renderer_on_resize(&window->renderer, width, height);
+    if (error)
+        LOGGER_LOG_ERROR(LOGGER_ERROR, error, "%s", "Renderer resize failed");
 }
 
 static void key_callback(GLFWwindow *glfw_window, int key, int scancode,
@@ -35,7 +33,8 @@ static void key_callback(GLFWwindow *glfw_window, int key, int scancode,
         (struct window *)glfwGetWindowUserPointer(glfw_window);
 
     if (!window) {
-        LOGGER_LOG_ERROR(LOGGER_ERROR, CORE_GLFW, "%s", "Getting key failed");
+        LOGGER_LOG_ERROR(LOGGER_ERROR, CORE_GLFW, "%s",
+                         "GLFW getting key failed");
         return;
     }
 
@@ -53,7 +52,7 @@ static void mouse_button_callback(GLFWwindow *glfw_window, int button,
 
     if (!window) {
         LOGGER_LOG_ERROR(LOGGER_ERROR, CORE_GLFW, "%s",
-                         "Getting mouse button failed");
+                         "GLFW getting mouse button failed");
         return;
     }
 
@@ -69,7 +68,7 @@ static void scroll_callback(GLFWwindow *glfw_window, double offset_x,
 
     if (!window) {
         LOGGER_LOG_ERROR(LOGGER_ERROR, CORE_GLFW, "%s",
-                         "Getting mouse button failed");
+                         "GLFW getting mouse button failed");
         return;
     }
 
@@ -84,7 +83,7 @@ static void cursor_pos_callback(GLFWwindow *glfw_window, double pos_x,
 
     if (!window) {
         LOGGER_LOG_ERROR(LOGGER_ERROR, CORE_GLFW, "%s",
-                         "Getting cursor pos failed");
+                         "GLFW getting cursor pos failed");
         return;
     }
 
@@ -92,7 +91,7 @@ static void cursor_pos_callback(GLFWwindow *glfw_window, double pos_x,
 }
 
 int window_init(struct window *out, struct gfx_api *api, ivec2 size,
-                const char *title, bool vsync, struct color bg_color) {
+                const char *title, bool vsync, ivec4 bg_color) {
     if (!out || !title)
         return CORE_NULLPTR;
 
@@ -108,6 +107,7 @@ int window_init(struct window *out, struct gfx_api *api, ivec2 size,
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+    glfwWindowHint(GLFW_MAXIMIZED, GLFW_TRUE);
 
     out->glfw_window = glfwCreateWindow(size[0], size[1], title, NULL, NULL);
     if (!out->glfw_window) {
@@ -126,12 +126,6 @@ int window_init(struct window *out, struct gfx_api *api, ivec2 size,
     glfwSetMouseButtonCallback(out->glfw_window, mouse_button_callback);
     glfwSetScrollCallback(out->glfw_window, scroll_callback);
     glfwSwapInterval(vsync);
-
-    error = ui_init(&out->ui);
-    if (error) {
-        LOGGER_LOG_ERROR(LOGGER_ERROR, error, "%s", "Init window gui failed");
-        goto cleanup;
-    }
 
     error = input_init(&out->input);
     if (error) {
@@ -153,6 +147,7 @@ int window_init(struct window *out, struct gfx_api *api, ivec2 size,
         goto cleanup;
     }
 
+    glfwSwapBuffers(out->glfw_window);
     glfwGetFramebufferSize(out->glfw_window, &out->size[0], &out->size[1]);
     return CORE_SUCCESS;
 
@@ -170,7 +165,6 @@ void window_destroy(struct window *in) {
         in->glfw_window = NULL;
     }
 
-    ui_destroy(&in->ui);
     renderer_destroy(&in->renderer);
     glfwTerminate();
 }

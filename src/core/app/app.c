@@ -1,10 +1,11 @@
 #include "core/app/app.h"
 #include "core/gfx/gl/renderer.h"
 #include "core/gfx/gl/shader.h"
+#include "core/util/error.h"
 #include "core/util/logger.h"
 
 int app_init(struct app *out, void *game_state, ivec2 window_size,
-             const char *title, struct color bg_color) {
+             const char *title, ivec4 bg_color) {
     if (!out || !title)
         return CORE_NULLPTR;
 
@@ -24,7 +25,7 @@ int app_init(struct app *out, void *game_state, ivec2 window_size,
         .game_state = game_state};
 
     // TODO: Add checking vsync via an options file
-    bool vsync = true;
+    bool vsync = false;
     int error = window_init(&out->window, &out->api, window_size, title, vsync,
                             bg_color);
     if (error) {
@@ -44,13 +45,6 @@ int app_init(struct app *out, void *game_state, ivec2 window_size,
         goto cleanup;
     }
 
-    error = event_queue_init(&out->event_queue);
-    if (error) {
-        LOGGER_LOG_ERROR(LOGGER_ERROR, error, "%s",
-                         "Init app event queue failed");
-        goto cleanup;
-    }
-
     return CORE_SUCCESS;
 cleanup:
     app_destroy(out);
@@ -63,7 +57,6 @@ void app_destroy(struct app *in) {
 
     assets_destroy(&in->assets);
     ecs_destroy(&in->ecs);
-    event_queue_destroy(&in->event_queue);
     window_destroy(&in->window);
 }
 
@@ -95,20 +88,6 @@ int app_run(struct app *in, const game_update_fn game_update) {
             break;
         }
 
-        error = ui_handle_input(&in->window.ui, &in->window.input);
-        if (error) {
-            LOGGER_LOG_ERROR(LOGGER_ERROR, error, "%s",
-                             "Handling window ui input failed");
-            break;
-        }
-
-        error = event_queue_update(&in->event_queue);
-        if (error) {
-            LOGGER_LOG_ERROR(LOGGER_ERROR, error, "%s",
-                             "Dispatching event queue failed");
-            break;
-        }
-
         error = game_update(in);
         if (error) {
             LOGGER_LOG_ERROR(LOGGER_ERROR, error, "%s", "Updating game failed");
@@ -122,7 +101,9 @@ int app_run(struct app *in, const game_update_fn game_update) {
             break;
         }
 
+        // PROFILING_START(renderer_draw_frame);
         error = renderer_draw_frame(&in->window.renderer, in);
+        // PROFILING_END(renderer_draw_frame);
         if (error) {
             LOGGER_LOG_ERROR(LOGGER_ERROR, error, "%s",
                              "Renderer drawing frame failed");
