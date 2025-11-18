@@ -4,54 +4,49 @@
 #include "base/ecs/system/main/winner.h"
 #include "base/ecs/system/ui/benchmark.h"
 #include "core/app/assets.h"
+#include "core/app/window.h"
 #include "core/ecs/component/node.h"
 #include "core/ecs/component/renderable/renderable.h"
 #include "core/ecs/component/renderable/ui.h"
 #include "core/ecs/component/transform.h"
 #include "core/ecs/ecs.h"
 #include "core/io/ffont.h"
+#include "core/util/xxhash32.h"
+
+static int add_component_types(struct ecs_world *world, void *data) {
+    (void)data;
+
+    ecs_world_component_type_add(world, ECS_COMP_NODE, sizeof(struct node));
+    ecs_world_component_type_add(world, ECS_COMP_TRANSFORM,
+                                 sizeof(struct transform));
+    ecs_world_component_type_add(world, ECS_COMP_RENDERABLE,
+                                 sizeof(struct renderable));
+    ecs_world_component_type_add(world, ECS_COMP_CAMERA, sizeof(struct camera));
+    ecs_world_component_type_add(world, ECS_COMP_UI_BASE,
+                                 sizeof(struct ui_base));
+    ecs_world_component_type_add(world, ECS_COMP_UI_BUTTON,
+                                 sizeof(struct ui_button));
+    ecs_world_component_type_add(world, ECS_COMP_UI_LABEL,
+                                 sizeof(struct ui_label));
+    return CORE_SUCCESS;
+}
 
 int game_init(struct game_state *out, struct app *app) {
-    struct assets *assets = &app->assets;
-    struct ecs *ecs = &app->ecs;
+    struct assets *assets = app->assets;
+    struct ecs *ecs = app->ecs;
 
     // **************** ASSETS ****************
     assets_texture2d_add(assets, "xo.png", TEXTURE_FILTER_LINEAR,
                          TEXTURE_WRAP_CLAMP);
 
     // **************** ECS ****************
-    ecs_add_world(ecs, GAME_WORLD_MAIN, 0.0f, 0, true);
-    ecs_add_world(ecs, GAME_WORLD_UI, 20.0f, 0, true);
+    ecs_world_add(ecs, GAME_WORLD_MAIN, 0.0f, 0, true);
+    ecs_world_add(ecs, GAME_WORLD_UI, 20.0f, 0, true);
 
-    struct table_iterator iter = {0};
-    int error = table_iterator_init(&iter, &ecs->worlds);
-    if (error)
-        return error;
-
-    bool iter_next = false;
-    while (table_iterator_next(&iter_next, &iter) == CORE_SUCCESS &&
-           iter_next) {
-        struct ecs_world *world = iter.value;
-        if (!world)
-            continue;
-
-        ecs_world_component_type_add(world, ECS_COMP_NODE, sizeof(struct node));
-        ecs_world_component_type_add(world, ECS_COMP_TRANSFORM,
-                                     sizeof(struct transform));
-        ecs_world_component_type_add(world, ECS_COMP_RENDERABLE,
-                                     sizeof(struct renderable));
-        ecs_world_component_type_add(world, ECS_COMP_CAMERA,
-                                     sizeof(struct camera));
-        ecs_world_component_type_add(world, ECS_COMP_UI_BASE,
-                                     sizeof(struct ui_base));
-        ecs_world_component_type_add(world, ECS_COMP_UI_BUTTON,
-                                     sizeof(struct ui_button));
-        ecs_world_component_type_add(world, ECS_COMP_UI_LABEL,
-                                     sizeof(struct ui_label));
-    }
+    ecs_iter_all_worlds(ecs, add_component_types, NULL);
 
     struct ecs_world *main_world = NULL;
-    ecs_get_world(&main_world, ecs, GAME_WORLD_MAIN);
+    ecs_world_get(&main_world, ecs, GAME_WORLD_MAIN);
 
     ecs_world_component_type_add(main_world, GAME_COMP_BOARD,
                                  sizeof(struct board));
@@ -70,7 +65,7 @@ int game_init(struct game_state *out, struct app *app) {
                          GAME_COMP_BOARD);
 
     struct ecs_world *ui_world = NULL;
-    ecs_get_world(&ui_world, ecs, GAME_WORLD_UI);
+    ecs_world_get(&ui_world, ecs, GAME_WORLD_UI);
 
     ecs_world_system_add(ui_world, GAME_SYS_BENCHMARK, ui_benchmark_system, 2,
                          ECS_COMP_UI_BASE, ECS_COMP_UI_LABEL);
@@ -89,20 +84,24 @@ int game_init(struct game_state *out, struct app *app) {
                                .present_bar_entity = present_bar_entity};
     struct game_state *state = out;
 
-    game_camera_ortho_entity_new(
-        main_world, (vec3){0.0f, 0.0f, 0.0f}, 0.0f, (float)app->window.size[0],
-        (float)app->window.size[1], 0.0f, 1.0f, -1.0f, 1.0f, true, true);
+    ivec2 fb_size = {0};
+    int error = window_fb_size_get(fb_size, app->window);
+    if (error)
+        return error;
 
-    // FOR BENCHMARK TESTING
-    for (int i = 0; i < 1; ++i) {
+    game_camera_ortho_entity_new(main_world, (vec3){0.0f, 0.0f, 0.0f}, 0.0f,
+                                 (float)fb_size[0], (float)fb_size[1], 0.0f,
+                                 1.0f, -1.0f, 1.0f, true, true);
+
+    for (int i = 0; i < 3500; ++i) {
         enum player board_state[9] = {PLAYER_NULL};
         game_board_entity_new(main_world, PLAYER_X, (vec2){0.0f, 0.0f},
                               state->present, state->timelines, board_state);
     }
 
-    game_camera_ortho_entity_new(
-        ui_world, (vec3){0.0f, 0.0f, 0.0f}, 0.0f, (float)app->window.size[0],
-        (float)app->window.size[1], 0.0f, 1.0f, -1.0f, 1.0f, true, true);
+    game_camera_ortho_entity_new(ui_world, (vec3){0.0f, 0.0f, 0.0f}, 0.0f,
+                                 (float)fb_size[0], (float)fb_size[1], 0.0f,
+                                 1.0f, -1.0f, 1.0f, true, true);
 
     game_ui_label_entity_new(
         ui_world, assets, "winner_text", (vec2){100.0f, 500.0f}, 1.0f, "Tie!",
@@ -259,8 +258,8 @@ u32 game_ui_image_button_entity_new(struct ecs_world *world, const char *id,
         return U32_MAX;
 
     struct node *node_data = NULL;
-    error = ecs_world_query_data((void **)&node_data, world, new_entity,
-                                 ECS_COMP_NODE);
+    error = ecs_world_query_get_single((void **)&node_data, world, new_entity,
+                                       ECS_COMP_NODE);
     if (error || !node_data)
         goto cleanup;
 
@@ -335,8 +334,8 @@ u32 game_ui_label_entity_new(struct ecs_world *world, struct assets *assets,
         return U32_MAX;
 
     struct node *node_data = NULL;
-    error = ecs_world_query_data((void **)&node_data, world, new_entity,
-                                 ECS_COMP_NODE);
+    error = ecs_world_query_get_single((void **)&node_data, world, new_entity,
+                                       ECS_COMP_NODE);
     if (error)
         goto cleanup;
 
@@ -389,7 +388,6 @@ u32 game_ui_label_entity_new(struct ecs_world *world, struct assets *assets,
     return new_entity;
 
 cleanup:
-    LOGGER_LOG(LOGGER_ERROR, "%s", "Error somehow someway for some reason?");
     game_ui_label_entity_delete(world, new_entity);
     return U32_MAX;
 }
@@ -404,8 +402,8 @@ void game_ui_label_entity_delete(struct ecs_world *world, u32 entity) {
         return;
 
     struct node *node_data = NULL;
-    int error =
-        ecs_world_query_data((void **)&node_data, world, entity, ECS_COMP_NODE);
+    int error = ecs_world_query_get_single((void **)&node_data, world, entity,
+                                           ECS_COMP_NODE);
     if (error)
         return;
 

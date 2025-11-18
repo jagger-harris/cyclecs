@@ -14,11 +14,11 @@ static u32 rotl32(u32 x, int r) {
     return (x << r) | (x >> (32 - r));
 }
 
-static int read32le(u32 *out, const void *ptr) {
-    if (!ptr)
+static int read32le(u32 *out, const void *data) {
+    if (!out || !data)
         return CORE_NULLPTR;
 
-    const u8 *p = (const u8 *)ptr;
+    const u8 *p = (const u8 *)data;
     *out =
         ((u32)p[0]) | ((u32)p[1] << 8) | ((u32)p[2] << 16) | ((u32)p[3] << 24);
     return CORE_SUCCESS;

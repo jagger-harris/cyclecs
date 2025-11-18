@@ -2,7 +2,7 @@
 #define GAME_H
 
 #include "base/ecs/component/board.h"
-#include "core/ecs/world.h"
+#include "core/ecs/ecs.h"
 #include <cglm/types.h>
 #include <stddef.h>
 

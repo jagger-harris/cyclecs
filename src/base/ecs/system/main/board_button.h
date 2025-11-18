@@ -47,8 +47,8 @@ int main_board_button_system(struct ecs_world_query *query, struct app *app) {
             continue;
 
         struct renderable *bg_ren = NULL;
-        error = ecs_world_query_data((void **)&bg_ren, query->world, bg_entity,
-                                     ECS_COMP_RENDERABLE);
+        error = ecs_world_query_get_single((void **)&bg_ren, query->world,
+                                           bg_entity, ECS_COMP_RENDERABLE);
         if (error || !bg_ren)
             continue;
 
@@ -62,9 +62,9 @@ int main_board_button_system(struct ecs_world_query *query, struct app *app) {
             continue;
 
         struct board *board = NULL;
-        error =
-            ecs_world_query_data((void **)&board, query->world,
-                                 board_button->board_entity, GAME_COMP_BOARD);
+        error = ecs_world_query_get_single((void **)&board, query->world,
+                                           board_button->board_entity,
+                                           GAME_COMP_BOARD);
         if (error || !board)
             continue;
 
@@ -82,9 +82,9 @@ int main_board_button_system(struct ecs_world_query *query, struct app *app) {
             continue;
 
         struct transform *board_transform = NULL;
-        error =
-            ecs_world_query_data((void **)&board_transform, query->world,
-                                 board->background_entity, ECS_COMP_TRANSFORM);
+        error = ecs_world_query_get_single(
+            (void **)&board_transform, query->world, board->background_entity,
+            ECS_COMP_TRANSFORM);
         if (error)
             continue;
 
@@ -97,8 +97,8 @@ int main_board_button_system(struct ecs_world_query *query, struct app *app) {
             continue;
 
         struct renderable *ren = NULL;
-        error = ecs_world_query_data((void **)&ren, query->world, image_entity,
-                                     ECS_COMP_RENDERABLE);
+        error = ecs_world_query_get_single((void **)&ren, query->world,
+                                           image_entity, ECS_COMP_RENDERABLE);
         if (error || !ren)
             continue;
 
@@ -141,16 +141,16 @@ int main_board_button_system(struct ecs_world_query *query, struct app *app) {
                               new_board_state);
 
         struct renderable *present_bar_ren = NULL;
-        error = ecs_world_query_data((void **)&present_bar_ren, query->world,
-                                     game_state->present_bar_entity,
-                                     ECS_COMP_RENDERABLE);
+        error = ecs_world_query_get_single(
+            (void **)&present_bar_ren, query->world,
+            game_state->present_bar_entity, ECS_COMP_RENDERABLE);
         if (error || !present_bar_ren)
             continue;
 
         struct transform *present_bar_tf = NULL;
-        error = ecs_world_query_data((void **)&present_bar_tf, query->world,
-                                     game_state->present_bar_entity,
-                                     ECS_COMP_TRANSFORM);
+        error = ecs_world_query_get_single(
+            (void **)&present_bar_tf, query->world,
+            game_state->present_bar_entity, ECS_COMP_TRANSFORM);
         if (error || !present_bar_tf)
             continue;
 

@@ -1,18 +1,30 @@
 #include "core/gfx/renderer.h"
 #include "core/app/app.h"
+#include "core/app/window.h"
 #include "core/ecs/component/camera.h"
 #include "core/ecs/component/renderable/renderable.h"
 #include "core/ecs/component/transform.h"
-#include "core/ecs/world.h"
+#include "core/ecs/ecs.h"
+#include "core/gfx/api.h"
 #include "core/gfx/batch.h"
 #include "core/gfx/cmd.h"
 #include "core/util/arena.h"
 #include "core/util/array.h"
 #include "core/util/error.h"
 #include "core/util/logger.h"
+#include "core/util/mem.h"
 #include "core/util/profiler.h"
 
 #define RENDERER_BATCH_START_CAPACITY 64
+
+struct renderer {
+    struct mem *mem_frame;
+    struct array batches;
+    struct table batch_indices;
+    struct table cameras;
+    struct gfx_api *api;
+    ivec4 bg_color;
+};
 
 struct ecs_renderer_ctx {
     struct app *app;
@@ -75,17 +87,22 @@ static int renderer_batch_add_cmd(struct renderer *in,
 }
 
 static int add_ecs_base_renderer_cmd(struct ecs_renderer_ctx *ctx) {
+    arena_marker marker = 0;
+    int error = arena_marker_save(&marker, ctx->app->arena_frame);
+    if (error)
+        return error;
+
     struct renderer_cmd *cmd = NULL;
-    int error =
-        arena_alloc((void **)&cmd, &ctx->renderer->arena,
-                    sizeof(struct renderer_cmd), alignof(struct renderer_cmd));
+    error =
+        mem_alloc((void **)&cmd, ctx->renderer->mem_frame,
+                  sizeof(struct renderer_cmd), alignof(struct renderer_cmd));
     if (error)
         goto cleanup;
 
     if (!cmd)
         goto cleanup;
 
-    *cmd = (struct renderer_cmd){.ren = ctx->ren};
+    cmd->ren = ctx->ren;
 
     mat4 model;
     glm_mat4_identity(model);
@@ -106,25 +123,47 @@ static int add_ecs_base_renderer_cmd(struct ecs_renderer_ctx *ctx) {
     return CORE_SUCCESS;
 
 cleanup:
-    if (cmd)
-        arena_remove_last(&ctx->renderer->arena);
-
+    arena_marker_restore(ctx->app->arena_frame, &marker);
     return error;
 }
 
-static int renderer_ecs_create_render_cmds(struct app *app) {
+static int find_active_camera(struct camera **out, struct ecs_world *world) {
+    if (!out || !world)
+        return CORE_NULLPTR;
+
+    *out = NULL;
+
+    struct ecs_world_query camera_query = {0};
+    int error = ecs_world_query_init(&camera_query, world, 1, ECS_COMP_CAMERA);
+    if (error)
+        return error;
+
+    u32 entity = U32_MAX;
+    while (ecs_world_query_next(&entity, &camera_query) == CORE_SUCCESS &&
+           entity != U32_MAX) {
+        struct camera *cam = NULL;
+        error = ecs_world_query_get((void **)&cam, &camera_query,
+                                    ECS_COMP_CAMERA, entity);
+        if (error || !cam)
+            continue;
+
+        if (cam->active) {
+            *out = cam;
+            break;
+        }
+    }
+
+    ecs_world_query_destroy(&camera_query);
+    return CORE_SUCCESS;
+}
+
+static int renderer_ecs_create_render_cmds(struct renderer *in,
+                                           struct app *app) {
     if (!app)
         return CORE_NULLPTR;
 
-    struct ecs_renderer_ctx ctx = {
-        .app = app,
-        .active_camera = NULL,
-        .renderer = &app->window.renderer,
-        .world = NULL,
-    };
-
     struct table *ecs_worlds = NULL;
-    int error = ecs_get_all_worlds(&ecs_worlds, &app->ecs);
+    int error = ecs_get_all_worlds(&ecs_worlds, app->ecs);
     if (error)
         return error;
 
@@ -137,31 +176,21 @@ static int renderer_ecs_create_render_cmds(struct app *app) {
     while (table_iterator_next(&iter_next, &iter) == CORE_SUCCESS &&
            iter_next) {
         struct ecs_world *world = iter.value;
-        struct array *camera_entities = NULL;
-        error = ecs_world_query_all_entities(&camera_entities, world,
-                                             ECS_COMP_CAMERA);
-        if (error || !camera_entities)
-            continue;
 
         struct camera *active_camera = NULL;
-        for (size_t i = 0; i < camera_entities->length; ++i) {
-            u32 entity_current = U32_MAX;
-            array_get_cpy(&entity_current, camera_entities, i);
-
-            error = ecs_world_query_data((void **)&active_camera, world,
-                                         entity_current, ECS_COMP_CAMERA);
-            if (error)
-                continue;
-
-            if (active_camera->active)
-                break;
-        }
+        error = find_active_camera(&active_camera, world);
+        if (error)
+            continue;
 
         if (!active_camera)
             continue;
 
-        camera_resize(active_camera, app->window.size);
+        ivec2 fb_size = {0};
+        error = window_fb_size_get(fb_size, app->window);
+        if (error)
+            continue;
 
+        camera_resize(active_camera, fb_size);
         if (active_camera->update) {
             error = camera_update(active_camera);
             if (error)
@@ -169,8 +198,12 @@ static int renderer_ecs_create_render_cmds(struct app *app) {
                                  "Updating renderer active camera failed");
         }
 
-        ctx.active_camera = active_camera;
-        ctx.world = world;
+        struct ecs_renderer_ctx ctx = {
+            .app = app,
+            .active_camera = active_camera,
+            .renderer = in,
+            .world = world,
+        };
 
         struct ecs_world_query query = {0};
         error = ecs_world_query_init(&query, world, 2, ECS_COMP_RENDERABLE,
@@ -178,9 +211,9 @@ static int renderer_ecs_create_render_cmds(struct app *app) {
         if (error)
             continue;
 
-        u32 entity = UINT32_MAX;
+        u32 entity = U32_MAX;
         while (ecs_world_query_next(&entity, &query) == CORE_SUCCESS &&
-               entity != UINT32_MAX) {
+               entity != U32_MAX) {
             struct renderable *ren = NULL;
             struct transform *tf = NULL;
 
@@ -204,40 +237,48 @@ static int renderer_ecs_create_render_cmds(struct app *app) {
             if (error)
                 continue;
         }
+
+        ecs_world_query_destroy(&query);
     }
 
     return CORE_SUCCESS;
 }
 
-int renderer_init(struct renderer *out, struct gfx_api *api, ivec4 bg_color) {
-    if (!out)
+int renderer_create(struct renderer **out, struct mem *mem_persistant,
+                    struct mem *mem_frame, struct gfx_api *api,
+                    ivec4 bg_color) {
+    if (!out || !mem_frame || !api)
         return CORE_NULLPTR;
 
-    *out = (struct renderer){.api = api};
-    glm_ivec4_copy(bg_color, out->bg_color);
-
-    int error = arena_init(&out->arena, 1024L * 1024L * 50L);
+    struct renderer *renderer = NULL;
+    int error = mem_alloc((void **)&renderer, mem_persistant,
+                          sizeof(struct renderer), alignof(struct renderer));
     if (error)
-        goto cleanup;
+        return error;
 
-    error = array_init(&out->batches, RENDERER_START_CMD_CAPACITY,
+    renderer->mem_frame = mem_frame;
+    renderer->api = api;
+    glm_ivec4_copy(bg_color, renderer->bg_color);
+
+    error = array_init(&renderer->batches, RENDERER_START_CMD_CAPACITY,
                        sizeof(struct renderer_batch));
     if (error)
         goto cleanup;
 
-    error = table_init(&out->batch_indices, RENDERER_START_CMD_CAPACITY,
+    error = table_init(&renderer->batch_indices, RENDERER_START_CMD_CAPACITY,
                        sizeof(struct renderer_batch_data), sizeof(size_t));
     if (error)
         goto cleanup;
 
-    error = out->api->init(out->bg_color);
+    error = renderer->api->init(renderer->bg_color);
     if (error)
         goto cleanup;
 
+    *out = renderer;
     return CORE_SUCCESS;
 
 cleanup:
-    renderer_destroy(out);
+    renderer_destroy(renderer);
     return error;
 }
 
@@ -245,7 +286,6 @@ void renderer_destroy(struct renderer *in) {
     if (!in)
         return;
 
-    arena_destroy(&in->arena);
     array_destroy(&in->batches);
     table_destroy(&in->batch_indices);
     table_destroy(&in->cameras);
@@ -282,19 +322,19 @@ int renderer_draw_frame(struct renderer *in, struct app *app) {
 
     array_clear(&in->batches);
     table_clear(&in->batch_indices);
-    arena_clear(&in->arena);
+    arena_clear(app->arena_frame);
 
-    PROFILER_START(renderer_ecs_create_render_cmds);
-    int error = renderer_ecs_create_render_cmds(app);
+    // PROFILER_START(renderer_ecs_create_render_cmds);
+    int error = renderer_ecs_create_render_cmds(in, app);
     if (error)
         return error;
-    PROFILER_END(renderer_ecs_create_render_cmds);
+    // PROFILER_END(renderer_ecs_create_render_cmds);
 
-    PROFILER_START(gl_draw_frame);
+    // PROFILER_START(gl_draw_frame);
     error = in->api->draw_frame(app, &in->batches);
     if (error)
         return error;
-    PROFILER_END(gl_draw_frame);
+    // PROFILER_END(gl_draw_frame);
 
     return CORE_SUCCESS;
 }

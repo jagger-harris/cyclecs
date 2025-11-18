@@ -303,6 +303,9 @@ int table_find(void **out, const struct table *in, const void *key) {
     if (!out || !in || !key)
         return CORE_NULLPTR;
 
+    if (in->key_size == 0)
+        return CORE_INVALID_ARG;
+
     u32 hash = 0;
     int error = xxhash32(&hash, key, in->key_size, 0);
     if (error)

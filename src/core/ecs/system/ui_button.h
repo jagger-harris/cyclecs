@@ -2,14 +2,15 @@
 #define ECS_SYSTEM_UI_BUTTON_H
 
 #include "core/app/app.h"
+#include "core/app/window.h"
 #include "core/ecs/component/camera.h"
 #include "core/ecs/component/renderable/ui.h"
 #include "core/ecs/component/transform.h"
 #include "core/ecs/ecs.h"
-#include "core/ecs/world.h"
 #include "core/util/error.h"
 #include "core/util/globals.h"
 #include "core/util/logger.h"
+#include <GLFW/glfw3.h>
 #include <stdio.h>
 
 int ui_button_system(struct ecs_world_query *query, struct app *app) {
@@ -74,20 +75,30 @@ int ui_button_system(struct ecs_world_query *query, struct app *app) {
         float min_y = transform->pos[1] - half_height;
         float max_y = transform->pos[1] + half_height;
 
+        vec2 cursor_pos = {0};
+        error = window_input_cursor_pos_get(cursor_pos, app->window);
+        if (error)
+            return error;
+
+        ivec2 fb_size = {0};
+        error = window_fb_size_get(fb_size, app->window);
+        if (error)
+            return error;
+
         vec2 cursor_world = {0};
-        camera_screen_to_world(cursor_world, active_camera,
-                               app->window.input.cursor_pos, app->window.size);
+        camera_screen_to_world(cursor_world, active_camera, cursor_pos,
+                               fb_size);
 
         bool inside = cursor_world[0] >= min_x && cursor_world[0] <= max_x &&
                       cursor_world[1] >= min_y && cursor_world[1] <= max_y;
 
         button->hovering = inside;
-        input_mouse_pressed(&button->pressed, &app->window.input,
-                            GLFW_MOUSE_BUTTON_LEFT);
-        input_mouse_released(&button->released, &app->window.input,
-                             GLFW_MOUSE_BUTTON_LEFT);
-        input_mouse_down(&button->down, &app->window.input,
-                         GLFW_MOUSE_BUTTON_LEFT);
+        window_input_mouse_pressed(&button->pressed, app->window,
+                                   GLFW_MOUSE_BUTTON_LEFT);
+        window_input_mouse_released(&button->released, app->window,
+                                    GLFW_MOUSE_BUTTON_LEFT);
+        window_input_mouse_down(&button->down, app->window,
+                                GLFW_MOUSE_BUTTON_LEFT);
     }
 
     return CORE_SUCCESS;

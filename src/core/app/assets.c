@@ -1,5 +1,4 @@
 #include "core/app/assets.h"
-#include "cglm/io.h"
 #include "core/gfx/api.h"
 #include "core/gfx/material.h"
 #include "core/gfx/quad.h"
@@ -7,9 +6,11 @@
 #include "core/io/fascii.h"
 #include "core/io/ffont.h"
 #include "core/io/fimage.h"
-#include "core/util/globals.h"
 #include "core/util/logger.h"
+#include "core/util/mem.h"
+#include "core/util/table.h"
 #include "core/util/types.h"
+#include "core/util/xxhash32.h"
 
 #define ASSETS_START_CAPACITY 64
 #define ASSETS_DEFAULT_PATH "data/base/"
@@ -18,6 +19,16 @@
 #define ASSETS_TEXTURE2D_PATH ASSETS_DEFAULT_PATH "gfx/texture2ds/"
 #define ASSETS_TEXTURE2D_DEFAULT_BLANK "DEFAULT_BLANK"
 #define ASSETS_TEXTURE2D_DEFAULT_MISSING "DEFAULT_MISSING"
+
+struct assets {
+    struct table fonts;
+    struct table materials;
+    struct table meshes;
+    struct table shaders;
+    struct table texture2ds;
+    FT_Library ft;
+    struct gfx_api *api;
+};
 
 static int load_missing_texture(struct assets *in) {
     static u8 missingno[16] = {
@@ -91,51 +102,58 @@ static int assets_load_defaults(struct assets *in) {
     return CORE_SUCCESS;
 }
 
-int assets_init(struct assets *out, struct gfx_api *api) {
-    if (!out)
+int assets_create(struct assets **out, struct mem *mem, struct gfx_api *api) {
+    if (!out || !mem || !api)
         return CORE_NULLPTR;
 
-    *out = (struct assets){.api = api};
+    struct assets *assets = NULL;
+    int error = mem_alloc((void **)&assets, mem, sizeof(struct assets),
+                          alignof(struct assets));
+    if (error)
+        return error;
 
-    int error = FT_Init_FreeType(&out->ft) ? CORE_FAILURE : CORE_SUCCESS;
+    assets->api = api;
+
+    error = FT_Init_FreeType(&assets->ft) ? CORE_FAILURE : CORE_SUCCESS;
     if (error) {
         LOGGER_LOG_ERROR(LOGGER_ERROR, error, "%s", "Init FreeType failed");
         return error;
     }
 
-    error = table_init(&out->fonts, ASSETS_START_CAPACITY, sizeof(u32),
+    error = table_init(&assets->fonts, ASSETS_START_CAPACITY, sizeof(u32),
                        sizeof(struct ffont));
     if (error)
         goto cleanup;
 
-    error = table_init(&out->materials, ASSETS_START_CAPACITY, sizeof(u32),
+    error = table_init(&assets->materials, ASSETS_START_CAPACITY, sizeof(u32),
                        sizeof(struct material));
     if (error)
         goto cleanup;
 
-    error = table_init(&out->meshes, ASSETS_START_CAPACITY, sizeof(u32),
+    error = table_init(&assets->meshes, ASSETS_START_CAPACITY, sizeof(u32),
                        sizeof(struct gl_mesh));
     if (error)
         goto cleanup;
 
-    error = table_init(&out->shaders, ASSETS_START_CAPACITY, sizeof(u32),
+    error = table_init(&assets->shaders, ASSETS_START_CAPACITY, sizeof(u32),
                        sizeof(GLuint));
     if (error)
         goto cleanup;
 
-    error = table_init(&out->texture2ds, sizeof(u32), sizeof(u32),
+    error = table_init(&assets->texture2ds, sizeof(u32), sizeof(u32),
                        sizeof(struct texture2d));
     if (error)
         goto cleanup;
 
-    error = assets_load_defaults(out);
+    error = assets_load_defaults(assets);
     if (error)
         goto cleanup;
 
+    *out = assets;
     return CORE_SUCCESS;
 
 cleanup:
-    assets_destroy(out);
+    assets_destroy(assets);
     return error;
 }
 

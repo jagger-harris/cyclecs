@@ -1,4 +1,5 @@
 #include "core/app/app.h"
+#include "core/app/assets.h"
 #include "core/ecs/component/camera.h"
 #include "core/ecs/component/renderable/renderable.h"
 #include "core/gfx/batch.h"
@@ -6,6 +7,8 @@
 #include "core/gfx/gl/mesh.h"
 #include "core/gfx/shader.h"
 #include "core/util/logger.h"
+#include "core/util/mem.h"
+#include <GLFW/glfw3.h>
 
 #if DEBUG
 void GLAPIENTRY msg_callback(GLenum source, GLenum type, GLuint id,
@@ -58,23 +61,19 @@ void gl_renderer_on_resize(int width, int height) {
 
 static int render_batch(struct app *app, struct renderer_batch *batch) {
     struct gl_mesh *mesh = NULL;
-    int error = assets_mesh_get(&mesh, &app->assets, batch->data.mesh_id);
+    int error = assets_mesh_get(&mesh, app->assets, batch->data.mesh_id);
     if (error)
         return error;
 
     struct shader *shader = NULL;
-    error = assets_shader_get(&shader, &app->assets, batch->data.shader_id);
+    error = assets_shader_get(&shader, app->assets, batch->data.shader_id);
     if (error)
         return error;
 
     struct texture2d *texture = NULL;
-    error =
-        assets_texture2d_get(&texture, &app->assets, batch->data.texture_id);
-    if (error) {
-        LOGGER_LOG(LOGGER_WARN, "batch->texture_id: %i",
-                   batch->data.texture_id);
+    error = assets_texture2d_get(&texture, app->assets, batch->data.texture_id);
+    if (error)
         return error;
-    }
 
     error = gl_shader_use(shader);
     if (error)
@@ -93,9 +92,9 @@ static int render_batch(struct app *app, struct renderer_batch *batch) {
             return CORE_SUCCESS;
 
         struct gl_mesh_instance_data *instances = NULL;
-        error = arena_alloc((void **)&instances, &app->window.renderer.arena,
-                            sizeof(struct gl_mesh_instance_data) * cmds_length,
-                            alignof(struct gl_mesh_instance_data));
+        error = mem_alloc((void **)&instances, app->mem_frame,
+                          sizeof(struct gl_mesh_instance_data) * cmds_length,
+                          alignof(struct gl_mesh_instance_data));
         if (error)
             return error;
 
