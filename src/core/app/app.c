@@ -101,6 +101,7 @@ int app_run(struct app *in, const game_update_fn game_update) {
         return error;
 
     while (!close) {
+
         error = window_update(&close, in->window);
         if (error)
             return error;

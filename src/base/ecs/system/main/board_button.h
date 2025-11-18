@@ -42,7 +42,7 @@ int main_board_button_system(struct ecs_world_query *query, struct app *app) {
             continue;
 
         u32 bg_entity = UINT32_MAX;
-        error = array_get_cpy(&bg_entity, &node_data->children, 0);
+        error = array_elem_get_cpy(&bg_entity, node_data->children, 0);
         if (error)
             continue;
 
@@ -92,7 +92,7 @@ int main_board_button_system(struct ecs_world_query *query, struct app *app) {
         float y = board_transform->pos[1];
 
         u32 image_entity = UINT32_MAX;
-        error = array_get_cpy(&image_entity, &node_data->children, 1);
+        error = array_elem_get_cpy(&image_entity, node_data->children, 1);
         if (error)
             continue;
 

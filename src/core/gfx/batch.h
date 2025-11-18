@@ -15,7 +15,7 @@ struct renderer_batch_data {
 
 struct renderer_batch {
     struct renderer_batch_data data;
-    struct array cmds;
+    struct array *cmds;
 };
 
 #endif // GFX_RENDERER_BATCH_H

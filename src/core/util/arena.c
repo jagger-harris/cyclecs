@@ -21,6 +21,9 @@ int arena_create(struct arena **out, size_t size) {
     if (!out)
         return CORE_NULLPTR;
 
+    if (size == 0)
+        return CORE_INVALID_ARG;
+
     const size_t align = alignof(max_align_t);
     size_t total_size = sizeof(struct arena) + size + (align - 1);
 

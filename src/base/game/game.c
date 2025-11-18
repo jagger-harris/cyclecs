@@ -11,6 +11,7 @@
 #include "core/ecs/component/transform.h"
 #include "core/ecs/ecs.h"
 #include "core/io/ffont.h"
+#include "core/util/array.h"
 #include "core/util/xxhash32.h"
 
 static int add_component_types(struct ecs_world *world, void *data) {
@@ -211,7 +212,7 @@ u32 game_ui_image_button_entity_new(struct ecs_world *world, const char *id,
                                     float z_index, vec2 scale, vec2 uv_offset,
                                     vec2 uv_scale, ivec4 image_tint,
                                     bool visible) {
-    struct node node = {.parent = U32_MAX};
+    struct node node = {.parent = U32_MAX, .children = NULL};
     struct ui_base base = {.interactable = true};
     struct ui_button button = {0};
     struct transform tf = {.pos = {pos[0], pos[1], z_index},
@@ -263,7 +264,7 @@ u32 game_ui_image_button_entity_new(struct ecs_world *world, const char *id,
     if (error || !node_data)
         goto cleanup;
 
-    error = array_init(&node_data->children, 2, sizeof(u32));
+    error = array_create(&node_data->children, 2, sizeof(u32));
     if (error)
         goto cleanup;
 
@@ -278,7 +279,9 @@ u32 game_ui_image_button_entity_new(struct ecs_world *world, const char *id,
     return new_entity;
 
 cleanup:
-    array_destroy(&node_data->children);
+    if (node_data)
+        array_destroy(node_data->children);
+
     return U32_MAX;
 }
 
@@ -286,7 +289,7 @@ u32 game_ui_label_entity_new(struct ecs_world *world, struct assets *assets,
                              const char *id, vec2 pos, float z_index,
                              const char *text, int font_size,
                              const char *font_id, bool visible, ivec4 tint) {
-    struct node node = {.parent = U32_MAX};
+    struct node node = {.parent = U32_MAX, .children = NULL};
     struct ui_base base = {.interactable = false};
     struct ui_label label = {.font_size = font_size};
     struct transform tf = {.pos = {pos[0], pos[1], z_index},
@@ -339,7 +342,7 @@ u32 game_ui_label_entity_new(struct ecs_world *world, struct assets *assets,
     if (error)
         goto cleanup;
 
-    error = array_init(&node_data->children, 8, sizeof(u32));
+    error = array_create(&node_data->children, 8, sizeof(u32));
     if (error)
         goto cleanup;
 
@@ -410,9 +413,14 @@ void game_ui_label_entity_delete(struct ecs_world *world, u32 entity) {
     if (!node_data)
         return;
 
+    size_t children_length = 0;
+    error = array_length_get(&children_length, node_data->children);
+    if (error)
+        return;
+
     u32 child_entity = U32_MAX;
-    for (size_t i = 0; i < node_data->children.length; ++i) {
-        error = array_get_cpy(&child_entity, &node_data->children, i);
+    for (size_t i = 0; i < children_length; ++i) {
+        error = array_elem_get_cpy(&child_entity, node_data->children, i);
         if (error)
             continue;
 
@@ -422,7 +430,7 @@ void game_ui_label_entity_delete(struct ecs_world *world, u32 entity) {
                        "Removing label child entity failed");
     }
 
-    array_destroy(&node_data->children);
+    array_destroy(node_data->children);
     ecs_world_entity_remove(world, entity);
 }
 

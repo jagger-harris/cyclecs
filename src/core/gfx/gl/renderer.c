@@ -6,6 +6,7 @@
 #include "core/gfx/cmd.h"
 #include "core/gfx/gl/mesh.h"
 #include "core/gfx/shader.h"
+#include "core/util/array.h"
 #include "core/util/logger.h"
 #include "core/util/mem.h"
 #include <GLFW/glfw3.h>
@@ -85,7 +86,11 @@ static int render_batch(struct app *app, struct renderer_batch *batch) {
 
     batch->data.transparent ? glEnable(GL_BLEND) : glDisable(GL_BLEND);
 
-    size_t cmds_length = batch->cmds.length;
+    size_t cmds_length = 0;
+    error = array_length_get(&cmds_length, batch->cmds);
+    if (error)
+        return error;
+
     if (cmds_length > 1) {
         size_t instance_count = cmds_length;
         if (instance_count == 0)
@@ -100,7 +105,7 @@ static int render_batch(struct app *app, struct renderer_batch *batch) {
 
         for (size_t i = 0; i < instance_count; ++i) {
             struct renderer_cmd **cmd_ptr = NULL;
-            error = array_get((void **)&cmd_ptr, &batch->cmds, i);
+            error = array_elem_get_mut((void **)&cmd_ptr, batch->cmds, i);
             if (error)
                 continue;
 
@@ -126,7 +131,7 @@ static int render_batch(struct app *app, struct renderer_batch *batch) {
     } else {
         for (size_t i = 0; i < cmds_length; ++i) {
             struct renderer_cmd **cmd_ptr = NULL;
-            error = array_get((void **)&cmd_ptr, &batch->cmds, i);
+            error = array_elem_get_mut((void **)&cmd_ptr, batch->cmds, i);
             if (error)
                 continue;
 
@@ -157,11 +162,19 @@ static int render_batch(struct app *app, struct renderer_batch *batch) {
 }
 
 int gl_renderer_draw_frame(struct app *app, struct array *batches) {
+    if (!app || !batches)
+        return CORE_NULLPTR;
+
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    for (size_t i = 0; i < batches->length; ++i) {
+    size_t batches_length = 0;
+    int error = array_length_get(&batches_length, batches);
+    if (error)
+        return error;
+
+    for (size_t i = 0; i < batches_length; ++i) {
         struct renderer_batch *batch = NULL;
-        int error = array_get((void **)&batch, batches, i);
+        error = array_elem_get_mut((void **)&batch, batches, i);
         if (error) {
             LOGGER_LOG_ERROR(LOGGER_ERROR, error, "%s",
                              "Getting render batch failed");

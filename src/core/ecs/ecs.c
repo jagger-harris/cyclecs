@@ -1,6 +1,7 @@
 #include "core/ecs/ecs.h"
 #include "core/app/app.h"
 #include "core/app/window.h"
+#include "core/util/array.h"
 #include "core/util/error.h"
 #include "core/util/globals.h"
 #include "core/util/logger.h"
@@ -20,9 +21,9 @@ struct ecs_world_system {
 };
 
 struct ecs_world {
-    struct array entities;
-    struct array free_entities;
-    struct array pending_deletions;
+    struct array *entities;
+    struct array *free_entities;
+    struct array *pending_deletions;
     struct table components;
     struct table systems;
     u32 next_entity_id;
@@ -33,9 +34,9 @@ struct ecs_world {
 };
 
 struct ecs_world_sparse_set {
-    struct array sparse;
-    struct array dense;
-    struct array data;
+    struct array *sparse;
+    struct array *dense;
+    struct array *data;
     size_t component_size;
 };
 
@@ -54,9 +55,9 @@ static void ecs_world_destroy(struct ecs_world *in) {
         struct ecs_world_sparse_set *set = comp_iter.value;
 
         if (set) {
-            array_destroy(&set->sparse);
-            array_destroy(&set->dense);
-            array_destroy(&set->data);
+            array_destroy(set->sparse);
+            array_destroy(set->dense);
+            array_destroy(set->data);
         }
     }
 
@@ -76,9 +77,9 @@ static void ecs_world_destroy(struct ecs_world *in) {
 
     table_destroy(&in->components);
     table_destroy(&in->systems);
-    array_destroy(&in->entities);
-    array_destroy(&in->free_entities);
-    array_destroy(&in->pending_deletions);
+    array_destroy(in->entities);
+    array_destroy(in->free_entities);
+    array_destroy(in->pending_deletions);
 }
 
 static int ecs_world_init(struct ecs_world *out, float tick_rate, int priority,
@@ -92,17 +93,17 @@ static int ecs_world_init(struct ecs_world *out, float tick_rate, int priority,
                               .should_update = should_update};
 
     int error =
-        array_init(&out->entities, ECS_WORLD_START_CAPACITY, sizeof(u32));
+        array_create(&out->entities, ECS_WORLD_START_CAPACITY, sizeof(u32));
     if (error)
         goto cleanup;
 
-    error =
-        array_init(&out->free_entities, ECS_WORLD_START_CAPACITY, sizeof(u32));
+    error = array_create(&out->free_entities, ECS_WORLD_START_CAPACITY,
+                         sizeof(u32));
     if (error)
         goto cleanup;
 
-    error = array_init(&out->pending_deletions, ECS_WORLD_START_CAPACITY,
-                       sizeof(u32));
+    error = array_create(&out->pending_deletions, ECS_WORLD_START_CAPACITY,
+                         sizeof(u32));
     if (error)
         goto cleanup;
 
@@ -258,14 +259,19 @@ int ecs_world_entity_add(u32 *out, struct ecs_world *in) {
     if (!in || !out)
         return CORE_NULLPTR;
 
+    size_t free_entities_length = 0;
+    int error = array_length_get(&free_entities_length, in->free_entities);
+    if (error)
+        return error;
+
     u32 new_entity = U32_MAX;
-    if (in->free_entities.length > 0) {
-        int error = array_get_cpy(&new_entity, &in->free_entities,
-                                  in->free_entities.length - 1);
+    if (free_entities_length > 0) {
+        error = array_elem_get_cpy(&new_entity, in->free_entities,
+                                   free_entities_length - 1);
         if (error)
             return error;
 
-        error = array_pop(&in->free_entities);
+        error = array_pop(in->free_entities);
         if (error)
             return error;
     } else {
@@ -273,7 +279,7 @@ int ecs_world_entity_add(u32 *out, struct ecs_world *in) {
         in->next_entity_id++;
     }
 
-    int error = array_push(&in->entities, &new_entity);
+    error = array_push(&in->entities, &new_entity);
     if (error)
         return error;
 
@@ -291,12 +297,16 @@ static int ecs_world_entity_remove_component(struct ecs_world *in, u32 entity,
     if (error)
         return error;
 
-    size_t dense_length = set->dense.length;
+    size_t dense_length = 0;
+    error = array_length_get(&dense_length, set->dense);
+    if (error)
+        return error;
+
     if (dense_length == 0)
         return CORE_SUCCESS;
 
     u32 dense_index = 0;
-    error = array_get_cpy(&dense_index, &set->sparse, entity);
+    error = array_elem_get_cpy(&dense_index, set->sparse, entity);
     if (error)
         return error;
 
@@ -304,7 +314,7 @@ static int ecs_world_entity_remove_component(struct ecs_world *in, u32 entity,
         return CORE_INVALID_ARG;
 
     u32 check_entity = 0;
-    error = array_get_cpy(&check_entity, &set->dense, dense_index);
+    error = array_elem_get_cpy(&check_entity, set->dense, dense_index);
     if (error)
         return error;
 
@@ -312,45 +322,44 @@ static int ecs_world_entity_remove_component(struct ecs_world *in, u32 entity,
         return CORE_INVALID_ARG;
 
     size_t last_index = dense_length - 1;
-
     if (dense_index != last_index) {
         u32 last_entity = 0;
         void *last_data = NULL;
 
-        error = array_get_cpy(&last_entity, &set->dense, last_index);
+        error = array_elem_get_cpy(&last_entity, set->dense, last_index);
         if (error)
             return error;
 
-        error = array_get(&last_data, &set->data, last_index);
+        error = array_elem_get_mut(&last_data, set->data, last_index);
         if (error)
             return error;
 
         void *current_data = NULL;
-        error = array_get(&current_data, &set->data, dense_index);
+        error = array_elem_get_mut(&current_data, set->data, dense_index);
         if (error)
             return error;
 
-        error = array_set(&set->dense, dense_index, &last_entity);
+        error = array_elem_set(set->dense, dense_index, &last_entity);
         if (error)
             return error;
 
         memcpy(current_data, last_data, set->component_size);
 
-        error = array_set(&set->sparse, last_entity, &dense_index);
+        error = array_elem_set(set->sparse, last_entity, &dense_index);
         if (error)
             return error;
     }
 
-    error = array_pop(&set->dense);
+    error = array_pop(set->dense);
     if (error)
         return error;
 
-    error = array_pop(&set->data);
+    error = array_pop(set->data);
     if (error)
         return error;
 
     u32 invalid_index = U32_MAX;
-    return array_set(&set->sparse, entity, &invalid_index);
+    return array_elem_set(set->sparse, entity, &invalid_index);
 }
 
 int ecs_world_entity_remove(struct ecs_world *in, u32 entity) {
@@ -360,9 +369,15 @@ int ecs_world_entity_remove(struct ecs_world *in, u32 entity) {
     if (entity == U32_MAX)
         return CORE_INVALID_ARG;
 
-    for (size_t i = 0; i < in->pending_deletions.length; ++i) {
+    size_t pending_deletions_length = 0;
+    int error =
+        array_length_get(&pending_deletions_length, in->pending_deletions);
+    if (error)
+        return error;
+
+    for (size_t i = 0; i < pending_deletions_length; ++i) {
         u32 pending_entity = U32_MAX;
-        int error = array_get_cpy(&pending_entity, &in->pending_deletions, i);
+        error = array_elem_get_cpy(&pending_entity, in->pending_deletions, i);
         if (error)
             continue;
 
@@ -380,17 +395,17 @@ int ecs_world_component_type_add(struct ecs_world *in, u32 component_id,
 
     struct ecs_world_sparse_set set = {.component_size = component_size};
     int error =
-        array_init(&set.sparse, ECS_WORLD_ENTITY_START_CAPACITY, sizeof(u32));
+        array_create(&set.sparse, ECS_WORLD_ENTITY_START_CAPACITY, sizeof(u32));
     if (error)
         goto cleanup;
 
     error =
-        array_init(&set.dense, ECS_WORLD_ENTITY_START_CAPACITY, sizeof(u32));
+        array_create(&set.dense, ECS_WORLD_ENTITY_START_CAPACITY, sizeof(u32));
     if (error)
         goto cleanup;
 
-    error =
-        array_init(&set.data, ECS_WORLD_ENTITY_START_CAPACITY, component_size);
+    error = array_create(&set.data, ECS_WORLD_ENTITY_START_CAPACITY,
+                         component_size);
     if (error)
         goto cleanup;
 
@@ -401,9 +416,9 @@ int ecs_world_component_type_add(struct ecs_world *in, u32 component_id,
     return CORE_SUCCESS;
 
 cleanup:
-    array_destroy(&set.sparse);
-    array_destroy(&set.dense);
-    array_destroy(&set.data);
+    array_destroy(set.sparse);
+    array_destroy(set.dense);
+    array_destroy(set.data);
     return error;
 }
 
@@ -416,9 +431,9 @@ int ecs_world_component_type_remove(struct ecs_world *in, u32 component_id) {
     if (error)
         return error;
 
-    array_destroy(&set->sparse);
-    array_destroy(&set->dense);
-    array_destroy(&set->data);
+    array_destroy(set->sparse);
+    array_destroy(set->dense);
+    array_destroy(set->data);
     return table_remove(NULL, &in->components, &component_id);
 }
 
@@ -430,11 +445,16 @@ int ecs_world_component_add(struct ecs_world *in, u32 entity, u32 component_id,
     if (entity == U32_MAX)
         return CORE_INVALID_ARG;
 
-    if (entity >= in->entities.length)
+    size_t entities_length = 0;
+    int error = array_length_get(&entities_length, in->entities);
+    if (error)
+        return error;
+
+    if (entity >= entities_length)
         return CORE_INVALID_ARG;
 
     struct ecs_world_sparse_set *set = NULL;
-    int error = table_find((void **)&set, &in->components, &component_id);
+    error = table_find((void **)&set, &in->components, &component_id);
     if (error)
         return error;
 
@@ -446,14 +466,28 @@ int ecs_world_component_add(struct ecs_world *in, u32 entity, u32 component_id,
         return CORE_NULLPTR;
     }
 
-    while (set->sparse.length <= entity) {
+    size_t sparse_length = 0;
+    error = array_length_get(&sparse_length, set->sparse);
+    if (error)
+        return error;
+
+    while (sparse_length <= entity) {
         u32 invalid_index = U32_MAX;
         error = array_push(&set->sparse, &invalid_index);
         if (error)
             return error;
+
+        error = array_length_get(&sparse_length, set->sparse);
+        if (error)
+            return error;
     }
 
-    error = array_set(&set->sparse, (size_t)entity, &set->dense.length);
+    size_t dense_length = 0;
+    error = array_length_get(&dense_length, set->dense);
+    if (error)
+        return error;
+
+    error = array_elem_set(set->sparse, (size_t)entity, &dense_length);
     if (error)
         return error;
 
@@ -472,7 +506,12 @@ int ecs_world_component_remove(struct ecs_world *in, u32 entity,
     if (entity == U32_MAX)
         return CORE_INVALID_ARG;
 
-    if (entity > in->entities.length)
+    size_t entities_length = 0;
+    int error = array_length_get(&entities_length, in->entities);
+    if (error)
+        return error;
+
+    if (entity > entities_length)
         return CORE_INVALID_ARG;
 
     return ecs_world_entity_remove_component(in, entity, component_id);
@@ -488,11 +527,11 @@ static int ecs_world_query_init_va_list(struct ecs_world_query *out,
         .world = world, .count = count, .min_set = NULL, .current_index = 0};
 
     int error =
-        array_init(&out->sets, count, sizeof(struct ecs_world_sparse_set *));
+        array_create(&out->sets, count, sizeof(struct ecs_world_sparse_set *));
     if (error)
         goto cleanup;
 
-    error = array_init(&out->component_ids, count, sizeof(u32));
+    error = array_create(&out->component_ids, count, sizeof(u32));
     if (error)
         goto cleanup;
 
@@ -514,19 +553,29 @@ static int ecs_world_query_init_va_list(struct ecs_world_query *out,
     }
 
     struct ecs_world_sparse_set *first_set = NULL;
-    error = array_get_cpy((void *)&first_set, &out->sets, 0);
+    error = array_elem_get_cpy((void *)&first_set, out->sets, 0);
     if (error)
         goto cleanup;
 
     out->min_set = first_set;
 
+    size_t min_dense_length = 0;
+    error = array_length_get(&min_dense_length, out->min_set->dense);
+    if (error)
+        return error;
+
     for (size_t i = 1; i < count; ++i) {
         struct ecs_world_sparse_set *current_set = NULL;
-        error = array_get_cpy((void *)&current_set, &out->sets, i);
+        error = array_elem_get_cpy((void *)&current_set, out->sets, i);
         if (error)
             continue;
 
-        if (current_set->dense.length < out->min_set->dense.length)
+        size_t dense_length = 0;
+        error = array_length_get(&dense_length, current_set->dense);
+        if (error)
+            return error;
+
+        if (dense_length < min_dense_length)
             out->min_set = current_set;
     }
 
@@ -550,8 +599,8 @@ void ecs_world_query_destroy(struct ecs_world_query *query) {
     if (!query)
         return;
 
-    array_destroy(&query->sets);
-    array_destroy(&query->component_ids);
+    array_destroy(query->sets);
+    array_destroy(query->component_ids);
 }
 
 int ecs_world_query_next(u32 *out, struct ecs_world_query *query) {
@@ -560,17 +609,22 @@ int ecs_world_query_next(u32 *out, struct ecs_world_query *query) {
 
     *out = U32_MAX;
 
-    while (query->current_index < query->min_set->dense.length) {
+    size_t min_dense_length = 0;
+    int error = array_length_get(&min_dense_length, query->min_set->dense);
+    if (error)
+        return error;
+
+    while (query->current_index < min_dense_length) {
         u32 entity = 0;
-        int error = array_get_cpy(&entity, &query->min_set->dense,
-                                  query->current_index++);
+        error = array_elem_get_cpy(&entity, query->min_set->dense,
+                                   query->current_index++);
         if (error != CORE_SUCCESS)
             return error;
 
         bool match = true;
         for (size_t i = 0; i < query->count; ++i) {
             struct ecs_world_sparse_set *set = NULL;
-            error = array_get_cpy((void *)&set, &query->sets, i);
+            error = array_elem_get_cpy((void *)&set, query->sets, i);
             if (error != CORE_SUCCESS) {
                 match = false;
                 break;
@@ -579,20 +633,30 @@ int ecs_world_query_next(u32 *out, struct ecs_world_query *query) {
             if (set == query->min_set)
                 continue;
 
-            if (entity >= set->sparse.length) {
+            size_t sparse_length = 0;
+            error = array_length_get(&sparse_length, set->sparse);
+            if (error)
+                return error;
+
+            if (entity >= sparse_length) {
                 match = false;
                 break;
             }
 
+            size_t dense_length = 0;
+            error = array_length_get(&dense_length, set->dense);
+            if (error)
+                return error;
+
             u32 dense_index = 0;
-            error = array_get_cpy(&dense_index, &set->sparse, entity);
-            if (error != CORE_SUCCESS || dense_index >= set->dense.length) {
+            error = array_elem_get_cpy(&dense_index, set->sparse, entity);
+            if (error != CORE_SUCCESS || dense_index >= dense_length) {
                 match = false;
                 break;
             }
 
             u32 check = 0;
-            error = array_get_cpy(&check, &set->dense, dense_index);
+            error = array_elem_get_cpy(&check, set->dense, dense_index);
             if (error != CORE_SUCCESS || check != entity) {
                 match = false;
                 break;
@@ -617,28 +681,38 @@ int ecs_world_query_get(void **out, const struct ecs_world_query *query,
 
     for (size_t i = 0; i < query->count; ++i) {
         u32 stored_id = 0;
-        int error = array_get_cpy(&stored_id, &query->component_ids, i);
+        int error = array_elem_get_cpy(&stored_id, query->component_ids, i);
         if (error)
             continue;
 
         if (component_id == stored_id) {
             struct ecs_world_sparse_set *set = NULL;
-            error = array_get_cpy((void *)&set, &query->sets, i);
+            error = array_elem_get_cpy((void *)&set, query->sets, i);
             if (error)
                 return error;
 
-            if (entity >= set->sparse.length)
+            size_t sparse_length = 0;
+            error = array_length_get(&sparse_length, set->sparse);
+            if (error)
+                return error;
+
+            if (entity >= sparse_length)
                 return CORE_INVALID_ARG;
 
             u32 dense_index = 0;
-            error = array_get_cpy(&dense_index, &set->sparse, entity);
+            error = array_elem_get_cpy(&dense_index, set->sparse, entity);
             if (error)
                 return error;
 
-            if (dense_index >= set->data.length)
+            size_t data_length = 0;
+            error = array_length_get(&data_length, set->data);
+            if (error)
+                return error;
+
+            if (dense_index >= data_length)
                 return CORE_INVALID_ARG;
 
-            error = array_get(out, &set->data, dense_index);
+            error = array_elem_get_mut(out, set->data, dense_index);
             if (error)
                 return error;
 
@@ -670,26 +744,36 @@ int ecs_world_query_get_single(void **out, const struct ecs_world *in,
         return CORE_INVALID_ARG;
     }
 
-    if (entity >= set->sparse.length)
-        return CORE_INVALID_ARG;
-
-    u32 dense_index = 0;
-    error = array_get_cpy(&dense_index, &set->sparse, entity);
+    size_t sparse_length = 0;
+    error = array_length_get(&sparse_length, set->sparse);
     if (error)
         return error;
 
-    if (dense_index >= set->dense.length)
+    if (entity >= sparse_length)
+        return CORE_INVALID_ARG;
+
+    u32 dense_index = 0;
+    error = array_elem_get_cpy(&dense_index, set->sparse, entity);
+    if (error)
+        return error;
+
+    size_t dense_length = 0;
+    error = array_length_get(&dense_length, set->dense);
+    if (error)
+        return error;
+
+    if (dense_index >= dense_length)
         return CORE_INVALID_ARG;
 
     u32 check_entity = 0;
-    error = array_get_cpy(&check_entity, &set->dense, dense_index);
+    error = array_elem_get_cpy(&check_entity, set->dense, dense_index);
     if (error)
         return error;
 
     if (check_entity != entity)
         return CORE_INVALID_ARG;
 
-    return array_get(out, &set->data, dense_index);
+    return array_elem_get_mut(out, set->data, dense_index);
 }
 
 int ecs_world_system_add(struct ecs_world *in, u32 system_id,
@@ -769,12 +853,16 @@ static int ecs_world_entity_remove_now(struct ecs_world *in, u32 entity) {
     if (entity == U32_MAX)
         return CORE_INVALID_ARG;
 
-    size_t entities_length = in->entities.length;
+    size_t entities_length = 0;
+    int error = array_length_get(&entities_length, in->entities);
+    if (error)
+        return error;
+
     if (entity >= entities_length)
         return CORE_INVALID_ARG;
 
     struct table_iterator iter = {0};
-    int error = table_iterator_init(&iter, &in->components);
+    error = table_iterator_init(&iter, &in->components);
     if (error)
         return error;
 
@@ -785,19 +873,29 @@ static int ecs_world_entity_remove_now(struct ecs_world *in, u32 entity) {
         if (!set)
             continue;
 
-        if (entity >= set->sparse.length)
+        size_t sparse_length = 0;
+        error = array_length_get(&sparse_length, set->sparse);
+        if (error)
+            return error;
+
+        if (entity >= sparse_length)
             continue;
 
         u32 dense_index = 0;
-        error = array_get_cpy(&dense_index, &set->sparse, entity);
+        error = array_elem_get_cpy(&dense_index, set->sparse, entity);
         if (error)
             continue;
 
-        if (dense_index >= set->dense.length)
+        size_t dense_length = 0;
+        error = array_length_get(&dense_length, set->dense);
+        if (error)
+            return error;
+
+        if (dense_index >= dense_length)
             continue;
 
         u32 check_entity = 0;
-        error = array_get_cpy(&check_entity, &set->dense, dense_index);
+        error = array_elem_get_cpy(&check_entity, set->dense, dense_index);
         if (error || check_entity != entity)
             continue;
 
@@ -813,9 +911,15 @@ static int ecs_world_delete_entities(struct ecs_world *in) {
     if (!in)
         return CORE_NULLPTR;
 
-    for (size_t i = 0; i < in->pending_deletions.length; ++i) {
+    size_t pending_deletions_length = 0;
+    int error =
+        array_length_get(&pending_deletions_length, in->pending_deletions);
+    if (error)
+        return error;
+
+    for (size_t i = 0; i < pending_deletions_length; ++i) {
         u32 entity = U32_MAX;
-        int error = array_get_cpy(&entity, &in->pending_deletions, i);
+        error = array_elem_get_cpy(&entity, in->pending_deletions, i);
         if (error)
             continue;
 
@@ -824,7 +928,7 @@ static int ecs_world_delete_entities(struct ecs_world *in) {
             LOGGER_LOG(LOGGER_ERROR, "Failed to delete entity %u", entity);
     }
 
-    array_clear(&in->pending_deletions);
+    array_clear(in->pending_deletions);
     return CORE_SUCCESS;
 }
 
@@ -873,6 +977,5 @@ int ecs_world_entities_length_get(size_t *out, struct ecs_world *in) {
     if (!out || !in)
         return CORE_NULLPTR;
 
-    *out = in->entities.length;
-    return CORE_SUCCESS;
+    return array_length_get(out, in->entities);
 }

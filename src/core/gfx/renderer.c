@@ -19,7 +19,7 @@
 
 struct renderer {
     struct mem *mem_frame;
-    struct array batches;
+    struct array *batches;
     struct table batch_indices;
     struct table cameras;
     struct gfx_api *api;
@@ -59,19 +59,23 @@ static int renderer_batch_add_cmd(struct renderer *in,
         if (error)
             return error;
 
-        batch_index = in->batches.length - 1;
+        size_t batches_length = 0;
+        error = array_length_get(&batches_length, in->batches);
+        if (error)
+            return error;
 
+        batch_index = batches_length - 1;
         error = table_insert(&in->batch_indices, &key, &batch_index);
         if (error)
             return error;
 
         struct renderer_batch *batch = NULL;
-        error = array_get((void **)&batch, &in->batches, batch_index);
+        error = array_elem_get_mut((void **)&batch, in->batches, batch_index);
         if (error)
             return error;
 
-        error = array_init(&batch->cmds, RENDERER_BATCH_START_CAPACITY,
-                           sizeof(struct renderer_ren *));
+        error = array_create(&batch->cmds, RENDERER_BATCH_START_CAPACITY,
+                             sizeof(struct renderer_ren *));
         if (error)
             return error;
     } else {
@@ -79,7 +83,7 @@ static int renderer_batch_add_cmd(struct renderer *in,
     }
 
     struct renderer_batch *batch = NULL;
-    error = array_get((void **)&batch, &in->batches, batch_index);
+    error = array_elem_get_mut((void **)&batch, in->batches, batch_index);
     if (error)
         return error;
 
@@ -260,8 +264,8 @@ int renderer_create(struct renderer **out, struct mem *mem_persistant,
     renderer->api = api;
     glm_ivec4_copy(bg_color, renderer->bg_color);
 
-    error = array_init(&renderer->batches, RENDERER_START_CMD_CAPACITY,
-                       sizeof(struct renderer_batch));
+    error = array_create(&renderer->batches, RENDERER_START_CMD_CAPACITY,
+                         sizeof(struct renderer_batch));
     if (error)
         goto cleanup;
 
@@ -286,7 +290,7 @@ void renderer_destroy(struct renderer *in) {
     if (!in)
         return;
 
-    array_destroy(&in->batches);
+    array_destroy(in->batches);
     table_destroy(&in->batch_indices);
     table_destroy(&in->cameras);
 }
@@ -310,28 +314,33 @@ int renderer_draw_frame(struct renderer *in, struct app *app) {
     if (!in || !app)
         return CORE_NULLPTR;
 
-    for (size_t i = 0; i < in->batches.length; ++i) {
+    size_t batches_length = 0;
+    int error = array_length_get(&batches_length, in->batches);
+    if (error)
+        return error;
+
+    for (size_t i = 0; i < batches_length; ++i) {
         struct renderer_batch *batch = NULL;
-        int error = array_get((void **)&batch, &in->batches, i);
+        error = array_elem_get_mut((void **)&batch, in->batches, i);
         if (error)
             continue;
 
         if (batch)
-            array_destroy(&batch->cmds);
+            array_destroy(batch->cmds);
     }
 
-    array_clear(&in->batches);
+    array_clear(in->batches);
     table_clear(&in->batch_indices);
     arena_clear(app->arena_frame);
 
     // PROFILER_START(renderer_ecs_create_render_cmds);
-    int error = renderer_ecs_create_render_cmds(in, app);
+    error = renderer_ecs_create_render_cmds(in, app);
     if (error)
         return error;
     // PROFILER_END(renderer_ecs_create_render_cmds);
 
     // PROFILER_START(gl_draw_frame);
-    error = in->api->draw_frame(app, &in->batches);
+    error = in->api->draw_frame(app, in->batches);
     if (error)
         return error;
     // PROFILER_END(gl_draw_frame);

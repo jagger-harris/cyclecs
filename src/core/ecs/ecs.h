@@ -1,11 +1,11 @@
 #ifndef ECS_H
 #define ECS_H
 
-#include "core/util/array.h"
 #include "core/util/globals.h"
 #include "core/util/table.h"
 #include "core/util/types.h"
 
+struct array;
 struct app;
 struct ecs;
 struct ecs_world;
@@ -26,8 +26,8 @@ enum ecs_default_sys { ECS_SYS_UI_BUTTON = 0, ECS_SYS_LENGTH };
 typedef int (*ecs_world_iter_callback)(struct ecs_world *world, void *data);
 
 struct ecs_world_query {
-    struct array sets;
-    struct array component_ids;
+    struct array *sets;
+    struct array *component_ids;
     struct ecs_world_sparse_set *min_set;
     struct ecs_world *world;
     size_t count;
