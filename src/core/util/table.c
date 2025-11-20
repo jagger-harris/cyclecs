@@ -13,6 +13,22 @@
 #define TABLE_SHRINK_FACTOR 0.5
 #define SLOT_METADATA_SIZE 8
 
+struct table {
+    size_t capacity;
+    size_t length;
+    size_t key_size;
+    size_t value_size;
+    size_t slot_size;
+    void *slots;
+};
+
+struct table_iterator {
+    const struct table *table;
+    size_t current_index;
+    void *key;
+    void *value;
+};
+
 static inline size_t align_round_up(size_t x, size_t align) {
     return (x + (align - 1)) & ~(align - 1);
 }
@@ -125,98 +141,112 @@ static int table_resize(struct table *in, size_t new_capacity) {
     if (!in)
         return CORE_NULLPTR;
 
-    struct table new_table = {0};
-    int error = CORE_SUCCESS;
+    const size_t align = alignof(max_align_t);
+    size_t slots_size = new_capacity * in->slot_size + (align - 1);
 
-    new_table.capacity = new_capacity;
-    new_table.length = 0;
-    new_table.key_size = in->key_size;
-    new_table.value_size = in->value_size;
-    new_table.slot_size = in->slot_size;
+    void *new_slots_mem = malloc(slots_size);
+    if (!new_slots_mem)
+        return CORE_OUT_OF_MEMORY;
 
-    new_table.slots = malloc(new_capacity * new_table.slot_size);
-    if (!new_table.slots) {
-        error = CORE_OUT_OF_MEMORY;
-        goto cleanup;
-    }
+    uintptr_t base = (uintptr_t)new_slots_mem;
+    uintptr_t aligned = (base + (align - 1)) & ~(uintptr_t)(align - 1);
+    void *new_slots = (void *)aligned;
 
     for (size_t i = 0; i < new_capacity; ++i) {
-        u8 *metadata = NULL;
-        error = table_get_metadata(&metadata, &new_table, i);
-        if (error)
-            goto cleanup;
+        u8 *metadata = (u8 *)new_slots + i * in->slot_size;
         *metadata = 0;
     }
 
+    struct table new_table = {.capacity = new_capacity,
+                              .length = 0,
+                              .key_size = in->key_size,
+                              .value_size = in->value_size,
+                              .slot_size = in->slot_size,
+                              .slots = new_slots};
+
     for (size_t i = 0; i < in->capacity; ++i) {
         u8 *metadata = NULL;
-        error = table_get_metadata(&metadata, in, i);
-        if (error)
-            goto cleanup;
+        int error = table_get_metadata(&metadata, in, i);
+        if (error) {
+            free(new_slots_mem);
+            return error;
+        }
 
         if (*metadata != 0) {
             void *key_ptr = NULL;
             void *value_ptr = NULL;
 
             error = table_get_key(&key_ptr, in, i);
-            if (error)
-                goto cleanup;
+            if (error) {
+                free(new_slots_mem);
+                return error;
+            }
 
             error = table_get_value(&value_ptr, in, i);
-            if (error)
-                goto cleanup;
+            if (error) {
+                free(new_slots_mem);
+                return error;
+            }
 
             error = table_insert_no_resize(&new_table, key_ptr, value_ptr);
-            if (error)
-                goto cleanup;
+            if (error) {
+                free(new_slots_mem);
+                return error;
+            }
         }
     }
 
     free(in->slots);
-    in->slots = new_table.slots;
-    in->capacity = new_table.capacity;
+    in->slots = new_slots;
+    in->capacity = new_capacity;
     return CORE_SUCCESS;
-
-cleanup:
-    if (new_table.slots)
-        free(new_table.slots);
-
-    return error;
 }
 
-int table_init(struct table *out, size_t start_capacity, size_t key_size,
-               size_t value_size) {
+int table_create(struct table **out, size_t start_capacity, size_t key_size,
+                 size_t value_size) {
     if (!out)
         return CORE_NULLPTR;
 
+    if (start_capacity == 0 || key_size == 0 || value_size == 0)
+        return CORE_INVALID_ARG;
+
+    struct table *table = malloc(sizeof(struct table));
+    if (!table)
+        return CORE_OUT_OF_MEMORY;
+
     size_t slot_size = table_calculate_slot_size(key_size, value_size);
 
-    *out = (struct table){.capacity = start_capacity,
-                          .length = 0,
-                          .key_size = key_size,
-                          .value_size = value_size,
-                          .slot_size = slot_size,
-                          .slots = NULL};
+    table->capacity = start_capacity;
+    table->length = 0;
+    table->key_size = key_size;
+    table->value_size = value_size;
+    table->slot_size = slot_size;
 
-    out->slots = malloc(start_capacity * slot_size);
-    if (!out->slots) {
-        LOGGER_LOG_ERROR(LOGGER_ERROR, CORE_OUT_OF_MEMORY, "%s",
-                         "Allocating table slots failed");
+    const size_t align = alignof(max_align_t);
+    size_t slots_size = start_capacity * slot_size + (align - 1);
+
+    void *slots_mem = malloc(slots_size);
+    if (!slots_mem) {
+        free(table);
         return CORE_OUT_OF_MEMORY;
     }
 
-    for (size_t i = 0; i < out->capacity; ++i) {
+    uintptr_t base = (uintptr_t)slots_mem;
+    uintptr_t aligned = (base + (align - 1)) & ~(uintptr_t)(align - 1);
+    table->slots = (void *)aligned;
+
+    for (size_t i = 0; i < start_capacity; ++i) {
         u8 *metadata = NULL;
-        int error = table_get_metadata(&metadata, out, i);
+        int error = table_get_metadata(&metadata, table, i);
         if (error) {
-            free(out->slots);
-            out->slots = NULL;
+            free(slots_mem);
+            free(table);
             return error;
         }
-
         *metadata = 0;
     }
 
+    *out = table;
     return CORE_SUCCESS;
 }
 
@@ -224,10 +254,10 @@ void table_destroy(struct table *in) {
     if (!in)
         return;
 
-    if (in->slots) {
+    if (in->slots)
         free(in->slots);
-        in->slots = NULL;
-    }
+
+    free(in);
 }
 
 int table_insert(struct table *in, const void *key, const void *value) {
@@ -377,27 +407,38 @@ int table_clear(struct table *in) {
     return CORE_SUCCESS;
 }
 
-int table_iterator_init(struct table_iterator *iter,
-                        const struct table *table) {
-    if (!iter || !table)
+int table_iterator_create(struct table_iterator **out,
+                          const struct table *table) {
+    if (!out || !table)
         return CORE_NULLPTR;
+
+    struct table_iterator *iter = malloc(sizeof(struct table_iterator));
+    if (!iter)
+        return CORE_OUT_OF_MEMORY;
 
     iter->table = table;
     iter->current_index = 0;
     iter->key = NULL;
     iter->value = NULL;
 
+    *out = iter;
     return CORE_SUCCESS;
 }
 
-int table_iterator_next(bool *out, struct table_iterator *iter) {
-    if (!iter || !iter->table)
+void table_iterator_destroy(struct table_iterator *in) {
+    if (!in)
+        return;
+
+    free(in);
+}
+
+int table_iterator_next(bool *out, struct table_iterator *in) {
+    if (!in || !in->table)
         return CORE_NULLPTR;
 
-    while (iter->current_index < iter->table->capacity) {
+    while (in->current_index < in->table->capacity) {
         u8 *metadata = NULL;
-        int error =
-            table_get_metadata(&metadata, iter->table, iter->current_index);
+        int error = table_get_metadata(&metadata, in->table, in->current_index);
         if (error)
             return error;
 
@@ -405,37 +446,52 @@ int table_iterator_next(bool *out, struct table_iterator *iter) {
             void *key_ptr = NULL;
             void *value_ptr = NULL;
 
-            error = table_get_key(&key_ptr, iter->table, iter->current_index);
+            error = table_get_key(&key_ptr, in->table, in->current_index);
             if (error)
                 return error;
 
-            error =
-                table_get_value(&value_ptr, iter->table, iter->current_index);
+            error = table_get_value(&value_ptr, in->table, in->current_index);
             if (error)
                 return error;
 
-            iter->key = key_ptr;
-            iter->value = value_ptr;
-            iter->current_index++;
+            in->key = key_ptr;
+            in->value = value_ptr;
+            in->current_index++;
             *out = true;
             return CORE_SUCCESS;
         }
 
-        iter->current_index++;
+        in->current_index++;
     }
 
-    iter->key = NULL;
-    iter->value = NULL;
+    in->key = NULL;
+    in->value = NULL;
     *out = false;
     return CORE_SUCCESS;
 }
 
-int table_iterator_clear(struct table_iterator *iter) {
-    if (!iter)
+int table_iterator_clear(struct table_iterator *in) {
+    if (!in)
         return CORE_NULLPTR;
 
-    iter->current_index = 0;
-    iter->key = NULL;
-    iter->value = NULL;
+    in->current_index = 0;
+    in->key = NULL;
+    in->value = NULL;
+    return CORE_SUCCESS;
+}
+
+int table_iterator_key_get(void **out, struct table_iterator *in) {
+    if (!out || !in)
+        return CORE_NULLPTR;
+
+    *out = in->key;
+    return CORE_SUCCESS;
+}
+
+int table_iterator_value_get(void **out, struct table_iterator *in) {
+    if (!out || !in)
+        return CORE_NULLPTR;
+
+    *out = in->value;
     return CORE_SUCCESS;
 }

@@ -6,13 +6,14 @@
 #include "core/util/globals.h"
 #include "core/util/logger.h"
 #include "core/util/mem.h"
+#include "core/util/table.h"
 #include <stdarg.h>
 
 #define ECS_WORLD_START_CAPACITY 4
 #define ECS_WORLD_ENTITY_START_CAPACITY 32
 
 struct ecs {
-    struct table worlds;
+    struct table *worlds;
 };
 
 struct ecs_world_system {
@@ -24,8 +25,8 @@ struct ecs_world {
     struct array *entities;
     struct array *free_entities;
     struct array *pending_deletions;
-    struct table components;
-    struct table systems;
+    struct table *components;
+    struct table *systems;
     u32 next_entity_id;
     int priority;
     float tick_rate;
@@ -44,15 +45,18 @@ static void ecs_world_destroy(struct ecs_world *in) {
     if (!in)
         return;
 
-    struct table_iterator comp_iter = {0};
-    int error = table_iterator_init(&comp_iter, &in->components);
+    struct table_iterator *comp_iter = NULL;
+    int error = table_iterator_create(&comp_iter, in->components);
     if (error)
         return;
 
     bool comp_iter_next = false;
-    while (table_iterator_next(&comp_iter_next, &comp_iter) == CORE_SUCCESS &&
+    while (table_iterator_next(&comp_iter_next, comp_iter) == CORE_SUCCESS &&
            comp_iter_next) {
-        struct ecs_world_sparse_set *set = comp_iter.value;
+        struct ecs_world_sparse_set *set = NULL;
+        error = table_iterator_value_get((void **)&set, comp_iter);
+        if (error)
+            continue;
 
         if (set) {
             array_destroy(set->sparse);
@@ -61,25 +65,31 @@ static void ecs_world_destroy(struct ecs_world *in) {
         }
     }
 
-    struct table_iterator sys_iter = {0};
-    error = table_iterator_init(&sys_iter, &in->systems);
+    table_iterator_destroy(comp_iter);
+
+    struct table_iterator *sys_iter = NULL;
+    error = table_iterator_create(&sys_iter, in->systems);
     if (error)
         return;
 
     bool sys_iter_next = false;
-    while (table_iterator_next(&sys_iter_next, &sys_iter) == CORE_SUCCESS &&
+    while (table_iterator_next(&sys_iter_next, sys_iter) == CORE_SUCCESS &&
            sys_iter_next) {
-        struct ecs_world_system *system = sys_iter.value;
+        struct ecs_world_system *system = NULL;
+        error = table_iterator_value_get((void **)&system, sys_iter);
+        if (error)
+            continue;
 
         if (system)
             ecs_world_query_destroy(&system->query);
     }
 
-    table_destroy(&in->components);
-    table_destroy(&in->systems);
+    table_iterator_destroy(sys_iter);
     array_destroy(in->entities);
     array_destroy(in->free_entities);
     array_destroy(in->pending_deletions);
+    table_destroy(in->components);
+    table_destroy(in->systems);
 }
 
 static int ecs_world_init(struct ecs_world *out, float tick_rate, int priority,
@@ -107,13 +117,13 @@ static int ecs_world_init(struct ecs_world *out, float tick_rate, int priority,
     if (error)
         goto cleanup;
 
-    error = table_init(&out->components, ECS_WORLD_START_CAPACITY, sizeof(u32),
-                       sizeof(struct ecs_world_sparse_set));
+    error = table_create(&out->components, ECS_WORLD_START_CAPACITY,
+                         sizeof(u32), sizeof(struct ecs_world_sparse_set));
     if (error)
         goto cleanup;
 
-    error = table_init(&out->systems, ECS_WORLD_START_CAPACITY, sizeof(u32),
-                       sizeof(struct ecs_world_system));
+    error = table_create(&out->systems, ECS_WORLD_START_CAPACITY, sizeof(u32),
+                         sizeof(struct ecs_world_system));
     if (error)
         goto cleanup;
 
@@ -134,8 +144,8 @@ int ecs_create(struct ecs **out, struct mem *mem) {
     if (error)
         return error;
 
-    error = table_init(&ecs->worlds, ECS_WORLD_START_CAPACITY, sizeof(u32),
-                       sizeof(struct ecs_world));
+    error = table_create(&ecs->worlds, ECS_WORLD_START_CAPACITY, sizeof(u32),
+                         sizeof(struct ecs_world));
     if (error)
         goto cleanup;
 
@@ -151,19 +161,23 @@ void ecs_destroy(struct ecs *in) {
     if (!in)
         return;
 
-    struct table_iterator iter = {0};
-    int error = table_iterator_init(&iter, &in->worlds);
+    struct table_iterator *iter = NULL;
+    int error = table_iterator_create(&iter, in->worlds);
     if (error)
         return;
 
     bool iter_next = false;
-    while (table_iterator_next(&iter_next, &iter) == CORE_SUCCESS &&
-           iter_next) {
-        struct ecs_world *world = iter.value;
+    while (table_iterator_next(&iter_next, iter) == CORE_SUCCESS && iter_next) {
+        struct ecs_world *world = NULL;
+        error = table_iterator_value_get((void **)&world, iter);
+        if (error)
+            continue;
+
         ecs_world_destroy(world);
     }
 
-    table_destroy(&in->worlds);
+    table_iterator_destroy(iter);
+    table_destroy(in->worlds);
 }
 
 int ecs_world_add(struct ecs *in, u32 world_id, float tick_rate, int priority,
@@ -176,7 +190,7 @@ int ecs_world_add(struct ecs *in, u32 world_id, float tick_rate, int priority,
     if (error)
         return error;
 
-    return table_insert(&in->worlds, &world_id, &world);
+    return table_insert(in->worlds, &world_id, &world);
 }
 
 int ecs_world_remove(struct ecs *in, u32 world_id) {
@@ -184,26 +198,26 @@ int ecs_world_remove(struct ecs *in, u32 world_id) {
         return CORE_NULLPTR;
 
     struct ecs_world *found = NULL;
-    int error = table_find((void **)&found, &in->worlds, &world_id);
+    int error = table_find((void **)&found, in->worlds, &world_id);
     if (error)
         return error;
 
     ecs_world_destroy(found);
-    return table_remove(NULL, &in->worlds, &world_id);
+    return table_remove(NULL, in->worlds, &world_id);
 }
 
 int ecs_world_get(struct ecs_world **out, struct ecs *in, u32 world_id) {
     if (!out || !in)
         return CORE_NULLPTR;
 
-    return table_find((void **)out, &in->worlds, &world_id);
+    return table_find((void **)out, in->worlds, &world_id);
 }
 
 int ecs_get_all_worlds(struct table **out, struct ecs *in) {
     if (!out || !in)
         return CORE_NULLPTR;
 
-    *out = &in->worlds;
+    *out = in->worlds;
     return CORE_SUCCESS;
 }
 
@@ -211,22 +225,32 @@ int ecs_update_all_worlds(struct ecs *in, struct app *app) {
     if (!in)
         return CORE_NULLPTR;
 
-    struct table_iterator iter = {0};
-    int error = table_iterator_init(&iter, &in->worlds);
+    struct table_iterator *iter = NULL;
+    int error = table_iterator_create(&iter, in->worlds);
     if (error)
         return error;
 
     bool iter_next = false;
-    while (table_iterator_next(&iter_next, &iter) == CORE_SUCCESS &&
-           iter_next) {
-        error = ecs_world_update(iter.value, app);
+    while (table_iterator_next(&iter_next, iter) == CORE_SUCCESS && iter_next) {
+        struct ecs_world *world = NULL;
+        error = table_iterator_value_get((void **)&world, iter);
+        if (error)
+            continue;
+
+        u32 *key = NULL;
+        error = table_iterator_key_get((void **)&key, iter);
+        if (error)
+            return error;
+
+        error = ecs_world_update(world, app);
         if (error) {
             LOGGER_LOG_ERROR(LOGGER_ERROR, error,
-                             "Updating ecs world failed (%u)", iter.key);
+                             "Updating ecs world failed (%u)", key);
             continue;
         }
     }
 
+    table_iterator_destroy(iter);
     return CORE_SUCCESS;
 }
 
@@ -235,23 +259,27 @@ int ecs_iter_all_worlds(struct ecs *in, ecs_world_iter_callback callback,
     if (!in || !callback)
         return CORE_NULLPTR;
 
-    struct table_iterator iter = {0};
-    int error = table_iterator_init(&iter, &in->worlds);
+    struct table_iterator *iter = NULL;
+    int error = table_iterator_create(&iter, in->worlds);
     if (error)
         return error;
 
     bool iter_next = false;
-    while (table_iterator_next(&iter_next, &iter) == CORE_SUCCESS &&
-           iter_next) {
-        struct ecs_world *world = iter.value;
+    while (table_iterator_next(&iter_next, iter) == CORE_SUCCESS && iter_next) {
+        struct ecs_world *world = NULL;
+        error = table_iterator_value_get((void **)&world, iter);
+        if (error)
+            continue;
+
         if (!world)
             continue;
 
         error = callback(world, data);
         if (error)
-            return error;
+            continue;
     }
 
+    table_iterator_destroy(iter);
     return CORE_SUCCESS;
 }
 
@@ -293,7 +321,7 @@ static int ecs_world_entity_remove_component(struct ecs_world *in, u32 entity,
         return CORE_NULLPTR;
 
     struct ecs_world_sparse_set *set = NULL;
-    int error = table_find((void **)&set, &in->components, &component_id);
+    int error = table_find((void **)&set, in->components, &component_id);
     if (error)
         return error;
 
@@ -409,7 +437,7 @@ int ecs_world_component_type_add(struct ecs_world *in, u32 component_id,
     if (error)
         goto cleanup;
 
-    error = table_insert(&in->components, &component_id, &set);
+    error = table_insert(in->components, &component_id, &set);
     if (error)
         goto cleanup;
 
@@ -427,14 +455,14 @@ int ecs_world_component_type_remove(struct ecs_world *in, u32 component_id) {
         return CORE_NULLPTR;
 
     struct ecs_world_sparse_set *set = NULL;
-    int error = table_find((void **)&set, &in->components, &component_id);
+    int error = table_find((void **)&set, in->components, &component_id);
     if (error)
         return error;
 
     array_destroy(set->sparse);
     array_destroy(set->dense);
     array_destroy(set->data);
-    return table_remove(NULL, &in->components, &component_id);
+    return table_remove(NULL, in->components, &component_id);
 }
 
 int ecs_world_component_add(struct ecs_world *in, u32 entity, u32 component_id,
@@ -454,7 +482,7 @@ int ecs_world_component_add(struct ecs_world *in, u32 entity, u32 component_id,
         return CORE_INVALID_ARG;
 
     struct ecs_world_sparse_set *set = NULL;
-    error = table_find((void **)&set, &in->components, &component_id);
+    error = table_find((void **)&set, in->components, &component_id);
     if (error)
         return error;
 
@@ -543,7 +571,7 @@ static int ecs_world_query_init_va_list(struct ecs_world_query *out,
             goto cleanup;
 
         struct ecs_world_sparse_set *set = NULL;
-        error = table_find((void **)&set, &world->components, &component_id);
+        error = table_find((void **)&set, world->components, &component_id);
         if (error)
             goto cleanup;
 
@@ -732,7 +760,7 @@ int ecs_world_query_get_single(void **out, const struct ecs_world *in,
         return CORE_INVALID_ARG;
 
     struct ecs_world_sparse_set *set = NULL;
-    int error = table_find((void **)&set, &in->components, &component_id);
+    int error = table_find((void **)&set, in->components, &component_id);
     if (error)
         return error;
 
@@ -796,7 +824,7 @@ int ecs_world_system_add(struct ecs_world *in, u32 system_id,
         new_system.query = (struct ecs_world_query){0};
     }
 
-    int error = table_insert(&in->systems, &system_id, &new_system);
+    int error = table_insert(in->systems, &system_id, &new_system);
     if (error) {
         if (query_count > 0)
             ecs_world_query_destroy(&new_system.query);
@@ -811,7 +839,7 @@ int ecs_world_system_remove(struct ecs_world *in, u32 system_id) {
         return CORE_NULLPTR;
 
     struct ecs_world_system *system = NULL;
-    int error = table_find((void **)&system, &in->systems, &system_id);
+    int error = table_find((void **)&system, in->systems, &system_id);
     if (error)
         return error;
 
@@ -819,19 +847,22 @@ int ecs_world_system_remove(struct ecs_world *in, u32 system_id) {
         return CORE_NULLPTR;
 
     ecs_world_query_destroy(&system->query);
-    return table_remove(NULL, &in->systems, &system_id);
+    return table_remove(NULL, in->systems, &system_id);
 }
 
 static int ecs_world_run_systems(struct ecs_world *in, struct app *app) {
-    struct table_iterator iter = {0};
-    int error = table_iterator_init(&iter, &in->systems);
+    struct table_iterator *iter = NULL;
+    int error = table_iterator_create(&iter, in->systems);
     if (error)
         return error;
 
     bool iter_next = false;
-    while (table_iterator_next(&iter_next, &iter) == CORE_SUCCESS &&
-           iter_next) {
-        struct ecs_world_system *system = iter.value;
+    while (table_iterator_next(&iter_next, iter) == CORE_SUCCESS && iter_next) {
+        struct ecs_world_system *system = NULL;
+        error = table_iterator_value_get((void **)&system, iter);
+        if (error)
+            continue;
+
         if (!system || !system->system) {
             continue;
         }
@@ -843,6 +874,7 @@ static int ecs_world_run_systems(struct ecs_world *in, struct app *app) {
             return error;
     }
 
+    table_iterator_destroy(iter);
     return CORE_SUCCESS;
 }
 
@@ -861,15 +893,18 @@ static int ecs_world_entity_remove_now(struct ecs_world *in, u32 entity) {
     if (entity >= entities_length)
         return CORE_INVALID_ARG;
 
-    struct table_iterator iter = {0};
-    error = table_iterator_init(&iter, &in->components);
+    struct table_iterator *iter = NULL;
+    error = table_iterator_create(&iter, in->components);
     if (error)
         return error;
 
     bool iter_next = false;
-    while (table_iterator_next(&iter_next, &iter) == CORE_SUCCESS &&
-           iter_next) {
-        struct ecs_world_sparse_set *set = iter.value;
+    while (table_iterator_next(&iter_next, iter) == CORE_SUCCESS && iter_next) {
+        struct ecs_world_sparse_set *set = NULL;
+        error = table_iterator_value_get((void **)&set, iter);
+        if (error)
+            continue;
+
         if (!set)
             continue;
 
@@ -899,11 +934,17 @@ static int ecs_world_entity_remove_now(struct ecs_world *in, u32 entity) {
         if (error || check_entity != entity)
             continue;
 
-        error = ecs_world_entity_remove_component(in, entity, *(u32 *)iter.key);
+        u32 *key = NULL;
+        error = table_iterator_key_get((void **)&key, iter);
+        if (error)
+            continue;
+
+        error = ecs_world_entity_remove_component(in, entity, *key);
         if (error)
             return error;
     }
 
+    table_iterator_destroy(iter);
     return array_push(&in->free_entities, &entity);
 }
 

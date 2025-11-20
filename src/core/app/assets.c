@@ -21,11 +21,11 @@
 #define ASSETS_TEXTURE2D_DEFAULT_MISSING "DEFAULT_MISSING"
 
 struct assets {
-    struct table fonts;
-    struct table materials;
-    struct table meshes;
-    struct table shaders;
-    struct table texture2ds;
+    struct table *fonts;
+    struct table *materials;
+    struct table *meshes;
+    struct table *shaders;
+    struct table *texture2ds;
     FT_Library ft;
     struct gfx_api *api;
 };
@@ -51,7 +51,7 @@ static int load_missing_texture(struct assets *in) {
     if (error)
         return error;
 
-    error = table_insert(&in->texture2ds, &id, &texture);
+    error = table_insert(in->texture2ds, &id, &texture);
     if (error)
         return error;
 
@@ -77,7 +77,7 @@ static int load_blank_texture(struct assets *in) {
     if (error)
         return error;
 
-    error = table_insert(&in->texture2ds, &id, &texture);
+    error = table_insert(in->texture2ds, &id, &texture);
     if (error)
         return error;
 
@@ -120,28 +120,28 @@ int assets_create(struct assets **out, struct mem *mem, struct gfx_api *api) {
         return error;
     }
 
-    error = table_init(&assets->fonts, ASSETS_START_CAPACITY, sizeof(u32),
-                       sizeof(struct ffont));
+    error = table_create(&assets->fonts, ASSETS_START_CAPACITY, sizeof(u32),
+                         sizeof(struct ffont));
     if (error)
         goto cleanup;
 
-    error = table_init(&assets->materials, ASSETS_START_CAPACITY, sizeof(u32),
-                       sizeof(struct material));
+    error = table_create(&assets->materials, ASSETS_START_CAPACITY, sizeof(u32),
+                         sizeof(struct material));
     if (error)
         goto cleanup;
 
-    error = table_init(&assets->meshes, ASSETS_START_CAPACITY, sizeof(u32),
-                       sizeof(struct gl_mesh));
+    error = table_create(&assets->meshes, ASSETS_START_CAPACITY, sizeof(u32),
+                         sizeof(struct gl_mesh));
     if (error)
         goto cleanup;
 
-    error = table_init(&assets->shaders, ASSETS_START_CAPACITY, sizeof(u32),
-                       sizeof(GLuint));
+    error = table_create(&assets->shaders, ASSETS_START_CAPACITY, sizeof(u32),
+                         sizeof(GLuint));
     if (error)
         goto cleanup;
 
-    error = table_init(&assets->texture2ds, sizeof(u32), sizeof(u32),
-                       sizeof(struct texture2d));
+    error = table_create(&assets->texture2ds, sizeof(u32), sizeof(u32),
+                         sizeof(struct texture2d));
     if (error)
         goto cleanup;
 
@@ -161,28 +161,33 @@ void assets_destroy(struct assets *in) {
     if (!in)
         return;
 
-    struct table_iterator iter = {0};
-    int error = table_iterator_init(&iter, &in->fonts);
+    struct table_iterator *iter = NULL;
+    int error = table_iterator_create(&iter, in->fonts);
     if (error)
         return;
 
     bool iter_next = false;
-    while (table_iterator_next(&iter_next, &iter) == CORE_SUCCESS &&
-           iter_next) {
-        struct ffont *font = iter.value;
+    while (table_iterator_next(&iter_next, iter) == CORE_SUCCESS && iter_next) {
+        struct ffont *font = NULL;
+        error = table_iterator_value_get((void **)&font, iter);
+        if (error)
+            continue;
+
         ffont_destroy(font);
     }
+
+    table_iterator_destroy(iter);
 
     if (in->ft) {
         FT_Done_FreeType(in->ft);
         in->ft = NULL;
     }
 
-    table_destroy(&in->fonts);
-    table_destroy(&in->materials);
-    table_destroy(&in->meshes);
-    table_destroy(&in->shaders);
-    table_destroy(&in->texture2ds);
+    table_destroy(in->fonts);
+    table_destroy(in->materials);
+    table_destroy(in->meshes);
+    table_destroy(in->shaders);
+    table_destroy(in->texture2ds);
 }
 
 void assets_font_add(struct assets *in, const char *font_path, int pixel_size) {
@@ -195,7 +200,7 @@ void assets_font_add(struct assets *in, const char *font_path, int pixel_size) {
         return;
 
     struct ffont *found = NULL;
-    error = table_find((void **)&found, &in->fonts, &id);
+    error = table_find((void **)&found, in->fonts, &id);
     if (error)
         return;
 
@@ -231,11 +236,11 @@ void assets_font_add(struct assets *in, const char *font_path, int pixel_size) {
     if (error)
         LOGGER_LOG(LOGGER_ERROR, "Init api texture2d failed (%s)", font_path);
 
-    error = table_insert(&in->fonts, &id, &font);
+    error = table_insert(in->fonts, &id, &font);
     if (error)
         return;
 
-    error = table_insert(&in->texture2ds, &id, &texture);
+    error = table_insert(in->texture2ds, &id, &texture);
     if (error)
         return;
 
@@ -247,7 +252,7 @@ int assets_font_get(struct ffont **out, const struct assets *in, u32 font_id) {
     if (!out || !in || !font_id)
         return CORE_NULLPTR;
 
-    int error = table_find((void **)out, &in->fonts, &font_id);
+    int error = table_find((void **)out, in->fonts, &font_id);
     if (error)
         return error;
 
@@ -264,7 +269,7 @@ void assets_shader_add(struct assets *in, const char *shader_path) {
         return;
 
     struct shader *found = NULL;
-    error = table_find((void **)&found, &in->shaders, &id);
+    error = table_find((void **)&found, in->shaders, &id);
     if (error)
         return;
 
@@ -319,7 +324,7 @@ void assets_shader_add(struct assets *in, const char *shader_path) {
     fascii_destroy(&vert_src);
     fascii_destroy(&frag_src);
 
-    error = table_insert(&in->shaders, &id, &shader);
+    error = table_insert(in->shaders, &id, &shader);
     if (error)
         goto cleanup;
 
@@ -336,7 +341,7 @@ int assets_shader_get(struct shader **out, const struct assets *in,
     if (!in || !shader_id)
         return CORE_NULLPTR;
 
-    int error = table_find((void **)out, &in->shaders, &shader_id);
+    int error = table_find((void **)out, in->shaders, &shader_id);
     if (error)
         return error;
 
@@ -359,7 +364,7 @@ void assets_texture2d_add(struct assets *in, const char *texture2d_path,
         return;
 
     struct texture2d *found = NULL;
-    error = table_find((void **)&found, &in->texture2ds, &id);
+    error = table_find((void **)&found, in->texture2ds, &id);
     if (error)
         return;
 
@@ -400,7 +405,7 @@ void assets_texture2d_add(struct assets *in, const char *texture2d_path,
 
     fimage_destroy(&img);
 
-    error = table_insert(&in->texture2ds, &id, &texture);
+    error = table_insert(in->texture2ds, &id, &texture);
     if (error)
         goto cleanup;
 
@@ -425,7 +430,7 @@ int assets_texture2d_get(struct texture2d **out, const struct assets *in,
 
     bool has_texture = texture2d_id != null_texture_id;
     if (has_texture) {
-        error = table_find((void **)&found, &in->texture2ds, &texture2d_id);
+        error = table_find((void **)&found, in->texture2ds, &texture2d_id);
         if (error)
             return error;
 
@@ -436,7 +441,7 @@ int assets_texture2d_get(struct texture2d **out, const struct assets *in,
             if (error)
                 return error;
 
-            error = table_find((void **)&found, &in->texture2ds, &missing_id);
+            error = table_find((void **)&found, in->texture2ds, &missing_id);
             if (error) {
                 LOGGER_LOG_ERROR(LOGGER_ERROR, error, "%s",
                                  "Unable to get missing texture");
@@ -450,7 +455,7 @@ int assets_texture2d_get(struct texture2d **out, const struct assets *in,
         if (error)
             return error;
 
-        error = table_find((void **)&found, &in->texture2ds, &blank_id);
+        error = table_find((void **)&found, in->texture2ds, &blank_id);
         if (error) {
             LOGGER_LOG_ERROR(LOGGER_ERROR, error, "%s",
                              "Unable to get blank texture");
@@ -479,7 +484,7 @@ void assets_mesh_add(struct assets *in, const char *mesh_id,
         return;
 
     struct mesh *found = NULL;
-    error = table_find((void **)&found, &in->meshes, &id);
+    error = table_find((void **)&found, in->meshes, &id);
     if (error)
         return;
 
@@ -489,7 +494,7 @@ void assets_mesh_add(struct assets *in, const char *mesh_id,
         return;
     }
 
-    error = table_insert(&in->meshes, &id, &mesh);
+    error = table_insert(in->meshes, &id, &mesh);
     if (error)
         return;
 
@@ -502,7 +507,7 @@ int assets_mesh_get(struct gl_mesh **out, const struct assets *in,
     if (!out || !in || !mesh_id)
         return CORE_NULLPTR;
 
-    int error = table_find((void **)out, &in->meshes, &mesh_id);
+    int error = table_find((void **)out, in->meshes, &mesh_id);
     if (error)
         return error;
 

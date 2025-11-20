@@ -20,8 +20,8 @@
 struct renderer {
     struct mem *mem_frame;
     struct array *batches;
-    struct table batch_indices;
-    struct table cameras;
+    struct table *batch_indices;
+    struct table *cameras;
     struct gfx_api *api;
     ivec4 bg_color;
 };
@@ -48,7 +48,7 @@ static int renderer_batch_add_cmd(struct renderer *in,
     };
 
     size_t *found = NULL;
-    int error = table_find((void **)&found, &in->batch_indices, &key);
+    int error = table_find((void **)&found, in->batch_indices, &key);
     if (error)
         return error;
 
@@ -65,7 +65,7 @@ static int renderer_batch_add_cmd(struct renderer *in,
             return error;
 
         batch_index = batches_length - 1;
-        error = table_insert(&in->batch_indices, &key, &batch_index);
+        error = table_insert(in->batch_indices, &key, &batch_index);
         if (error)
             return error;
 
@@ -171,15 +171,20 @@ static int renderer_ecs_create_render_cmds(struct renderer *in,
     if (error)
         return error;
 
-    struct table_iterator iter = {0};
-    error = table_iterator_init(&iter, ecs_worlds);
+    struct table_iterator *iter = NULL;
+    error = table_iterator_create(&iter, ecs_worlds);
     if (error)
         return error;
 
     bool iter_next = false;
-    while (table_iterator_next(&iter_next, &iter) == CORE_SUCCESS &&
-           iter_next) {
-        struct ecs_world *world = iter.value;
+    while (table_iterator_next(&iter_next, iter) == CORE_SUCCESS && iter_next) {
+        struct ecs_world *world = NULL;
+        error = table_iterator_value_get((void **)&world, iter);
+        if (error)
+            continue;
+
+        if (!world)
+            continue;
 
         struct camera *active_camera = NULL;
         error = find_active_camera(&active_camera, world);
@@ -245,6 +250,7 @@ static int renderer_ecs_create_render_cmds(struct renderer *in,
         ecs_world_query_destroy(&query);
     }
 
+    table_iterator_destroy(iter);
     return CORE_SUCCESS;
 }
 
@@ -269,8 +275,8 @@ int renderer_create(struct renderer **out, struct mem *mem_persistant,
     if (error)
         goto cleanup;
 
-    error = table_init(&renderer->batch_indices, RENDERER_START_CMD_CAPACITY,
-                       sizeof(struct renderer_batch_data), sizeof(size_t));
+    error = table_create(&renderer->batch_indices, RENDERER_START_CMD_CAPACITY,
+                         sizeof(struct renderer_batch_data), sizeof(size_t));
     if (error)
         goto cleanup;
 
@@ -291,8 +297,8 @@ void renderer_destroy(struct renderer *in) {
         return;
 
     array_destroy(in->batches);
-    table_destroy(&in->batch_indices);
-    table_destroy(&in->cameras);
+    table_destroy(in->batch_indices);
+    table_destroy(in->cameras);
 }
 
 int renderer_swap_buffers(struct renderer *in, GLFWwindow *window) {
@@ -330,7 +336,7 @@ int renderer_draw_frame(struct renderer *in, struct app *app) {
     }
 
     array_clear(in->batches);
-    table_clear(&in->batch_indices);
+    table_clear(in->batch_indices);
     arena_clear(app->arena_frame);
 
     // PROFILER_START(renderer_ecs_create_render_cmds);
