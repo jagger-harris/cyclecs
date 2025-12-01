@@ -4,33 +4,23 @@
 #include <stdbool.h>
 #include <stddef.h>
 
-struct table {
-    size_t capacity;
-    size_t length;
-    size_t key_size;
-    size_t value_size;
-    size_t slot_size;
-    void *slots;
-};
+struct table;
+struct table_iterator;
 
-int table_init(struct table *out, size_t start_capacity, size_t key_size,
-               size_t value_size);
+int table_create(struct table **out, size_t start_capacity, size_t key_size,
+                 size_t value_size);
 void table_destroy(struct table *in);
 int table_insert(struct table *in, const void *key, const void *value);
 int table_remove(void *out, struct table *in, const void *key);
 int table_find(void **out, const struct table *in, const void *key);
 int table_find_cpy(void *out, const struct table *in, const void *key);
 int table_clear(struct table *in);
-
-struct table_iterator {
-    const struct table *table;
-    size_t current_index;
-    void *key;
-    void *value;
-};
-
-int table_iterator_init(struct table_iterator *iter, const struct table *table);
-int table_iterator_next(bool *out, struct table_iterator *iter);
-int table_iterator_clear(struct table_iterator *iter);
+int table_iterator_create(struct table_iterator **out,
+                          const struct table *table);
+void table_iterator_destroy(struct table_iterator *in);
+int table_iterator_next(bool *out, struct table_iterator *in);
+int table_iterator_clear(struct table_iterator *in);
+int table_iterator_key_get(void **out, struct table_iterator *in);
+int table_iterator_value_get(void **out, struct table_iterator *in);
 
 #endif // UTIL_TABLE_H

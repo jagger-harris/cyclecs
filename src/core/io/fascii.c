@@ -1,8 +1,6 @@
 #include "core/io/fascii.h"
 #include "core/util/error.h"
-#include <stdio.h>
-#include <stdlib.h>
-
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -33,19 +31,20 @@ int fascii_init(const char **out, const char *path) {
         goto cleanup;
     }
 
-    file_buffer = malloc((size_t)length + 1);
+    size_t buffer_size = (size_t)length + 1;
+    file_buffer = malloc(buffer_size);
     if (!file_buffer) {
         error = CORE_OUT_OF_MEMORY;
         goto cleanup;
     }
 
-    size_t read_size = fread(file_buffer, 1, (size_t)length, file);
+    size_t read_size = fread(file_buffer, 1, buffer_size, file);
     if (read_size != (size_t)length) {
         error = CORE_ACCESS_DENIED;
         goto cleanup;
     }
 
-    file_buffer[length] = '\0';
+    file_buffer[read_size] = '\0';
     *out = file_buffer;
 
     (void)fclose(file);

@@ -6,7 +6,7 @@
 #include <cglm/cglm.h>
 
 struct node {
-    struct array children;
+    struct array *children;
     u32 parent;
 };
 

@@ -2,28 +2,17 @@
 #define APP_ASSETS_H
 
 #include "core/gfx/texture2d.h"
-#include "core/util/error.h"
-#include "core/util/table.h"
-#include "core/util/xxhash32.h"
-#include "freetype/freetype.h"
+#include <stddef.h>
 
+struct assets;
 struct ffont;
 struct gfx_api;
 struct gl_mesh;
+struct mem;
 struct shader;
 struct vertex;
 
-struct assets {
-    struct table fonts;
-    struct table materials;
-    struct table meshes;
-    struct table shaders;
-    struct table texture2ds;
-    FT_Library ft;
-    struct gfx_api *api;
-};
-
-int assets_init(struct assets *out, struct gfx_api *api);
+int assets_create(struct assets **out, struct mem *mem, struct gfx_api *api);
 void assets_destroy(struct assets *in);
 void assets_font_add(struct assets *in, const char *font_path, int pixel_size);
 int assets_font_get(struct ffont **out, const struct assets *in, u32 font_id);

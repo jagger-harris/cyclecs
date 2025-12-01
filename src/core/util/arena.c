@@ -1,20 +1,45 @@
 #include "core/util/arena.h"
 #include "core/util/error.h"
+#include "core/util/types.h"
+#include <stdalign.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
-int arena_init(struct arena *out, size_t size) {
+struct arena {
+    size_t size;
+    size_t used;
+    size_t last_offset;
+    void *data;
+};
+
+static inline void *arena_data(struct arena *in) {
+    return (u8 *)in + sizeof(struct arena);
+}
+
+int arena_create(struct arena **out, size_t size) {
     if (!out)
         return CORE_NULLPTR;
 
-    *out =
-        (struct arena){.mem = NULL, .size = size, .used = 0, .last_offset = 0};
+    if (size == 0)
+        return CORE_INVALID_ARG;
 
-    out->mem = malloc(size);
-    if (!out->mem)
+    const size_t align = alignof(max_align_t);
+    size_t total_size = sizeof(struct arena) + size + (align - 1);
+
+    struct arena *arena = malloc(total_size);
+    if (!arena)
         return CORE_OUT_OF_MEMORY;
 
+    uintptr_t base = (uintptr_t)arena + sizeof(struct arena);
+    uintptr_t aligned = (base + (align - 1)) & ~(uintptr_t)(align - 1);
+
+    arena->data = (void *)aligned;
+    arena->size = size;
+    arena->used = 0;
+    arena->last_offset = 0;
+
+    *out = arena;
     return CORE_SUCCESS;
 }
 
@@ -22,22 +47,19 @@ void arena_destroy(struct arena *in) {
     if (!in)
         return;
 
-    if (in->mem) {
-        free(in->mem);
-        in->mem = NULL;
-    }
+    free(in);
 }
 
-int arena_alloc(void **out, struct arena *in, size_t size, size_t alignment) {
+int arena_alloc(void **out, struct arena *in, size_t size, size_t align) {
     if (!out || !in)
         return CORE_NULLPTR;
 
-    if (size == 0 || (alignment & (alignment - 1)) != 0)
+    if (size == 0 || (align & (align - 1)) != 0)
         return CORE_INVALID_ARG;
 
     uintptr_t current_offset = in->used;
     uintptr_t aligned_offset =
-        (current_offset + alignment - 1) & ~(uintptr_t)(alignment - 1);
+        (current_offset + align - 1) & ~(uintptr_t)(align - 1);
 
     if (aligned_offset + size > in->size)
         return CORE_OUT_OF_MEMORY;
@@ -45,8 +67,8 @@ int arena_alloc(void **out, struct arena *in, size_t size, size_t alignment) {
     in->last_offset = in->used;
     in->used = aligned_offset + size;
 
-    *out = (char *)in->mem + aligned_offset;
-    memset(*out, 0, size);
+    void *data = arena_data(in);
+    *out = (u8 *)data + aligned_offset;
     return CORE_SUCCESS;
 }
 
@@ -59,9 +81,18 @@ int arena_clear(struct arena *in) {
     return CORE_SUCCESS;
 }
 
-void arena_remove_last(struct arena *in) {
-    if (!in)
-        return;
+int arena_marker_save(arena_marker *out, struct arena *in) {
+    if (!out || !in)
+        return CORE_NULLPTR;
 
-    in->used = in->last_offset;
+    *out = in->used;
+    return CORE_SUCCESS;
+}
+
+int arena_marker_restore(struct arena *in, arena_marker *marker) {
+    if (!in || !marker)
+        return CORE_NULLPTR;
+
+    in->used = *marker;
+    return CORE_SUCCESS;
 }
