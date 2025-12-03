@@ -47,7 +47,7 @@ int game_init(struct game_state *out, struct app *app) {
     ecs_iter_all_worlds(ecs, add_component_types, NULL);
 
     struct ecs_world *main_world = NULL;
-    ecs_world_get(&main_world, ecs, GAME_WORLD_MAIN);
+    ecs_world_get_mut(&main_world, ecs, GAME_WORLD_MAIN);
 
     ecs_world_component_type_add(main_world, GAME_COMP_BOARD,
                                  sizeof(struct board));
@@ -66,7 +66,7 @@ int game_init(struct game_state *out, struct app *app) {
                          GAME_COMP_BOARD);
 
     struct ecs_world *ui_world = NULL;
-    ecs_world_get(&ui_world, ecs, GAME_WORLD_UI);
+    ecs_world_get_mut(&ui_world, ecs, GAME_WORLD_UI);
 
     ecs_world_system_add(ui_world, GAME_SYS_BENCHMARK, ui_benchmark_system, 2,
                          ECS_COMP_UI_BASE, ECS_COMP_UI_LABEL);
@@ -259,8 +259,8 @@ u32 game_ui_image_button_entity_new(struct ecs_world *world, const char *id,
         return U32_MAX;
 
     struct node *node_data = NULL;
-    error = ecs_world_query_get_single((void **)&node_data, world, new_entity,
-                                       ECS_COMP_NODE);
+    error = ecs_world_query_get_single((const void **)&node_data, world,
+                                       new_entity, ECS_COMP_NODE);
     if (error || !node_data)
         goto cleanup;
 
@@ -308,7 +308,7 @@ u32 game_ui_label_entity_new(struct ecs_world *world, struct assets *assets,
     if (error)
         return U32_MAX;
 
-    struct ffont *font = NULL;
+    const struct ffont *font = NULL;
     error = assets_font_get(&font, assets, label.font_id);
     if (error)
         return U32_MAX;
@@ -337,8 +337,8 @@ u32 game_ui_label_entity_new(struct ecs_world *world, struct assets *assets,
         return U32_MAX;
 
     struct node *node_data = NULL;
-    error = ecs_world_query_get_single((void **)&node_data, world, new_entity,
-                                       ECS_COMP_NODE);
+    error = ecs_world_query_get_single((const void **)&node_data, world,
+                                       new_entity, ECS_COMP_NODE);
     if (error)
         goto cleanup;
 
@@ -356,7 +356,7 @@ u32 game_ui_label_entity_new(struct ecs_world *world, struct assets *assets,
         if (c < FFONT_CHAR_START || c > FFONT_CHAR_END)
             continue;
 
-        struct fglyph *glyph = &font->glyphs[c - FFONT_CHAR_START];
+        const struct fglyph *glyph = &font->glyphs[c - FFONT_CHAR_START];
         if (glyph->width == 0 || glyph->height == 0) {
             cursor_x += (float)glyph->advance * scale;
             continue;
@@ -405,8 +405,8 @@ void game_ui_label_entity_delete(struct ecs_world *world, u32 entity) {
         return;
 
     struct node *node_data = NULL;
-    int error = ecs_world_query_get_single((void **)&node_data, world, entity,
-                                           ECS_COMP_NODE);
+    int error = ecs_world_query_get_single((const void **)&node_data, world,
+                                           entity, ECS_COMP_NODE);
     if (error)
         return;
 

@@ -86,7 +86,7 @@ void gl_shader_destroy(struct shader *in) {
     glDeleteProgram(in->gl.id);
 }
 
-int gl_shader_use(struct shader *in) {
+int gl_shader_use(const struct shader *in) {
     if (!in)
         return CORE_NULLPTR;
 

@@ -65,7 +65,7 @@ int array_clear(struct array *in) {
     return CORE_SUCCESS;
 }
 
-int array_elem_get_mut(void **out, struct array *in, size_t index) {
+int array_elem_get_mut(void **out, const struct array *in, size_t index) {
     if (!out || !in)
         return CORE_NULLPTR;
 
@@ -77,14 +77,7 @@ int array_elem_get_mut(void **out, struct array *in, size_t index) {
 }
 
 int array_elem_get(const void **out, const struct array *in, size_t index) {
-    if (!out || !in)
-        return CORE_NULLPTR;
-
-    if (index >= in->length)
-        return CORE_INVALID_ARG;
-
-    *out = (u8 *)in->data + index * in->elem_size;
-    return CORE_SUCCESS;
+    return array_elem_get_mut((void **)out, in, index);
 }
 
 int array_elem_get_cpy(void *out, const struct array *in, size_t index) {

@@ -14,7 +14,7 @@ struct gl_shader {
 
 int gl_shader_init(struct shader *out, const struct shader_info *info);
 void gl_shader_destroy(struct shader *in);
-int gl_shader_use(struct shader *in);
+int gl_shader_use(const struct shader *in);
 int gl_shader_set_bool(GLuint shader, const char *name, GLboolean data);
 int gl_shader_set_int(GLuint shader, const char *name, GLint data);
 int gl_shader_set_float(GLuint shader, const char *name, GLfloat data);

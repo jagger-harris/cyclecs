@@ -169,7 +169,7 @@ void assets_destroy(struct assets *in) {
     bool iter_next = false;
     while (table_iterator_next(&iter_next, iter) == CORE_SUCCESS && iter_next) {
         struct ffont *font = NULL;
-        error = table_iterator_value_get((void **)&font, iter);
+        error = table_iterator_value_get_mut((void **)&font, iter);
         if (error)
             continue;
 
@@ -199,8 +199,8 @@ void assets_font_add(struct assets *in, const char *font_path, int pixel_size) {
     if (error)
         return;
 
-    struct ffont *found = NULL;
-    error = table_find((void **)&found, in->fonts, &id);
+    const struct ffont *found = NULL;
+    error = table_find((const void **)&found, in->fonts, &id);
     if (error)
         return;
 
@@ -248,11 +248,12 @@ void assets_font_add(struct assets *in, const char *font_path, int pixel_size) {
     return;
 }
 
-int assets_font_get(struct ffont **out, const struct assets *in, u32 font_id) {
+int assets_font_get(const struct ffont **out, const struct assets *in,
+                    u32 font_id) {
     if (!out || !in || !font_id)
         return CORE_NULLPTR;
 
-    int error = table_find((void **)out, in->fonts, &font_id);
+    int error = table_find((const void **)out, in->fonts, &font_id);
     if (error)
         return error;
 
@@ -268,8 +269,8 @@ void assets_shader_add(struct assets *in, const char *shader_path) {
     if (error)
         return;
 
-    struct shader *found = NULL;
-    error = table_find((void **)&found, in->shaders, &id);
+    const struct shader *found = NULL;
+    error = table_find((const void **)&found, in->shaders, &id);
     if (error)
         return;
 
@@ -336,12 +337,12 @@ cleanup:
     fascii_destroy(&frag_src);
 }
 
-int assets_shader_get(struct shader **out, const struct assets *in,
+int assets_shader_get(const struct shader **out, const struct assets *in,
                       u32 shader_id) {
     if (!in || !shader_id)
         return CORE_NULLPTR;
 
-    int error = table_find((void **)out, in->shaders, &shader_id);
+    int error = table_find((const void **)out, in->shaders, &shader_id);
     if (error)
         return error;
 
@@ -363,8 +364,8 @@ void assets_texture2d_add(struct assets *in, const char *texture2d_path,
     if (error)
         return;
 
-    struct texture2d *found = NULL;
-    error = table_find((void **)&found, in->texture2ds, &id);
+    const struct texture2d *found = NULL;
+    error = table_find((const void **)&found, in->texture2ds, &id);
     if (error)
         return;
 
@@ -416,12 +417,12 @@ cleanup:
     fimage_destroy(&img);
 }
 
-int assets_texture2d_get(struct texture2d **out, const struct assets *in,
+int assets_texture2d_get(const struct texture2d **out, const struct assets *in,
                          u32 texture2d_id) {
     if (!in || !texture2d_id)
         return CORE_NULLPTR;
 
-    struct texture2d *found = NULL;
+    const struct texture2d *found = NULL;
 
     u32 null_texture_id = 0;
     int error = xxhash32(&null_texture_id, "", strlen(""), 0);
@@ -430,7 +431,8 @@ int assets_texture2d_get(struct texture2d **out, const struct assets *in,
 
     bool has_texture = texture2d_id != null_texture_id;
     if (has_texture) {
-        error = table_find((void **)&found, in->texture2ds, &texture2d_id);
+        error =
+            table_find((const void **)&found, in->texture2ds, &texture2d_id);
         if (error)
             return error;
 
@@ -441,7 +443,8 @@ int assets_texture2d_get(struct texture2d **out, const struct assets *in,
             if (error)
                 return error;
 
-            error = table_find((void **)&found, in->texture2ds, &missing_id);
+            error =
+                table_find((const void **)&found, in->texture2ds, &missing_id);
             if (error) {
                 LOGGER_LOG_ERROR(LOGGER_ERROR, error, "%s",
                                  "Unable to get missing texture");
@@ -455,7 +458,7 @@ int assets_texture2d_get(struct texture2d **out, const struct assets *in,
         if (error)
             return error;
 
-        error = table_find((void **)&found, in->texture2ds, &blank_id);
+        error = table_find((const void **)&found, in->texture2ds, &blank_id);
         if (error) {
             LOGGER_LOG_ERROR(LOGGER_ERROR, error, "%s",
                              "Unable to get blank texture");
@@ -483,8 +486,8 @@ void assets_mesh_add(struct assets *in, const char *mesh_id,
     if (error)
         return;
 
-    struct mesh *found = NULL;
-    error = table_find((void **)&found, in->meshes, &id);
+    const struct mesh *found = NULL;
+    error = table_find((const void **)&found, in->meshes, &id);
     if (error)
         return;
 
@@ -502,12 +505,12 @@ void assets_mesh_add(struct assets *in, const char *mesh_id,
     return;
 }
 
-int assets_mesh_get(struct gl_mesh **out, const struct assets *in,
+int assets_mesh_get(const struct gl_mesh **out, const struct assets *in,
                     u32 mesh_id) {
     if (!out || !in || !mesh_id)
         return CORE_NULLPTR;
 
-    int error = table_find((void **)out, in->meshes, &mesh_id);
+    int error = table_find((const void **)out, in->meshes, &mesh_id);
     if (error)
         return error;
 

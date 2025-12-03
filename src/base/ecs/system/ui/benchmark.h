@@ -56,7 +56,7 @@ int ui_benchmark_system(struct ecs_world_query *query, struct app *app) {
         query->world, app->assets, "fps", (vec2){10.0f, 25.0f}, 1.0f, fps_text,
         20, "human_sans-regular.otf", true, (ivec4){255, 255, 255, 255});
 
-    struct ecs_world *main_world = NULL;
+    const struct ecs_world *main_world = NULL;
     ecs_world_get(&main_world, app->ecs, GAME_WORLD_MAIN);
     if (!main_world)
         return CORE_SUCCESS;

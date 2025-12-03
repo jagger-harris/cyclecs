@@ -48,7 +48,7 @@ static int renderer_batch_add_cmd(struct renderer *in,
     };
 
     size_t *found = NULL;
-    int error = table_find((void **)&found, in->batch_indices, &key);
+    int error = table_find((const void **)&found, in->batch_indices, &key);
     if (error)
         return error;
 
@@ -166,7 +166,7 @@ static int renderer_ecs_create_render_cmds(struct renderer *in,
     if (!app)
         return CORE_NULLPTR;
 
-    struct table *ecs_worlds = NULL;
+    const struct table *ecs_worlds = NULL;
     int error = ecs_get_all_worlds(&ecs_worlds, app->ecs);
     if (error)
         return error;
@@ -179,7 +179,7 @@ static int renderer_ecs_create_render_cmds(struct renderer *in,
     bool iter_next = false;
     while (table_iterator_next(&iter_next, iter) == CORE_SUCCESS && iter_next) {
         struct ecs_world *world = NULL;
-        error = table_iterator_value_get((void **)&world, iter);
+        error = table_iterator_value_get_mut((void **)&world, iter);
         if (error)
             continue;
 

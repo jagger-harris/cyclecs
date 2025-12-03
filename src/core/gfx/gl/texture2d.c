@@ -47,7 +47,7 @@ void gl_texture2d_destroy(struct texture2d *in) {
     glDeleteTextures(1, &in->gl.id);
 }
 
-int gl_texture2d_use(struct texture2d *in) {
+int gl_texture2d_use(const struct texture2d *in) {
     if (!glIsTexture(in->gl.id))
         return CORE_INVALID_ARG;
 

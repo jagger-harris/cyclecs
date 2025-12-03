@@ -39,8 +39,9 @@ void ecs_destroy(struct ecs *in);
 int ecs_world_add(struct ecs *in, u32 world_id, float tick_rate, int priority,
                   bool should_update);
 int ecs_world_remove(struct ecs *in, u32 world_id);
-int ecs_world_get(struct ecs_world **out, struct ecs *in, u32 world_id);
-int ecs_get_all_worlds(struct table **out, struct ecs *in);
+int ecs_world_get_mut(struct ecs_world **out, struct ecs *in, u32 world_id);
+int ecs_world_get(const struct ecs_world **out, struct ecs *in, u32 world_id);
+int ecs_get_all_worlds(const struct table **out, struct ecs *in);
 int ecs_update_all_worlds(struct ecs *in, struct app *app);
 int ecs_iter_all_worlds(struct ecs *in, ecs_world_iter_callback callback,
                         void *data);
@@ -63,12 +64,14 @@ void ecs_world_query_destroy(struct ecs_world_query *query);
 int ecs_world_query_next(u32 *out, struct ecs_world_query *query);
 int ecs_world_query_get(void **out, const struct ecs_world_query *query,
                         u32 component_id, u32 entity);
-int ecs_world_query_get_single(void **out, const struct ecs_world *in,
+int ecs_world_query_get_single_mut(void **out, const struct ecs_world *in,
+                                   u32 entity, u32 component_id);
+int ecs_world_query_get_single(const void **out, const struct ecs_world *in,
                                u32 entity, u32 component_id);
 int ecs_world_system_add(struct ecs_world *in, u32 system_id,
                          ecs_world_system_fn system, size_t query_count, ...);
 int ecs_world_system_remove(struct ecs_world *in, u32 system_id);
 int ecs_world_update(struct ecs_world *in, struct app *app);
-int ecs_world_entities_length_get(size_t *out, struct ecs_world *in);
+int ecs_world_entities_length_get(size_t *out, const struct ecs_world *in);
 
 #endif // ECS_H

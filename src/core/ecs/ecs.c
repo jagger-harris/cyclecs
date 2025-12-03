@@ -54,7 +54,7 @@ static void ecs_world_destroy(struct ecs_world *in) {
     while (table_iterator_next(&comp_iter_next, comp_iter) == CORE_SUCCESS &&
            comp_iter_next) {
         struct ecs_world_sparse_set *set = NULL;
-        error = table_iterator_value_get((void **)&set, comp_iter);
+        error = table_iterator_value_get_mut((void **)&set, comp_iter);
         if (error)
             continue;
 
@@ -76,7 +76,7 @@ static void ecs_world_destroy(struct ecs_world *in) {
     while (table_iterator_next(&sys_iter_next, sys_iter) == CORE_SUCCESS &&
            sys_iter_next) {
         struct ecs_world_system *system = NULL;
-        error = table_iterator_value_get((void **)&system, sys_iter);
+        error = table_iterator_value_get_mut((void **)&system, sys_iter);
         if (error)
             continue;
 
@@ -169,7 +169,7 @@ void ecs_destroy(struct ecs *in) {
     bool iter_next = false;
     while (table_iterator_next(&iter_next, iter) == CORE_SUCCESS && iter_next) {
         struct ecs_world *world = NULL;
-        error = table_iterator_value_get((void **)&world, iter);
+        error = table_iterator_value_get_mut((void **)&world, iter);
         if (error)
             continue;
 
@@ -198,7 +198,7 @@ int ecs_world_remove(struct ecs *in, u32 world_id) {
         return CORE_NULLPTR;
 
     struct ecs_world *found = NULL;
-    int error = table_find((void **)&found, in->worlds, &world_id);
+    int error = table_find_mut((void **)&found, in->worlds, &world_id);
     if (error)
         return error;
 
@@ -206,14 +206,21 @@ int ecs_world_remove(struct ecs *in, u32 world_id) {
     return table_remove(NULL, in->worlds, &world_id);
 }
 
-int ecs_world_get(struct ecs_world **out, struct ecs *in, u32 world_id) {
+int ecs_world_get_mut(struct ecs_world **out, struct ecs *in, u32 world_id) {
     if (!out || !in)
         return CORE_NULLPTR;
 
-    return table_find((void **)out, in->worlds, &world_id);
+    return table_find_mut((void **)out, in->worlds, &world_id);
 }
 
-int ecs_get_all_worlds(struct table **out, struct ecs *in) {
+int ecs_world_get(const struct ecs_world **out, struct ecs *in, u32 world_id) {
+    if (!out || !in)
+        return CORE_NULLPTR;
+
+    return table_find((const void **)out, in->worlds, &world_id);
+}
+
+int ecs_get_all_worlds(const struct table **out, struct ecs *in) {
     if (!out || !in)
         return CORE_NULLPTR;
 
@@ -233,12 +240,12 @@ int ecs_update_all_worlds(struct ecs *in, struct app *app) {
     bool iter_next = false;
     while (table_iterator_next(&iter_next, iter) == CORE_SUCCESS && iter_next) {
         struct ecs_world *world = NULL;
-        error = table_iterator_value_get((void **)&world, iter);
+        error = table_iterator_value_get_mut((void **)&world, iter);
         if (error)
             continue;
 
         u32 *key = NULL;
-        error = table_iterator_key_get((void **)&key, iter);
+        error = table_iterator_key_get((const void **)&key, iter);
         if (error)
             return error;
 
@@ -267,7 +274,7 @@ int ecs_iter_all_worlds(struct ecs *in, ecs_world_iter_callback callback,
     bool iter_next = false;
     while (table_iterator_next(&iter_next, iter) == CORE_SUCCESS && iter_next) {
         struct ecs_world *world = NULL;
-        error = table_iterator_value_get((void **)&world, iter);
+        error = table_iterator_value_get_mut((void **)&world, iter);
         if (error)
             continue;
 
@@ -320,8 +327,8 @@ static int ecs_world_entity_remove_component(struct ecs_world *in, u32 entity,
     if (!in)
         return CORE_NULLPTR;
 
-    struct ecs_world_sparse_set *set = NULL;
-    int error = table_find((void **)&set, in->components, &component_id);
+    const struct ecs_world_sparse_set *set = NULL;
+    int error = table_find((const void **)&set, in->components, &component_id);
     if (error)
         return error;
 
@@ -454,8 +461,8 @@ int ecs_world_component_type_remove(struct ecs_world *in, u32 component_id) {
     if (!in)
         return CORE_NULLPTR;
 
-    struct ecs_world_sparse_set *set = NULL;
-    int error = table_find((void **)&set, in->components, &component_id);
+    const struct ecs_world_sparse_set *set = NULL;
+    int error = table_find((const void **)&set, in->components, &component_id);
     if (error)
         return error;
 
@@ -482,7 +489,7 @@ int ecs_world_component_add(struct ecs_world *in, u32 entity, u32 component_id,
         return CORE_INVALID_ARG;
 
     struct ecs_world_sparse_set *set = NULL;
-    error = table_find((void **)&set, in->components, &component_id);
+    error = table_find((const void **)&set, in->components, &component_id);
     if (error)
         return error;
 
@@ -571,7 +578,8 @@ static int ecs_world_query_init_va_list(struct ecs_world_query *out,
             goto cleanup;
 
         struct ecs_world_sparse_set *set = NULL;
-        error = table_find((void **)&set, world->components, &component_id);
+        error =
+            table_find((const void **)&set, world->components, &component_id);
         if (error)
             goto cleanup;
 
@@ -751,16 +759,16 @@ int ecs_world_query_get(void **out, const struct ecs_world_query *query,
     return CORE_SUCCESS;
 }
 
-int ecs_world_query_get_single(void **out, const struct ecs_world *in,
-                               u32 entity, u32 component_id) {
+int ecs_world_query_get_single_mut(void **out, const struct ecs_world *in,
+                                   u32 entity, u32 component_id) {
     if (!out || !in)
         return CORE_NULLPTR;
 
     if (entity == U32_MAX)
         return CORE_INVALID_ARG;
 
-    struct ecs_world_sparse_set *set = NULL;
-    int error = table_find((void **)&set, in->components, &component_id);
+    const struct ecs_world_sparse_set *set = NULL;
+    int error = table_find((const void **)&set, in->components, &component_id);
     if (error)
         return error;
 
@@ -804,6 +812,12 @@ int ecs_world_query_get_single(void **out, const struct ecs_world *in,
     return array_elem_get_mut(out, set->data, dense_index);
 }
 
+int ecs_world_query_get_single(const void **out, const struct ecs_world *in,
+                               u32 entity, u32 component_id) {
+    return ecs_world_query_get_single_mut((void **)out, in, entity,
+                                          component_id);
+}
+
 int ecs_world_system_add(struct ecs_world *in, u32 system_id,
                          ecs_world_system_fn system, size_t query_count, ...) {
     if (!in)
@@ -839,7 +853,7 @@ int ecs_world_system_remove(struct ecs_world *in, u32 system_id) {
         return CORE_NULLPTR;
 
     struct ecs_world_system *system = NULL;
-    int error = table_find((void **)&system, in->systems, &system_id);
+    int error = table_find((const void **)&system, in->systems, &system_id);
     if (error)
         return error;
 
@@ -859,7 +873,7 @@ static int ecs_world_run_systems(struct ecs_world *in, struct app *app) {
     bool iter_next = false;
     while (table_iterator_next(&iter_next, iter) == CORE_SUCCESS && iter_next) {
         struct ecs_world_system *system = NULL;
-        error = table_iterator_value_get((void **)&system, iter);
+        error = table_iterator_value_get_mut((void **)&system, iter);
         if (error)
             continue;
 
@@ -901,7 +915,7 @@ static int ecs_world_entity_remove_now(struct ecs_world *in, u32 entity) {
     bool iter_next = false;
     while (table_iterator_next(&iter_next, iter) == CORE_SUCCESS && iter_next) {
         struct ecs_world_sparse_set *set = NULL;
-        error = table_iterator_value_get((void **)&set, iter);
+        error = table_iterator_value_get_mut((void **)&set, iter);
         if (error)
             continue;
 
@@ -935,7 +949,7 @@ static int ecs_world_entity_remove_now(struct ecs_world *in, u32 entity) {
             continue;
 
         u32 *key = NULL;
-        error = table_iterator_key_get((void **)&key, iter);
+        error = table_iterator_key_get((const void **)&key, iter);
         if (error)
             continue;
 
@@ -1014,7 +1028,7 @@ int ecs_world_update(struct ecs_world *in, struct app *app) {
     return CORE_SUCCESS;
 }
 
-int ecs_world_entities_length_get(size_t *out, struct ecs_world *in) {
+int ecs_world_entities_length_get(size_t *out, const struct ecs_world *in) {
     if (!out || !in)
         return CORE_NULLPTR;
 

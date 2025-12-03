@@ -329,7 +329,7 @@ int table_remove(void *out, struct table *in, const void *key) {
     return CORE_SUCCESS;
 }
 
-int table_find(void **out, const struct table *in, const void *key) {
+int table_find_mut(void **out, const struct table *in, const void *key) {
     if (!out || !in || !key)
         return CORE_NULLPTR;
 
@@ -378,9 +378,21 @@ int table_find(void **out, const struct table *in, const void *key) {
     return CORE_SUCCESS;
 }
 
+int table_find(const void **out, const struct table *in, const void *key) {
+    void *value = NULL;
+    int error = table_find_mut(&value, in, key);
+    if (error)
+        return error;
+
+    if (value != NULL)
+        *out = value;
+
+    return CORE_SUCCESS;
+}
+
 int table_find_cpy(void *out, const struct table *in, const void *key) {
     void *value = NULL;
-    int error = table_find(&value, in, key);
+    int error = table_find_mut(&value, in, key);
     if (error)
         return error;
 
@@ -480,7 +492,7 @@ int table_iterator_clear(struct table_iterator *in) {
     return CORE_SUCCESS;
 }
 
-int table_iterator_key_get(void **out, struct table_iterator *in) {
+int table_iterator_key_get_mut(void **out, const struct table_iterator *in) {
     if (!out || !in)
         return CORE_NULLPTR;
 
@@ -488,10 +500,19 @@ int table_iterator_key_get(void **out, struct table_iterator *in) {
     return CORE_SUCCESS;
 }
 
-int table_iterator_value_get(void **out, struct table_iterator *in) {
+int table_iterator_value_get_mut(void **out, const struct table_iterator *in) {
     if (!out || !in)
         return CORE_NULLPTR;
 
     *out = in->value;
     return CORE_SUCCESS;
+}
+
+int table_iterator_key_get(const void **out, const struct table_iterator *in) {
+    return table_iterator_key_get_mut((void **)out, in);
+}
+
+int table_iterator_value_get(const void **out,
+                             const struct table_iterator *in) {
+    return table_iterator_key_get_mut((void **)out, in);
 }

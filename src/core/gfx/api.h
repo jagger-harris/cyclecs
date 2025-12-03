@@ -22,10 +22,10 @@ struct gfx_api {
     int (*draw_frame)(struct app *app, struct array *render_batches);
     int (*shader_init)(struct shader *out, const struct shader_info *info);
     void (*shader_destroy)(struct shader *in);
-    int (*shader_use)(struct shader *in);
+    int (*shader_use)(const struct shader *in);
     int (*texture2d_init)(struct texture2d *out, struct texture2d_info *info);
     void (*texture2d_destroy)(struct texture2d *in);
-    int (*texture2d_use)(struct texture2d *in);
+    int (*texture2d_use)(const struct texture2d *in);
 };
 
 #endif // GFX_API_H

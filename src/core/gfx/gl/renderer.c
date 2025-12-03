@@ -61,17 +61,17 @@ void gl_renderer_on_resize(int width, int height) {
 }
 
 static int render_batch(struct app *app, struct renderer_batch *batch) {
-    struct gl_mesh *mesh = NULL;
+    const struct gl_mesh *mesh = NULL;
     int error = assets_mesh_get(&mesh, app->assets, batch->data.mesh_id);
     if (error)
         return error;
 
-    struct shader *shader = NULL;
+    const struct shader *shader = NULL;
     error = assets_shader_get(&shader, app->assets, batch->data.shader_id);
     if (error)
         return error;
 
-    struct texture2d *texture = NULL;
+    const struct texture2d *texture = NULL;
     error = assets_texture2d_get(&texture, app->assets, batch->data.texture_id);
     if (error)
         return error;
@@ -127,7 +127,8 @@ static int render_batch(struct app *app, struct renderer_batch *batch) {
         }
 
         gl_shader_set_bool(shader->gl.id, "u_use_instancing", GL_TRUE);
-        gl_mesh_draw_instanced(mesh, instances, (GLsizei)instance_count);
+        gl_mesh_draw_instanced((struct gl_mesh *)mesh, instances,
+                               (GLsizei)instance_count);
     } else {
         for (size_t i = 0; i < cmds_length; ++i) {
             struct renderer_cmd **cmd_ptr = NULL;
