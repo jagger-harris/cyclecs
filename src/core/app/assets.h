@@ -4,15 +4,16 @@
 #include "core/gfx/texture2d.h"
 #include <stddef.h>
 
+struct allocator;
 struct assets;
 struct ffont;
 struct gfx_api;
 struct gl_mesh;
-struct mem;
 struct shader;
 struct vertex;
 
-int assets_create(struct assets **out, struct mem *mem, struct gfx_api *api);
+int assets_create(struct assets **out, struct allocator *allocator,
+                  struct gfx_api *api);
 void assets_destroy(struct assets *in);
 void assets_font_add(struct assets *in, const char *font_path, int pixel_size);
 int assets_font_get(const struct ffont **out, const struct assets *in,

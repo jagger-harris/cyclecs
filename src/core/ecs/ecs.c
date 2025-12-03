@@ -1,11 +1,11 @@
 #include "core/ecs/ecs.h"
 #include "core/app/app.h"
 #include "core/app/window.h"
+#include "core/util/allocator.h"
 #include "core/util/array.h"
 #include "core/util/error.h"
 #include "core/util/globals.h"
 #include "core/util/logger.h"
-#include "core/util/mem.h"
 #include "core/util/table.h"
 #include <stdarg.h>
 
@@ -134,13 +134,13 @@ cleanup:
     return error;
 }
 
-int ecs_create(struct ecs **out, struct mem *mem) {
+int ecs_create(struct ecs **out, struct allocator *alloc) {
     if (!out)
         return CORE_NULLPTR;
 
     struct ecs *ecs = NULL;
-    int error =
-        mem_alloc((void **)&ecs, mem, sizeof(struct ecs), alignof(struct ecs));
+    int error = allocator_alloc((void **)&ecs, alloc, sizeof(struct ecs),
+                                alignof(struct ecs));
     if (error)
         return error;
 

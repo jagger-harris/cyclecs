@@ -6,8 +6,8 @@
 #include "core/io/fascii.h"
 #include "core/io/ffont.h"
 #include "core/io/fimage.h"
+#include "core/util/allocator.h"
 #include "core/util/logger.h"
-#include "core/util/mem.h"
 #include "core/util/table.h"
 #include "core/util/types.h"
 #include "core/util/xxhash32.h"
@@ -102,13 +102,14 @@ static int assets_load_defaults(struct assets *in) {
     return CORE_SUCCESS;
 }
 
-int assets_create(struct assets **out, struct mem *mem, struct gfx_api *api) {
-    if (!out || !mem || !api)
+int assets_create(struct assets **out, struct allocator *alloc,
+                  struct gfx_api *api) {
+    if (!out || !alloc || !api)
         return CORE_NULLPTR;
 
     struct assets *assets = NULL;
-    int error = mem_alloc((void **)&assets, mem, sizeof(struct assets),
-                          alignof(struct assets));
+    int error = allocator_alloc((void **)&assets, alloc, sizeof(struct assets),
+                                alignof(struct assets));
     if (error)
         return error;
 

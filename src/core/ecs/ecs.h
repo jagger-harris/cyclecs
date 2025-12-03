@@ -5,11 +5,11 @@
 #include "core/util/table.h"
 #include "core/util/types.h"
 
+struct allocator;
 struct array;
 struct app;
 struct ecs;
 struct ecs_world;
-struct mem;
 
 enum ecs_world_default_comp_types {
     ECS_COMP_NODE = 0,
@@ -34,7 +34,7 @@ struct ecs_world_query {
     size_t current_index;
 };
 
-int ecs_create(struct ecs **out, struct mem *mem);
+int ecs_create(struct ecs **out, struct allocator *alloc);
 void ecs_destroy(struct ecs *in);
 int ecs_world_add(struct ecs *in, u32 world_id, float tick_rate, int priority,
                   bool should_update);

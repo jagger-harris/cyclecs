@@ -6,15 +6,16 @@
 #include "core/gfx/gl/renderer.h"
 #include "core/gfx/gl/shader.h"
 #include "core/gfx/renderer.h"
+#include "core/util/allocator.h"
 #include "core/util/arena.h"
 #include "core/util/error.h"
 #include "core/util/logger.h"
-#include "core/util/mem.h"
 
 #define ARENA_PERSISTANT_BUFFER_SIZE (1024L * 1024L)
 #define ARENA_FRAME_BUFFER_SIZE (1024L * 1024L * 50L)
 
-static int mem_arena_alloc(void **out, void *ctx, size_t size, size_t align) {
+static int allocator_arena_alloc(void **out, void *ctx, size_t size,
+                                 size_t align) {
     if (!out || !ctx)
         return CORE_NULLPTR;
 
@@ -38,19 +39,19 @@ int app_init(struct app *out, struct gfx_api *api, void *game_state,
     if (error)
         goto cleanup;
 
-    error = mem_create(&out->mem_persistant, mem_arena_alloc, NULL,
-                       out->arena_persistant);
+    error = allocator_create(&out->alloc_persistant, allocator_arena_alloc,
+                             NULL, out->arena_persistant);
     if (error)
         goto cleanup;
 
-    error =
-        mem_create(&out->mem_frame, mem_arena_alloc, NULL, out->arena_frame);
+    error = allocator_create(&out->alloc_frame, allocator_arena_alloc, NULL,
+                             out->arena_frame);
     if (error)
         goto cleanup;
 
     // TODO: Add checking vsync via an options file
     bool vsync = false;
-    error = window_create(&out->window, out->mem_persistant, out->mem_frame,
+    error = window_create(&out->window, out->alloc_persistant, out->alloc_frame,
                           out->api, window_size, title, vsync, bg_color);
     if (error) {
         LOGGER_LOG_ERROR(LOGGER_ERROR, error, "%s",
@@ -58,14 +59,14 @@ int app_init(struct app *out, struct gfx_api *api, void *game_state,
         goto cleanup;
     }
 
-    error = assets_create(&out->assets, out->mem_persistant, out->api);
+    error = assets_create(&out->assets, out->alloc_persistant, out->api);
     if (error) {
         LOGGER_LOG_ERROR(LOGGER_ERROR, error, "%s",
                          "Creating app assets failed");
         goto cleanup;
     }
 
-    error = ecs_create(&out->ecs, out->mem_persistant);
+    error = ecs_create(&out->ecs, out->alloc_persistant);
     if (error) {
         LOGGER_LOG_ERROR(LOGGER_ERROR, error, "%s", "Creating app ecs failed");
         goto cleanup;
@@ -87,8 +88,8 @@ void app_destroy(struct app *in) {
     window_destroy(in->window);
     arena_destroy(in->arena_persistant);
     arena_destroy(in->arena_frame);
-    mem_destroy(in->mem_persistant);
-    mem_destroy(in->mem_frame);
+    allocator_destroy(in->alloc_persistant);
+    allocator_destroy(in->alloc_frame);
 }
 
 int app_run(struct app *in, const game_update_fn game_update) {

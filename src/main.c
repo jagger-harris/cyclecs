@@ -6,7 +6,6 @@
 #include "core/gfx/gl/texture2d.h"
 #include "core/util/error.h"
 #include "core/util/logger.h"
-#include "core/util/mem.h"
 
 #define WIN_WIDTH 1280
 #define WIN_HEIGHT 720

@@ -1,8 +1,8 @@
 #include "core/app/window.h"
 #include "core/gfx/renderer.h"
+#include "core/util/allocator.h"
 #include "core/util/error.h"
 #include "core/util/logger.h"
-#include "core/util/mem.h"
 #include <GLFW/glfw3.h>
 #include <cglm/ivec2.h>
 #include <cglm/vec2.h>
@@ -133,21 +133,21 @@ static void cursor_pos_callback(GLFWwindow *glfw_window, double pos_x,
     window_input_cursor_pos_set(window, (vec2){(float)pos_x, (float)pos_y});
 }
 
-static int input_create(struct input **out, struct mem *mem) {
-    if (!out || !mem)
+static int input_create(struct input **out, struct allocator *alloc) {
+    if (!out || !alloc)
         return CORE_NULLPTR;
 
-    return mem_alloc((void **)out, mem, sizeof(struct input),
-                     alignof(struct input));
+    return allocator_alloc((void **)out, alloc, sizeof(struct input),
+                           alignof(struct input));
 }
 
-static int timing_create(struct timing **out, struct mem *mem) {
-    if (!out || !mem)
+static int timing_create(struct timing **out, struct allocator *alloc) {
+    if (!out || !alloc)
         return CORE_NULLPTR;
 
     struct timing *timing = NULL;
-    int error = mem_alloc((void **)&timing, mem, sizeof(struct timing),
-                          alignof(struct timing));
+    int error = allocator_alloc((void **)&timing, alloc, sizeof(struct timing),
+                                alignof(struct timing));
     if (error)
         return error;
 
@@ -156,10 +156,10 @@ static int timing_create(struct timing **out, struct mem *mem) {
     return CORE_SUCCESS;
 }
 
-int window_create(struct window **out, struct mem *mem_persistant,
-                  struct mem *mem_frame, struct gfx_api *api, ivec2 size,
-                  const char *title, bool vsync, ivec4 bg_color) {
-    if (!out || !mem_persistant || !mem_frame || !title)
+int window_create(struct window **out, struct allocator *allocator_persistant,
+                  struct allocator *allocator_frame, struct gfx_api *api,
+                  ivec2 size, const char *title, bool vsync, ivec4 bg_color) {
+    if (!out || !allocator_persistant || !allocator_frame || !title)
         return CORE_NULLPTR;
 
     glfwSetErrorCallback(error_callback);
@@ -175,8 +175,8 @@ int window_create(struct window **out, struct mem *mem_persistant,
     glfwWindowHint(GLFW_MAXIMIZED, GLFW_TRUE);
 
     struct window *window = NULL;
-    int error = mem_alloc((void **)&window, mem_persistant,
-                          sizeof(struct window), alignof(struct window));
+    int error = allocator_alloc((void **)&window, allocator_persistant,
+                                sizeof(struct window), alignof(struct window));
     if (error)
         return error;
 
@@ -200,22 +200,22 @@ int window_create(struct window **out, struct mem *mem_persistant,
     glfwSetScrollCallback(window->glfw_window, scroll_callback);
     glfwSwapInterval(vsync);
 
-    error = input_create(&window->input, mem_persistant);
+    error = input_create(&window->input, allocator_persistant);
     if (error) {
         LOGGER_LOG_ERROR(LOGGER_ERROR, error, "%s",
                          "Creating window input failed");
         goto cleanup;
     }
 
-    error = renderer_create(&window->renderer, mem_persistant, mem_frame, api,
-                            bg_color);
+    error = renderer_create(&window->renderer, allocator_persistant,
+                            allocator_frame, api, bg_color);
     if (error) {
         LOGGER_LOG_ERROR(LOGGER_ERROR, error, "%s",
                          "Creating window renderer failed");
         goto cleanup;
     }
 
-    error = timing_create(&window->timing, mem_persistant);
+    error = timing_create(&window->timing, allocator_persistant);
     if (error) {
         LOGGER_LOG_ERROR(LOGGER_ERROR, error, "%s",
                          "Creating window timing failed");

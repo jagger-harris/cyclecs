@@ -6,9 +6,9 @@
 #include "core/gfx/cmd.h"
 #include "core/gfx/gl/mesh.h"
 #include "core/gfx/shader.h"
+#include "core/util/allocator.h"
 #include "core/util/array.h"
 #include "core/util/logger.h"
-#include "core/util/mem.h"
 #include <GLFW/glfw3.h>
 
 #if DEBUG
@@ -97,9 +97,10 @@ static int render_batch(struct app *app, struct renderer_batch *batch) {
             return CORE_SUCCESS;
 
         struct gl_mesh_instance_data *instances = NULL;
-        error = mem_alloc((void **)&instances, app->mem_frame,
-                          sizeof(struct gl_mesh_instance_data) * cmds_length,
-                          alignof(struct gl_mesh_instance_data));
+        error =
+            allocator_alloc((void **)&instances, app->alloc_frame,
+                            sizeof(struct gl_mesh_instance_data) * cmds_length,
+                            alignof(struct gl_mesh_instance_data));
         if (error)
             return error;
 

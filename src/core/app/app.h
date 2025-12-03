@@ -6,7 +6,7 @@
 struct assets;
 struct ecs;
 struct gfx_api;
-struct mem;
+struct allocator;
 struct window;
 
 struct app {
@@ -15,8 +15,8 @@ struct app {
     struct gfx_api *api;
     struct arena *arena_persistant;
     struct arena *arena_frame;
-    struct mem *mem_persistant;
-    struct mem *mem_frame;
+    struct allocator *alloc_persistant;
+    struct allocator *alloc_frame;
     struct window *window;
     void *game_state;
 };

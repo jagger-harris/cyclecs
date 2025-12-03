@@ -8,17 +8,17 @@
 #define WINDOW_INPUT_MOUSE_BUTTONS_SIZE (GLFW_MOUSE_BUTTON_LAST + 1)
 
 typedef struct GLFWwindow GLFWwindow;
+struct allocator;
 struct app;
 struct gfx_api;
 struct input;
-struct mem;
 struct renderer;
 struct timing;
 struct window;
 
-int window_create(struct window **out, struct mem *mem_persistant,
-                  struct mem *mem_frame, struct gfx_api *api, ivec2 size,
-                  const char *title, bool vsync, ivec4 bg_color);
+int window_create(struct window **out, struct allocator *allocator_persistant,
+                  struct allocator *allocator_frame, struct gfx_api *api,
+                  ivec2 size, const char *title, bool vsync, ivec4 bg_color);
 void window_destroy(struct window *in);
 int window_update(bool *out, struct window *in);
 int window_renderer_update(struct window *in, struct app *app);

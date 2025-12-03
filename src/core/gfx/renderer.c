@@ -8,17 +8,17 @@
 #include "core/gfx/api.h"
 #include "core/gfx/batch.h"
 #include "core/gfx/cmd.h"
+#include "core/util/allocator.h"
 #include "core/util/arena.h"
 #include "core/util/array.h"
 #include "core/util/error.h"
 #include "core/util/logger.h"
-#include "core/util/mem.h"
 #include "core/util/profiler.h"
 
 #define RENDERER_BATCH_START_CAPACITY 64
 
 struct renderer {
-    struct mem *mem_frame;
+    struct allocator *allocator_frame;
     struct array *batches;
     struct table *batch_indices;
     struct table *cameras;
@@ -97,9 +97,9 @@ static int add_ecs_base_renderer_cmd(struct ecs_renderer_ctx *ctx) {
         return error;
 
     struct renderer_cmd *cmd = NULL;
-    error =
-        mem_alloc((void **)&cmd, ctx->renderer->mem_frame,
-                  sizeof(struct renderer_cmd), alignof(struct renderer_cmd));
+    error = allocator_alloc((void **)&cmd, ctx->renderer->allocator_frame,
+                            sizeof(struct renderer_cmd),
+                            alignof(struct renderer_cmd));
     if (error)
         goto cleanup;
 
@@ -254,19 +254,21 @@ static int renderer_ecs_create_render_cmds(struct renderer *in,
     return CORE_SUCCESS;
 }
 
-int renderer_create(struct renderer **out, struct mem *mem_persistant,
-                    struct mem *mem_frame, struct gfx_api *api,
+int renderer_create(struct renderer **out,
+                    struct allocator *allocator_persistant,
+                    struct allocator *allocator_frame, struct gfx_api *api,
                     ivec4 bg_color) {
-    if (!out || !mem_frame || !api)
+    if (!out || !allocator_frame || !api)
         return CORE_NULLPTR;
 
     struct renderer *renderer = NULL;
-    int error = mem_alloc((void **)&renderer, mem_persistant,
-                          sizeof(struct renderer), alignof(struct renderer));
+    int error =
+        allocator_alloc((void **)&renderer, allocator_persistant,
+                        sizeof(struct renderer), alignof(struct renderer));
     if (error)
         return error;
 
-    renderer->mem_frame = mem_frame;
+    renderer->allocator_frame = allocator_frame;
     renderer->api = api;
     glm_ivec4_copy(bg_color, renderer->bg_color);
 
