@@ -1,6 +1,0 @@
-#ifndef UTILS_H
-#define UTILS_H
-
-#define ARRAY_LENGTH(arr) (sizeof(arr) / sizeof((arr)[0]))
-
-#endif // UTILS_H

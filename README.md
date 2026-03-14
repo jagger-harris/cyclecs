@@ -1,4 +1,4 @@
-# C ECS Game Engine
+# Cyclecs Engine
 A custom game engine written in C (C17) which uses a custom ECS architecture for game objects. Currently only working for Linux as of now.
 
 ## Libraries
@@ -19,22 +19,26 @@ A custom game engine written in C (C17) which uses a custom ECS architecture for
 Clone the repository:
 
 ```shell
-git clone https://github.com/jagger-harris/c-ecs-game-engine.git
-cd c-ecs-game-engine
+git clone https://github.com/jagger-harris/cyclecs.git
+cd cyclecs
 ```
 
-Using provided build script:
-```shell
-./build.sh build run
-or
-./build.sh build release run
-```
-
-Without build script:
+Debug build:
 ```shell
 mkdir build
 cd build
-cmake ..
+mkdir debug
+cmake ../.. -DCMAKE_BUILD_TYPE=debug
+make
+./executable
+```
+
+Release build:
+```shell
+mkdir build
+cd build
+mkdir release
+cmake ../.. -DCMAKE_BUILD_TYPE=release
 make
 ./executable
 ```

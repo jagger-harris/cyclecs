@@ -1,0 +1,10 @@
+#ifndef UTIL_GLOBALS_H
+#define UTIL_GLOBALS_H
+
+#include <cls/util/error.h>
+#include <string.h>
+
+#define GLOBALS_PATH_MAX 512
+#define GLOBALS_STR_ID_MAX 64
+
+#endif // UTIL_GLOBALS_H

@@ -9,10 +9,9 @@ uniform sampler2D u_tex;
 void main() {
     float distance = texture(u_tex, uv).r;
     float sdf = distance;
+    float edge = 0.5;
     float width = fwidth(sdf);
-    float alpha = smoothstep(0.5f - width, 0.5f + width, sdf);
-    if (alpha < 0.01f)
-        discard;
+    float alpha = smoothstep(edge - width, edge + width, sdf);
 
     frag_color = vec4(tint.rgb, tint.a * alpha);
 }
