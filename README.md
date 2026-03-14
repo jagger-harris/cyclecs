@@ -28,6 +28,7 @@ Debug build:
 mkdir build
 cd build
 mkdir debug
+cd debug
 cmake ../.. -DCMAKE_BUILD_TYPE=debug
 make
 ./executable
@@ -38,6 +39,7 @@ Release build:
 mkdir build
 cd build
 mkdir release
+cd release
 cmake ../.. -DCMAKE_BUILD_TYPE=release
 make
 ./executable
