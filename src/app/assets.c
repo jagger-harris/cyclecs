@@ -2,9 +2,9 @@
 #include <cls/gfx/api.h>
 #include <cls/gfx/quad.h>
 #include <cls/gfx/shader.h>
-#include <cls/io/fascii.h>
-#include <cls/io/ffont.h>
-#include <cls/io/fimage.h>
+#include <cls/io/ascii.h>
+#include <cls/io/font.h>
+#include <cls/io/image.h>
 #include <cls/util/allocator.h>
 #include <cls/util/error.h>
 #include <cls/util/globals.h>
@@ -123,7 +123,7 @@ int assets_create(struct assets **assets, struct allocator *alloc,
     }
 
     error = table_create(&instance->fonts, START_CAPACITY, sizeof(u32),
-                         sizeof(struct ffont));
+                         sizeof(struct font));
     if (error)
         goto cleanup;
 
@@ -170,8 +170,8 @@ void assets_destroy(struct assets *assets) {
         if (error)
             continue;
 
-        struct ffont *font = font_ptr;
-        ffont_destroy(font);
+        struct font *font = font_ptr;
+        font_destroy(font);
     }
 
     table_iterator_destroy(iter);
@@ -202,7 +202,7 @@ void assets_font_add(struct assets *assets, const char *font_path,
     if (error)
         return;
 
-    const struct ffont *found = found_ptr;
+    const struct font *found = found_ptr;
     if (found) {
         LOGGER_LOG(LOGGER_WARN,
                    "Duplicate font in assets, not adding font (%s)", font_path);
@@ -215,8 +215,8 @@ void assets_font_add(struct assets *assets, const char *font_path,
     if (ret < 0)
         return;
 
-    struct ffont font = {0};
-    error = ffont_init(&font, assets->ft, font_full_path, pixel_size);
+    struct font font = {0};
+    error = font_init(&font, assets->ft, font_full_path, pixel_size);
     if (error) {
         LOGGER_LOG_ERROR(LOGGER_WARN, error,
                          "Adding font to assets failed (%s)", font_path);
@@ -247,7 +247,7 @@ void assets_font_add(struct assets *assets, const char *font_path,
     return;
 }
 
-int assets_font_get(const struct ffont **font, const struct assets *assets,
+int assets_font_get(const struct font **font, const struct assets *assets,
                     u32 font_id) {
     if (!font || !assets || !font_id)
         return CLS_NULLPTR;
@@ -300,13 +300,13 @@ void assets_shader_add(struct assets *assets, const char *shader_path) {
     const char *vert_src = NULL;
     const char *frag_src = NULL;
 
-    error = fascii_init(&vert_src, vert_path);
+    error = ascii_init(&vert_src, vert_path);
     if (error) {
         LOGGER_LOG(LOGGER_WARN, "Reading vertex shader failed (%s)", vert_path);
         goto cleanup;
     }
 
-    error = fascii_init(&frag_src, frag_path);
+    error = ascii_init(&frag_src, frag_path);
     if (error) {
         LOGGER_LOG(LOGGER_WARN, "Reading fragment shader failed (%s)",
                    frag_path);
@@ -324,8 +324,8 @@ void assets_shader_add(struct assets *assets, const char *shader_path) {
         goto cleanup;
     }
 
-    fascii_destroy(&vert_src);
-    fascii_destroy(&frag_src);
+    ascii_destroy(&vert_src);
+    ascii_destroy(&frag_src);
 
     error = table_insert(assets->shaders, &id, &shader);
     if (error)
@@ -335,8 +335,8 @@ void assets_shader_add(struct assets *assets, const char *shader_path) {
     return;
 
 cleanup:
-    fascii_destroy(&vert_src);
-    fascii_destroy(&frag_src);
+    ascii_destroy(&vert_src);
+    ascii_destroy(&frag_src);
 }
 
 int assets_shader_get(struct shader **shader, const struct assets *assets,
@@ -388,8 +388,8 @@ void assets_texture2d_add(struct assets *assets, const char *texture2d_path,
     if (ret < 0)
         return;
 
-    struct fimage img = {0};
-    error = fimage_init(&img, img_path);
+    struct image img = {0};
+    error = image_init(&img, img_path);
     if (error) {
         LOGGER_LOG(LOGGER_WARN, "Reading image file failed (%s)", img_path);
         goto cleanup;
@@ -408,7 +408,7 @@ void assets_texture2d_add(struct assets *assets, const char *texture2d_path,
         goto cleanup;
     }
 
-    fimage_destroy(&img);
+    image_destroy(&img);
 
     error = table_insert(assets->texture2ds, &id, &texture);
     if (error)
@@ -418,7 +418,7 @@ void assets_texture2d_add(struct assets *assets, const char *texture2d_path,
     return;
 
 cleanup:
-    fimage_destroy(&img);
+    image_destroy(&img);
 }
 
 int assets_texture2d_get(struct texture2d **texture,

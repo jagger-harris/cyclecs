@@ -1,10 +1,10 @@
 #include <assert.h>
-#include <cls/io/fascii.h>
+#include <cls/io/ascii.h>
 #include <cls/util/error.h>
 #include <stdio.h>
 #include <stdlib.h>
 
-int fascii_init(const char **ascii, const char *path) {
+int ascii_init(const char **ascii, const char *path) {
     if (!ascii || !path)
         return CLS_FILE_NOT_FOUND;
 
@@ -63,7 +63,7 @@ cleanup:
     return error;
 }
 
-void fascii_destroy(const char **ascii) {
+void ascii_destroy(const char **ascii) {
     if (!ascii)
         return;
 

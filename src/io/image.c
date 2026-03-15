@@ -1,4 +1,4 @@
-#include <cls/io/fimage.h>
+#include <cls/io/image.h>
 #include <cls/util/error.h>
 #include <stdbool.h>
 #define STB_IMAGE_IMPLEMENTATION
@@ -7,7 +7,7 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include <stb_image_write.h>
 
-int fimage_init(struct fimage *img, const char *path) {
+int image_init(struct image *img, const char *path) {
     if (!img || !path)
         return CLS_NULLPTR;
 
@@ -18,7 +18,7 @@ int fimage_init(struct fimage *img, const char *path) {
     return CLS_SUCCESS;
 }
 
-void fimage_destroy(struct fimage *img) {
+void image_destroy(struct image *img) {
     if (!img || !img->data)
         return;
 
@@ -26,7 +26,7 @@ void fimage_destroy(struct fimage *img) {
     img->data = NULL;
 }
 
-int fimage_save(const struct fimage *img, const char *path) {
+int image_save(const struct image *img, const char *path) {
     if (!img || !img->data || !path)
         return CLS_NULLPTR;
 

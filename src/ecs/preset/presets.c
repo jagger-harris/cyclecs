@@ -2,7 +2,7 @@
 #include <cglm/vec2.h>
 #include <cls/app/assets.h>
 #include <cls/ecs/preset/presets.h>
-#include <cls/io/ffont.h>
+#include <cls/io/font.h>
 #include <cls/util/array.h>
 #include <cls/util/error.h>
 #include <cls/util/logger.h>
@@ -237,12 +237,12 @@ int preset_ui_label_spawn(entity *label, struct ecs_world *world,
     if (error)
         return error;
 
-    const struct ffont *font = NULL;
-    error = assets_font_get(&font, assets, label_data.font_id);
+    const struct font *f = NULL;
+    error = assets_font_get(&f, assets, label_data.font_id);
     if (error)
         return error;
 
-    if (!font) {
+    if (!f) {
         LOGGER_LOG(LOGGER_ERROR, "%s", "Missing font for ui label");
         return CLS_NULLPTR;
     }
@@ -271,17 +271,17 @@ int preset_ui_label_spawn(entity *label, struct ecs_world *world,
     if (error)
         return error;
 
-    float scale = (float)label_data.font_size / (float)font->pixel_size;
+    float scale = (float)label_data.font_size / (float)f->pixel_size;
     float cursor_x = tf.pos[0];
     float cursor_y = tf.pos[1];
     size_t text_length = strlen(label_data.text);
 
     for (size_t i = 0; i < text_length; ++i) {
         u8 c = (u8)label_data.text[i];
-        if (c < FFONT_CHAR_START || c > FFONT_CHAR_END)
+        if (c < FONT_CHAR_START || c > FONT_CHAR_END)
             continue;
 
-        const struct fglyph *glyph_data = &font->glyphs[c - FFONT_CHAR_START];
+        const struct glyph *glyph_data = &f->glyphs[c - FONT_CHAR_START];
         if (glyph_data->width == 0 || glyph_data->height == 0) {
             cursor_x += (float)glyph_data->advance * scale;
             continue;
@@ -300,10 +300,10 @@ int preset_ui_label_spawn(entity *label, struct ecs_world *world,
         error = preset_renderable_spawn(
             &glyph, world, "quad", "font", font_id, glyph_pos, glyph_scale,
             0.0f,
-            (vec2){(float)glyph_data->atlas_x / (float)font->atlas_width,
-                   (float)glyph_data->atlas_y / (float)font->atlas_height},
-            (vec2){(float)glyph_data->width / (float)font->atlas_width,
-                   (float)glyph_data->height / (float)font->atlas_height},
+            (vec2){(float)glyph_data->atlas_x / (float)f->atlas_width,
+                   (float)glyph_data->atlas_y / (float)f->atlas_height},
+            (vec2){(float)glyph_data->width / (float)f->atlas_width,
+                   (float)glyph_data->height / (float)f->atlas_height},
             tint, visible, true);
         if (error)
             goto cleanup;
