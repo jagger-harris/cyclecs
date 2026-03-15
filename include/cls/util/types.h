@@ -1,5 +1,5 @@
-#ifndef UTIL_TYPES_H
-#define UTIL_TYPES_H
+#ifndef CLS_TYPES_H
+#define CLS_TYPES_H
 
 #include <stdint.h>
 
@@ -28,4 +28,4 @@ typedef uint16_t u16;
 typedef uint32_t u32;
 typedef uint64_t u64;
 
-#endif // UTIL_TYPES_H
+#endif // CLS_TYPES_H

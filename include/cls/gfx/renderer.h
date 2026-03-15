@@ -14,13 +14,12 @@ struct app;
 struct gfx_api;
 struct renderer;
 
-int renderer_create(struct renderer **out,
-                    struct allocator *allocator_persistant,
-                    struct allocator *allocator_frame, struct gfx_api *api,
+int renderer_create(struct renderer **rend, struct allocator *alloc_perm,
+                    struct allocator *alloc_frame, struct gfx_api *api,
                     ivec4 bg_color);
-void renderer_destroy(struct renderer *in);
-int renderer_swap_buffers(struct renderer *in, GLFWwindow *window);
-int renderer_on_resize(struct renderer *in, int width, int height);
-int renderer_frame_create(struct renderer *in, struct app *app);
+void renderer_destroy(struct renderer *rend);
+int renderer_swap_buffers(struct renderer *rend, GLFWwindow *win);
+int renderer_on_resize(struct renderer *rend, int width, int height);
+int renderer_frame_create(struct renderer *rend, struct app *app);
 
 #endif // GFX_RENDERER_H

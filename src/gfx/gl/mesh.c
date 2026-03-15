@@ -4,26 +4,26 @@
 #include <cls/util/types.h>
 #include <stddef.h>
 
-int gl_mesh_init(struct gl_mesh *out, const struct vertex *vertices,
+int gl_mesh_init(struct gl_mesh *mesh, const struct vertex *vertices,
                  size_t vertex_count, const unsigned int *indices,
                  size_t index_count) {
-    if (!out || !vertices || !indices)
+    if (!mesh || !vertices || !indices)
         return CLS_NULLPTR;
 
-    out->index_count = (GLsizei)index_count;
+    mesh->index_count = (GLsizei)index_count;
 
-    glGenVertexArrays(1, &out->vao);
-    glGenBuffers(1, &out->vbo);
-    glGenBuffers(1, &out->ebo);
+    glGenVertexArrays(1, &mesh->vao);
+    glGenBuffers(1, &mesh->vbo);
+    glGenBuffers(1, &mesh->ebo);
 
-    glBindVertexArray(out->vao);
+    glBindVertexArray(mesh->vao);
 
-    glBindBuffer(GL_ARRAY_BUFFER, out->vbo);
+    glBindBuffer(GL_ARRAY_BUFFER, mesh->vbo);
     glBufferData(GL_ARRAY_BUFFER,
                  (GLsizeiptr)(vertex_count * sizeof(struct vertex)), vertices,
                  GL_STATIC_DRAW);
 
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, out->ebo);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh->ebo);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER,
                  (GLsizeiptr)(index_count * sizeof(u32)), indices,
                  GL_STATIC_DRAW);

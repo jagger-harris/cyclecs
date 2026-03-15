@@ -1,5 +1,5 @@
-#ifndef PROFILER_H
-#define PROFILER_H
+#ifndef CLS_PROFILER_H
+#define CLS_PROFILER_H
 
 #include <stdio.h>
 #include <time.h>
@@ -110,4 +110,4 @@ static inline void profiler_reset(void) {
 
 #endif // ENABLE_PROFILER
 
-#endif // PROFILER_H
+#endif // CLS_PROFILER_H

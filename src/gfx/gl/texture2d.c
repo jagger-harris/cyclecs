@@ -3,8 +3,8 @@
 #include <cls/util/error.h>
 #include <stddef.h>
 
-int gl_texture2d_init(struct texture2d *out, struct texture2d_info *info) {
-    if (!out || !info)
+int gl_texture2d_init(struct texture2d *tex, struct texture2d_info *info) {
+    if (!tex || !info)
         return CLS_NULLPTR;
 
     GLint format = GL_RED;
@@ -23,8 +23,8 @@ int gl_texture2d_init(struct texture2d *out, struct texture2d_info *info) {
     if (info->wrap == TEXTURE_WRAP_REPEAT)
         wrap = GL_REPEAT;
 
-    glGenTextures(1, &out->gl.id);
-    glBindTexture(GL_TEXTURE_2D, out->gl.id);
+    glGenTextures(1, &tex->gl.id);
+    glBindTexture(GL_TEXTURE_2D, tex->gl.id);
     glTexImage2D(GL_TEXTURE_2D, 0, format, info->width, info->height, 0,
                  (GLenum)format, GL_UNSIGNED_BYTE, info->data);
     glGenerateMipmap(GL_TEXTURE_2D);

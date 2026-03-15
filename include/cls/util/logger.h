@@ -1,5 +1,5 @@
-#ifndef UTIL_LOGGER_H
-#define UTIL_LOGGER_H
+#ifndef CLS_LOGGER_H
+#define CLS_LOGGER_H
 
 enum logger_level {
     LOGGER_FATAL,
@@ -28,4 +28,4 @@ void logger_log_error(enum logger_level level, int err, const char *fmt, ...);
 void logger_log_error_debug(enum logger_level level, int err, const char *file,
                             const char *func, int line, const char *fmt, ...);
 
-#endif // UTIL_LOGGER_H
+#endif // CLS_LOGGER_H

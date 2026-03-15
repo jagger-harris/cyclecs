@@ -4,8 +4,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-int fascii_init(const char **out, const char *path) {
-    if (!out || !path)
+int fascii_init(const char **ascii, const char *path) {
+    if (!ascii || !path)
         return CLS_FILE_NOT_FOUND;
 
     FILE *file = fopen(path, "rb");
@@ -45,7 +45,7 @@ int fascii_init(const char **out, const char *path) {
     }
 
     file_buffer[read_size] = '\0';
-    *out = file_buffer;
+    *ascii = file_buffer;
 
     (void)fclose(file);
     file = NULL;
@@ -63,12 +63,12 @@ cleanup:
     return error;
 }
 
-void fascii_destroy(const char **in) {
-    if (!in)
+void fascii_destroy(const char **ascii) {
+    if (!ascii)
         return;
 
-    if (*in) {
-        free((void *)*in);
-        *in = NULL;
+    if (*ascii) {
+        free((void *)*ascii);
+        *ascii = NULL;
     }
 }

@@ -29,8 +29,8 @@ struct ffont {
     u8 *atlas;
 };
 
-int ffont_init(struct ffont *out, FT_Library ft, const char *path,
+int ffont_init(struct ffont *font, FT_Library ft, const char *path,
                int pixel_size);
-void ffont_destroy(struct ffont *in);
+void ffont_destroy(struct ffont *font);
 
 #endif // IO_FFONT_H

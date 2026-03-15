@@ -7,39 +7,39 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include <stb_image_write.h>
 
-int fimage_init(struct fimage *out, const char *path) {
-    if (!out || !path)
+int fimage_init(struct fimage *img, const char *path) {
+    if (!img || !path)
         return CLS_NULLPTR;
 
-    out->data = stbi_load(path, &out->width, &out->height, &out->channels, 0);
-    if (!out->data)
+    img->data = stbi_load(path, &img->width, &img->height, &img->channels, 0);
+    if (!img->data)
         return CLS_FILE_NOT_FOUND;
 
     return CLS_SUCCESS;
 }
 
-void fimage_destroy(struct fimage *in) {
-    if (!in || !in->data)
+void fimage_destroy(struct fimage *img) {
+    if (!img || !img->data)
         return;
 
-    stbi_image_free(in->data);
-    in->data = NULL;
+    stbi_image_free(img->data);
+    img->data = NULL;
 }
 
-int fimage_save(const struct fimage *in, const char *path) {
-    if (!in || !in->data || !path)
+int fimage_save(const struct fimage *img, const char *path) {
+    if (!img || !img->data || !path)
         return CLS_NULLPTR;
 
-    if (in->width < 1 || in->height < 1 || in->channels < 1)
+    if (img->width < 1 || img->height < 1 || img->channels < 1)
         return CLS_INVALID_ARG;
 
     // Ensures stbi_write_png does not malloc(0)
-    int stride = in->width * in->channels;
+    int stride = img->width * img->channels;
     if (stride < 1)
         return CLS_INVALID_ARG;
 
-    int success = stbi_write_png(path, in->width, in->height, in->channels,
-                                 in->data, in->width * in->channels);
+    int success = stbi_write_png(path, img->width, img->height, img->channels,
+                                 img->data, img->width * img->channels);
     if (!success)
         return CLS_FAILURE;
 

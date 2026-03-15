@@ -1,5 +1,5 @@
-#ifndef ECS_COMPONENT_CAMERA_H
-#define ECS_COMPONENT_CAMERA_H
+#ifndef CLS_ECS_COMPONENT_CAMERA_H
+#define CLS_ECS_COMPONENT_CAMERA_H
 
 #include <cglm/affine.h>
 #include <cglm/cam.h>
@@ -44,9 +44,9 @@ struct camera_active {
 
 struct transform;
 
-int camera_update(struct camera *in, struct transform *tf);
-void camera_resize(struct camera *camera, ivec2 size);
-int camera_screen_to_world(vec2 out, struct camera *camera,
-                           const vec2 screen_pos, const ivec2 viewport_size);
+int camera_update(struct camera *cam, struct transform *tf);
+void camera_resize(struct camera *cam, ivec2 size);
+int camera_screen_to_world(vec2 pos, struct camera *cam, const vec2 cursor_pos,
+                           const ivec2 viewport_size);
 
-#endif // ECS_COMPONENT_CAMERA_H
+#endif // CLS_ECS_COMPONENT_CAMERA_H

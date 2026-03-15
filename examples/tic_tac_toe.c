@@ -361,11 +361,11 @@ static int winner_system(struct ecs_world_query *query, struct app *app,
     return CLS_SUCCESS;
 }
 
-static int game_init(struct game_state *out, struct app *app) {
+static int game_init(struct game_state *state, struct app *app) {
     struct assets *assets = app->assets;
     struct ecs *ecs = app->ecs;
-    out->turn = PLAYER_X;
-    out->winner = PLAYER_NONE;
+    state->turn = PLAYER_X;
+    state->winner = PLAYER_NONE;
 
     // Assets
     assets_texture2d_add(assets, "xo.png", TEXTURE_FILTER_LINEAR,
@@ -417,8 +417,8 @@ static int game_init(struct game_state *out, struct app *app) {
     if (error)
         return error;
 
-    error = ecs_world_system_add(main_world, SYS_WINNER, winner_system, out, 1,
-                                 COMP_BOARD);
+    error = ecs_world_system_add(main_world, SYS_WINNER, winner_system, state,
+                                 1, COMP_BOARD);
     if (error)
         return error;
 

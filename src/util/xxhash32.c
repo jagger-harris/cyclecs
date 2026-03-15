@@ -40,7 +40,7 @@ static u32 xxh32_avalanche(u32 h32) {
     return h32;
 }
 
-int xxhash32(u32 *out, const void *input, size_t length, u32 seed) {
+int xxhash32(u32 *hash, const void *input, size_t length, u32 seed) {
     const u8 *p = input;
     const u8 *const b_end = p + length;
     u32 h32;
@@ -102,6 +102,6 @@ int xxhash32(u32 *out, const void *input, size_t length, u32 seed) {
         p++;
     }
 
-    *out = xxh32_avalanche(h32);
+    *hash = xxh32_avalanche(h32);
     return CLS_SUCCESS;
 }

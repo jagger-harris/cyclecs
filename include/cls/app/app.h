@@ -1,7 +1,7 @@
-#ifndef APP_H
-#define APP_H
+#ifndef CLS_APP_H
+#define CLS_APP_H
 
-#include "cglm/types.h"
+#include <cglm/types.h>
 
 struct assets;
 struct ecs;
@@ -13,16 +13,16 @@ struct app {
     struct assets *assets;
     struct ecs *ecs;
     struct gfx_api *api;
-    struct arena *arena_persistant;
+    struct arena *arena_perm;
     struct arena *arena_frame;
-    struct allocator *alloc_persistant;
+    struct allocator *alloc_perm;
     struct allocator *alloc_frame;
     struct window *window;
 };
 
-int app_init(struct app *out, struct gfx_api *api, ivec2 size,
+int app_init(struct app *app, struct gfx_api *api, ivec2 size,
              const char *title, ivec4 bg_color);
-void app_destroy(struct app *in);
-int app_run(struct app *in);
+void app_destroy(struct app *app);
+int app_run(struct app *app);
 
-#endif // APP_H
+#endif // CLS_APP_H

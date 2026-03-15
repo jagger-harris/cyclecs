@@ -1,5 +1,5 @@
-#ifndef ECS_PRESETS_H
-#define ECS_PRESETS_H
+#ifndef CLS_PRESETS_H
+#define CLS_PRESETS_H
 
 #include <cls/ecs/component/camera.h>
 #include <cls/ecs/component/components.h>
@@ -50,4 +50,4 @@ int preset_ui_label_spawn(entity *label, struct ecs_world *world,
                           float z_index, const char *text, int font_size,
                           const char *font_id, bool visible, ivec4 tint);
 
-#endif // ECS_PRESETS_H
+#endif // CLS_PRESETS_H

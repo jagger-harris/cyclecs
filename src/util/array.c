@@ -15,8 +15,8 @@ struct array {
     void *data;
 };
 
-int array_create(struct array **out, size_t start_capacity, size_t elem_size) {
-    if (!out)
+int array_create(struct array **a, size_t start_capacity, size_t elem_size) {
+    if (!a)
         return CLS_NULLPTR;
 
     if (start_capacity == 0 || elem_size == 0)
@@ -38,71 +38,71 @@ int array_create(struct array **out, size_t start_capacity, size_t elem_size) {
     array->length = 0;
     array->elem_size = elem_size;
 
-    *out = array;
+    *a = array;
     return CLS_SUCCESS;
 }
 
-void array_destroy(struct array *in) {
-    if (!in)
+void array_destroy(struct array *a) {
+    if (!a)
         return;
 
-    free(in);
+    free(a);
 }
 
-int array_length_get(size_t *out, struct array *in) {
-    if (!out || !in)
+int array_length_get(size_t *out, struct array *a) {
+    if (!out || !a)
         return CLS_NULLPTR;
 
-    *out = in->length;
+    *out = a->length;
     return CLS_SUCCESS;
 }
 
-int array_data_get(void **out, struct array *in) {
-    if (!out || !in)
+int array_data_get(void **out, struct array *a) {
+    if (!out || !a)
         return CLS_NULLPTR;
 
-    *out = in->data;
+    *out = a->data;
     return CLS_SUCCESS;
 }
 
-int array_clear(struct array *in) {
-    if (!in)
+int array_clear(struct array *a) {
+    if (!a)
         return CLS_NULLPTR;
 
-    in->length = 0;
+    a->length = 0;
     return CLS_SUCCESS;
 }
 
-int array_elem_get(void **out, const struct array *in, size_t index) {
-    if (!out || !in)
+int array_elem_get(void **out, const struct array *a, size_t index) {
+    if (!out || !a)
         return CLS_NULLPTR;
 
-    if (index >= in->length)
+    if (index >= a->length)
         return CLS_INVALID_ARG;
 
-    *out = (u8 *)in->data + index * in->elem_size;
+    *out = (u8 *)a->data + index * a->elem_size;
     return CLS_SUCCESS;
 }
 
-int array_elem_get_cpy(void *out, const struct array *in, size_t index) {
-    if (!out || !in)
+int array_elem_get_cpy(void *out, const struct array *a, size_t index) {
+    if (!out || !a)
         return CLS_NULLPTR;
 
-    if (index >= in->length)
+    if (index >= a->length)
         return CLS_INVALID_ARG;
 
-    memcpy(out, (u8 *)in->data + index * in->elem_size, in->elem_size);
+    memcpy(out, (u8 *)a->data + index * a->elem_size, a->elem_size);
     return CLS_SUCCESS;
 }
 
-int array_elem_set(struct array *in, size_t index, const void *data) {
-    if (!in || !data)
+int array_elem_set(struct array *a, size_t index, const void *data) {
+    if (!a || !data)
         return CLS_NULLPTR;
 
-    if (index >= in->length)
+    if (index >= a->length)
         return CLS_INVALID_ARG;
 
-    memcpy((u8 *)in->data + index * in->elem_size, data, in->elem_size);
+    memcpy((u8 *)a->data + index * a->elem_size, data, a->elem_size);
     return CLS_SUCCESS;
 }
 
@@ -160,38 +160,37 @@ int array_push(struct array **in, const void *data) {
     return CLS_SUCCESS;
 }
 
-int array_pop(void *last, struct array *in) {
-    if (!in)
+int array_pop(void *last, struct array *a) {
+    if (!a)
         return CLS_NULLPTR;
 
-    if (in->length == 0)
+    if (a->length == 0)
         return CLS_INVALID_ARG;
 
     if (last) {
-        size_t last_index = in->length - 1;
-        memcpy(last, (u8 *)in->data + last_index * in->elem_size,
-               in->elem_size);
+        size_t last_index = a->length - 1;
+        memcpy(last, (u8 *)a->data + last_index * a->elem_size, a->elem_size);
     }
 
-    in->length--;
+    a->length--;
     return CLS_SUCCESS;
 }
 
-int array_insert(struct array **in, size_t index, const void *data) {
-    if (!in || !*in || !data)
+int array_insert(struct array **a, size_t index, const void *data) {
+    if (!a || !*a || !data)
         return CLS_NULLPTR;
 
-    struct array *array = *in;
+    struct array *array = *a;
 
     if (index > array->length)
         return CLS_INVALID_ARG;
 
     if (array->length >= array->capacity) {
-        int error = array_grow(in);
+        int error = array_grow(a);
         if (error)
             return error;
 
-        array = *in;
+        array = *a;
     }
 
     memmove((u8 *)array->data + (index + 1) * array->elem_size,
@@ -204,31 +203,31 @@ int array_insert(struct array **in, size_t index, const void *data) {
     return CLS_SUCCESS;
 }
 
-int array_remove(struct array *in, size_t index) {
-    if (!in)
+int array_remove(struct array *a, size_t index) {
+    if (!a)
         return CLS_NULLPTR;
 
-    if (index >= in->length)
+    if (index >= a->length)
         return CLS_INVALID_ARG;
 
-    memmove((u8 *)in->data + index * in->elem_size,
-            (u8 *)in->data + (index + 1) * in->elem_size,
-            (in->length - index - 1) * in->elem_size);
+    memmove((u8 *)a->data + index * a->elem_size,
+            (u8 *)a->data + (index + 1) * a->elem_size,
+            (a->length - index - 1) * a->elem_size);
 
-    in->length--;
+    a->length--;
     return CLS_SUCCESS;
 }
 
-int array_concat(struct array **in, const struct array *b) {
-    if (!in || !*in || !b)
+int array_concat(struct array **dest, const struct array *src) {
+    if (!dest || !*dest || !src)
         return CLS_NULLPTR;
 
-    struct array *array = *in;
+    struct array *array = *dest;
 
-    if (array->elem_size != b->elem_size)
+    if (array->elem_size != src->elem_size)
         return CLS_INVALID_ARG;
 
-    size_t concat_length = array->length + b->length;
+    size_t concat_length = array->length + src->length;
     if (concat_length > array->capacity) {
         size_t new_capacity = array->capacity;
         while (new_capacity < concat_length)
@@ -254,12 +253,12 @@ int array_concat(struct array **in, const struct array *b) {
 
         temp->data = new_data;
         temp->capacity = new_capacity;
-        *in = temp;
+        *dest = temp;
         array = temp;
     }
 
-    memcpy((u8 *)array->data + array->length * array->elem_size, b->data,
-           b->length * b->elem_size);
+    memcpy((u8 *)array->data + array->length * array->elem_size, src->data,
+           src->length * src->elem_size);
 
     array->length = concat_length;
     return CLS_SUCCESS;

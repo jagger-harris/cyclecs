@@ -1,5 +1,5 @@
-#ifndef GFX_GL_MESH_H
-#define GFX_GL_MESH_H
+#ifndef CLS_GL_MESH_H
+#define CLS_GL_MESH_H
 
 #include <cglm/cglm.h>
 #include <glad/gl.h>
@@ -26,7 +26,7 @@ struct gl_mesh_instance_data {
     vec2 uv_scale;
 };
 
-int gl_mesh_init(struct gl_mesh *out, const struct vertex *vertices,
+int gl_mesh_init(struct gl_mesh *mesh, const struct vertex *vertices,
                  size_t vertex_count, const unsigned int *indices,
                  size_t index_count);
 void gl_mesh_destroy(struct gl_mesh *mesh);
@@ -35,4 +35,4 @@ int gl_mesh_draw_instanced(struct gl_mesh *mesh,
                            struct gl_mesh_instance_data *instances,
                            GLsizei instance_count);
 
-#endif // GFX_GL_MESH_H
+#endif // CLS_GL_MESH_H

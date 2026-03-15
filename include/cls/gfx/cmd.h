@@ -1,7 +1,7 @@
 #ifndef GFX_RENDERER_CMD_H
 #define GFX_RENDERER_CMD_H
 
-#include "cglm/types.h"
+#include <cglm/types.h>
 
 struct renderable;
 struct transform;

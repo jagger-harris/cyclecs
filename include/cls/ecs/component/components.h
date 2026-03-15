@@ -1,5 +1,5 @@
-#ifndef ECS_COMPONENTS_H
-#define ECS_COMPONENTS_H
+#ifndef CLS_COMPONENTS_H
+#define CLS_COMPONENTS_H
 
 #include <cglm/types.h>
 #include <cls/util/types.h>
@@ -65,4 +65,4 @@ struct ui_progress_bar {
     float max_value;
 };
 
-#endif // ECS_COMPONENTS_H
+#endif // CLS_COMPONENTS_H

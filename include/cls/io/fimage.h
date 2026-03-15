@@ -1,15 +1,17 @@
-#ifndef IO_FIMAGE_H
-#define IO_FIMAGE_H
+#ifndef CLS_FIMAGE_H
+#define CLS_FIMAGE_H
+
+#include <cls/util/types.h>
 
 struct fimage {
     int width;
     int height;
     int channels;
-    unsigned char *data;
+    u8 *data;
 };
 
-int fimage_init(struct fimage *out, const char *path);
-void fimage_destroy(struct fimage *in);
-int fimage_save(const struct fimage *in, const char *path);
+int fimage_init(struct fimage *img, const char *path);
+void fimage_destroy(struct fimage *img);
+int fimage_save(const struct fimage *img, const char *path);
 
-#endif // IO_FIMAGE_H
+#endif // CLS_FIMAGE_H

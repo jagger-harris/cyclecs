@@ -6,11 +6,11 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define TABLE_MIN_CAPACITY 16
-#define TABLE_MIN_LOAD_FACTOR 0.25
-#define TABLE_MAX_LOAD_FACTOR 0.75
-#define TABLE_GROWTH_FACTOR 2
-#define TABLE_SHRINK_FACTOR 0.5
+#define MIN_CAPACITY 16
+#define MIN_LOAD_FACTOR 0.25
+#define MAX_LOAD_FACTOR 0.75
+#define GROWTH_FACTOR 2
+#define SHRINK_FACTOR 0.5
 #define SLOT_METADATA_SIZE 8
 
 struct table {
@@ -23,7 +23,7 @@ struct table {
 };
 
 struct table_iterator {
-    const struct table *table;
+    const struct table *t;
     size_t current_index;
     void *key;
     void *value;
@@ -41,75 +41,75 @@ static size_t table_calculate_slot_size(size_t key_size, size_t value_size) {
     return value_offset + value_size;
 }
 
-static int table_get_slot(void **out, const struct table *in, size_t index) {
-    if (!out || !in)
+static int table_get_slot(void **slot, const struct table *t, size_t index) {
+    if (!slot || !t)
         return CLS_NULLPTR;
 
-    *out = (u8 *)in->slots + index * in->slot_size;
+    *slot = (u8 *)t->slots + index * t->slot_size;
     return CLS_SUCCESS;
 }
 
-static int table_get_metadata(u8 **out, const struct table *in, size_t index) {
-    if (!out || !in)
+static int table_get_metadata(u8 **meta, const struct table *t, size_t index) {
+    if (!meta || !t)
         return CLS_NULLPTR;
 
     void *slot = NULL;
-    int error = table_get_slot(&slot, in, index);
+    int error = table_get_slot(&slot, t, index);
     if (error)
         return error;
 
-    *out = (u8 *)slot;
+    *meta = (u8 *)slot;
     return CLS_SUCCESS;
 }
 
-static int table_get_key(void **out, const struct table *in, size_t index) {
-    if (!out || !in)
+static int table_get_key(void **key, const struct table *t, size_t index) {
+    if (!key || !t)
         return CLS_NULLPTR;
 
     void *slot = NULL;
-    int error = table_get_slot(&slot, in, index);
-    if (error)
-        return error;
-
-    const size_t align = alignof(max_align_t);
-    size_t key_offset = align_round_up(SLOT_METADATA_SIZE, align);
-    *out = (u8 *)slot + key_offset;
-    return CLS_SUCCESS;
-}
-
-static int table_get_value(void **out, const struct table *in, size_t index) {
-    if (!out || !in)
-        return CLS_NULLPTR;
-
-    void *slot = NULL;
-    int error = table_get_slot(&slot, in, index);
+    int error = table_get_slot(&slot, t, index);
     if (error)
         return error;
 
     const size_t align = alignof(max_align_t);
     size_t key_offset = align_round_up(SLOT_METADATA_SIZE, align);
-    size_t value_offset = align_round_up(key_offset + in->key_size, align);
-    *out = (u8 *)slot + value_offset;
+    *key = (u8 *)slot + key_offset;
     return CLS_SUCCESS;
 }
 
-static int table_insert_no_resize(struct table *in, const void *key,
+static int table_get_value(void **value, const struct table *t, size_t index) {
+    if (!value || !t)
+        return CLS_NULLPTR;
+
+    void *slot = NULL;
+    int error = table_get_slot(&slot, t, index);
+    if (error)
+        return error;
+
+    const size_t align = alignof(max_align_t);
+    size_t key_offset = align_round_up(SLOT_METADATA_SIZE, align);
+    size_t value_offset = align_round_up(key_offset + t->key_size, align);
+    *value = (u8 *)slot + value_offset;
+    return CLS_SUCCESS;
+}
+
+static int table_insert_no_resize(struct table *t, const void *key,
                                   const void *value) {
-    if (!in)
+    if (!t)
         return CLS_NULLPTR;
 
     u32 hash = 0;
-    int error = xxhash32(&hash, key, in->key_size, 0);
+    int error = xxhash32(&hash, key, t->key_size, 0);
     if (error)
         return error;
 
     u8 fingerprint = (hash & 0x7f) | 0x80;
-    u32 index = hash & ((u32)in->capacity - 1);
+    u32 index = hash & ((u32)t->capacity - 1);
 
-    for (size_t i = 0; i < in->capacity; ++i) {
-        u32 probe = (u32)(index + i) & (u32)(in->capacity - 1);
+    for (size_t i = 0; i < t->capacity; ++i) {
+        u32 probe = (u32)(index + i) & (u32)(t->capacity - 1);
         u8 *probe_metadata = NULL;
-        error = table_get_metadata(&probe_metadata, in, probe);
+        error = table_get_metadata(&probe_metadata, t, probe);
         if (error)
             return error;
 
@@ -117,19 +117,19 @@ static int table_insert_no_resize(struct table *in, const void *key,
             void *key_ptr = NULL;
             void *value_ptr = NULL;
 
-            error = table_get_key(&key_ptr, in, probe);
+            error = table_get_key(&key_ptr, t, probe);
             if (error)
                 return error;
 
-            error = table_get_value(&value_ptr, in, probe);
+            error = table_get_value(&value_ptr, t, probe);
             if (error)
                 return error;
 
-            memcpy(key_ptr, key, in->key_size);
-            memcpy(value_ptr, value, in->value_size);
+            memcpy(key_ptr, key, t->key_size);
+            memcpy(value_ptr, value, t->value_size);
 
             *probe_metadata = fingerprint;
-            in->length++;
+            t->length++;
             return CLS_SUCCESS;
         }
     }
@@ -137,12 +137,12 @@ static int table_insert_no_resize(struct table *in, const void *key,
     return CLS_OUT_OF_MEMORY;
 }
 
-static int table_resize(struct table *in, size_t new_capacity) {
-    if (!in)
+static int table_resize(struct table *t, size_t new_capacity) {
+    if (!t)
         return CLS_NULLPTR;
 
     const size_t align = alignof(max_align_t);
-    size_t slots_size = new_capacity * in->slot_size + (align - 1);
+    size_t slots_size = new_capacity * t->slot_size + (align - 1);
 
     void *new_slots_mem = malloc(slots_size);
     if (!new_slots_mem)
@@ -153,20 +153,20 @@ static int table_resize(struct table *in, size_t new_capacity) {
     void *new_slots = (void *)aligned;
 
     for (size_t i = 0; i < new_capacity; ++i) {
-        u8 *metadata = (u8 *)new_slots + i * in->slot_size;
+        u8 *metadata = (u8 *)new_slots + i * t->slot_size;
         *metadata = 0;
     }
 
     struct table new_table = {.capacity = new_capacity,
                               .length = 0,
-                              .key_size = in->key_size,
-                              .value_size = in->value_size,
-                              .slot_size = in->slot_size,
+                              .key_size = t->key_size,
+                              .value_size = t->value_size,
+                              .slot_size = t->slot_size,
                               .slots = new_slots};
 
-    for (size_t i = 0; i < in->capacity; ++i) {
+    for (size_t i = 0; i < t->capacity; ++i) {
         u8 *metadata = NULL;
-        int error = table_get_metadata(&metadata, in, i);
+        int error = table_get_metadata(&metadata, t, i);
         if (error) {
             free(new_slots_mem);
             return error;
@@ -176,13 +176,13 @@ static int table_resize(struct table *in, size_t new_capacity) {
             void *key_ptr = NULL;
             void *value_ptr = NULL;
 
-            error = table_get_key(&key_ptr, in, i);
+            error = table_get_key(&key_ptr, t, i);
             if (error) {
                 free(new_slots_mem);
                 return error;
             }
 
-            error = table_get_value(&value_ptr, in, i);
+            error = table_get_value(&value_ptr, t, i);
             if (error) {
                 free(new_slots_mem);
                 return error;
@@ -196,15 +196,15 @@ static int table_resize(struct table *in, size_t new_capacity) {
         }
     }
 
-    free(in->slots);
-    in->slots = new_slots;
-    in->capacity = new_capacity;
+    free(t->slots);
+    t->slots = new_slots;
+    t->capacity = new_capacity;
     return CLS_SUCCESS;
 }
 
-int table_create(struct table **out, size_t start_capacity, size_t key_size,
+int table_create(struct table **t, size_t start_capacity, size_t key_size,
                  size_t value_size) {
-    if (!out)
+    if (!t)
         return CLS_NULLPTR;
 
     if (start_capacity == 0 || key_size == 0 || value_size == 0)
@@ -247,49 +247,49 @@ int table_create(struct table **out, size_t start_capacity, size_t key_size,
         *metadata = 0;
     }
 
-    *out = table;
+    *t = table;
     return CLS_SUCCESS;
 }
 
-void table_destroy(struct table *in) {
-    if (!in)
+void table_destroy(struct table *t) {
+    if (!t)
         return;
 
-    if (in->slots)
-        free(in->slots);
+    if (t->slots)
+        free(t->slots);
 
-    free(in);
+    free(t);
 }
 
-int table_insert(struct table *in, const void *key, const void *value) {
-    if (!in || !key || !value)
+int table_insert(struct table *t, const void *key, const void *value) {
+    if (!t || !key || !value)
         return CLS_NULLPTR;
 
-    if ((double)in->length / (double)in->capacity > TABLE_MAX_LOAD_FACTOR) {
-        int error = table_resize(in, in->capacity * TABLE_GROWTH_FACTOR);
+    if ((double)t->length / (double)t->capacity > MAX_LOAD_FACTOR) {
+        int error = table_resize(t, t->capacity * GROWTH_FACTOR);
         if (error)
             return error;
     }
 
-    return table_insert_no_resize(in, key, value);
+    return table_insert_no_resize(t, key, value);
 }
 
-int table_remove(void *out, struct table *in, const void *key) {
-    if (!in || !key)
+int table_remove(void *value, struct table *t, const void *key) {
+    if (!t || !key)
         return CLS_NULLPTR;
 
     u32 hash = 0;
-    int error = xxhash32(&hash, key, in->key_size, 0);
+    int error = xxhash32(&hash, key, t->key_size, 0);
     if (error)
         return error;
 
     u8 hash_metadata = (hash & 0x7f) | 0x80;
-    u32 index = hash & (u32)(in->capacity - 1);
+    u32 index = hash & (u32)(t->capacity - 1);
 
-    for (size_t i = 0; i < in->capacity; ++i) {
-        u32 probe = (u32)(index + i) & (u32)(in->capacity - 1);
+    for (size_t i = 0; i < t->capacity; ++i) {
+        u32 probe = (u32)(index + i) & (u32)(t->capacity - 1);
         u8 *probe_metadata = NULL;
-        error = table_get_metadata(&probe_metadata, in, probe);
+        error = table_get_metadata(&probe_metadata, t, probe);
         if (error)
             return error;
 
@@ -299,29 +299,28 @@ int table_remove(void *out, struct table *in, const void *key) {
         void *key_ptr = NULL;
         void *value_ptr = NULL;
 
-        error = table_get_key(&key_ptr, in, probe);
+        error = table_get_key(&key_ptr, t, probe);
         if (error)
             return error;
 
-        error = table_get_value(&value_ptr, in, probe);
+        error = table_get_value(&value_ptr, t, probe);
         if (error)
             return error;
 
         if (*probe_metadata == hash_metadata &&
-            memcmp(key_ptr, key, in->key_size) == 0) {
-            in->length--;
+            memcmp(key_ptr, key, t->key_size) == 0) {
+            t->length--;
             *probe_metadata = 0;
 
-            if ((double)in->length / (double)in->capacity <
-                TABLE_MIN_LOAD_FACTOR) {
+            if ((double)t->length / (double)t->capacity < MIN_LOAD_FACTOR) {
                 error = table_resize(
-                    in, (size_t)((double)in->capacity * TABLE_SHRINK_FACTOR));
+                    t, (size_t)((double)t->capacity * SHRINK_FACTOR));
                 if (error)
                     return error;
             }
 
-            if (out)
-                memcpy(out, value_ptr, in->value_size);
+            if (value)
+                memcpy(value, value_ptr, t->value_size);
 
             return CLS_SUCCESS;
         }
@@ -330,25 +329,25 @@ int table_remove(void *out, struct table *in, const void *key) {
     return CLS_SUCCESS;
 }
 
-int table_find(void **out, const struct table *in, const void *key) {
-    if (!out || !in || !key)
+int table_find(void **value, const struct table *t, const void *key) {
+    if (!value || !t || !key)
         return CLS_NULLPTR;
 
-    if (in->key_size == 0)
+    if (t->key_size == 0)
         return CLS_INVALID_ARG;
 
     u32 hash = 0;
-    int error = xxhash32(&hash, key, in->key_size, 0);
+    int error = xxhash32(&hash, key, t->key_size, 0);
     if (error)
         return error;
 
     u8 fingerprint = (hash & 0x7f) | 0x80;
-    u32 index = hash & (u32)(in->capacity - 1);
+    u32 index = hash & (u32)(t->capacity - 1);
 
-    for (size_t i = 0; i < in->capacity; ++i) {
-        u32 probe = (u32)(index + i) & (u32)(in->capacity - 1);
+    for (size_t i = 0; i < t->capacity; ++i) {
+        u32 probe = (u32)(index + i) & (u32)(t->capacity - 1);
         u8 *probe_metadata = NULL;
-        error = table_get_metadata(&probe_metadata, in, probe);
+        error = table_get_metadata(&probe_metadata, t, probe);
         if (error)
             return error;
 
@@ -358,17 +357,17 @@ int table_find(void **out, const struct table *in, const void *key) {
         void *key_ptr = NULL;
         void *value_ptr = NULL;
 
-        error = table_get_key(&key_ptr, in, probe);
+        error = table_get_key(&key_ptr, t, probe);
         if (error)
             return error;
 
-        error = table_get_value(&value_ptr, in, probe);
+        error = table_get_value(&value_ptr, t, probe);
         if (error)
             return error;
 
         if (*probe_metadata == fingerprint &&
-            memcmp(key_ptr, key, in->key_size) == 0) {
-            *out = value_ptr;
+            memcmp(key_ptr, key, t->key_size) == 0) {
+            *value = value_ptr;
             return CLS_SUCCESS;
         }
     }
@@ -376,67 +375,66 @@ int table_find(void **out, const struct table *in, const void *key) {
     return CLS_SUCCESS;
 }
 
-int table_find_cpy(void *out, const struct table *in, const void *key) {
-    void *value = NULL;
-    int error = table_find(&value, in, key);
+int table_find_cpy(void *value, const struct table *t, const void *key) {
+    void *value_ptr = NULL;
+    int error = table_find(&value_ptr, t, key);
     if (error)
         return error;
 
-    if (value != NULL)
-        memcpy(out, value, in->value_size);
+    if (value_ptr != NULL)
+        memcpy(value, value_ptr, t->value_size);
 
     return CLS_SUCCESS;
 }
 
-int table_clear(struct table *in) {
-    if (!in)
+int table_clear(struct table *t) {
+    if (!t)
         return CLS_NULLPTR;
 
-    for (size_t i = 0; i < in->capacity; ++i) {
+    for (size_t i = 0; i < t->capacity; ++i) {
         u8 *metadata = NULL;
-        int error = table_get_metadata(&metadata, in, i);
+        int error = table_get_metadata(&metadata, t, i);
         if (error)
             return error;
 
         *metadata = 0;
     }
 
-    in->length = 0;
+    t->length = 0;
     return CLS_SUCCESS;
 }
 
-int table_iterator_create(struct table_iterator **out,
-                          const struct table *table) {
-    if (!out || !table)
+int table_iterator_create(struct table_iterator **it, const struct table *t) {
+    if (!it || !t)
         return CLS_NULLPTR;
 
     struct table_iterator *iter = malloc(sizeof(struct table_iterator));
     if (!iter)
         return CLS_OUT_OF_MEMORY;
 
-    iter->table = table;
+    iter->t = t;
     iter->current_index = 0;
     iter->key = NULL;
     iter->value = NULL;
 
-    *out = iter;
+    *it = iter;
     return CLS_SUCCESS;
 }
 
-void table_iterator_destroy(struct table_iterator *in) {
-    if (!in)
+void table_iterator_destroy(struct table_iterator *it) {
+    if (!it)
         return;
 
-    free(in);
+    free(it);
 }
 
-int table_iterator_next(bool *out, struct table_iterator *in) {
-    if (!in || !in->table)
+int table_iterator_next(bool *exists, struct table_iterator *it) {
+    if (!it || !it->t)
         return CLS_NULLPTR;
 
-    while (in->current_index < in->table->capacity) {
+    while (it->current_index < it->t->capacity) {
         u8 *metadata = NULL;
-        int error = table_get_metadata(&metadata, in->table, in->current_index);
+        int error = table_get_metadata(&metadata, it->t, it->current_index);
         if (error)
             return error;
 
@@ -444,52 +442,52 @@ int table_iterator_next(bool *out, struct table_iterator *in) {
             void *key_ptr = NULL;
             void *value_ptr = NULL;
 
-            error = table_get_key(&key_ptr, in->table, in->current_index);
+            error = table_get_key(&key_ptr, it->t, it->current_index);
             if (error)
                 return error;
 
-            error = table_get_value(&value_ptr, in->table, in->current_index);
+            error = table_get_value(&value_ptr, it->t, it->current_index);
             if (error)
                 return error;
 
-            in->key = key_ptr;
-            in->value = value_ptr;
-            in->current_index++;
-            *out = true;
+            it->key = key_ptr;
+            it->value = value_ptr;
+            it->current_index++;
+            *exists = true;
             return CLS_SUCCESS;
         }
 
-        in->current_index++;
+        it->current_index++;
     }
 
-    in->key = NULL;
-    in->value = NULL;
-    *out = false;
+    it->key = NULL;
+    it->value = NULL;
+    *exists = false;
     return CLS_SUCCESS;
 }
 
-int table_iterator_clear(struct table_iterator *in) {
-    if (!in)
+int table_iterator_clear(struct table_iterator *it) {
+    if (!it)
         return CLS_NULLPTR;
 
-    in->current_index = 0;
-    in->key = NULL;
-    in->value = NULL;
+    it->current_index = 0;
+    it->key = NULL;
+    it->value = NULL;
     return CLS_SUCCESS;
 }
 
-int table_iterator_key_get(void **out, const struct table_iterator *in) {
-    if (!out || !in)
+int table_iterator_key_get(void **key, const struct table_iterator *it) {
+    if (!key || !it)
         return CLS_NULLPTR;
 
-    *out = in->key;
+    *key = it->key;
     return CLS_SUCCESS;
 }
 
-int table_iterator_value_get(void **out, const struct table_iterator *in) {
-    if (!out || !in)
+int table_iterator_value_get(void **value, const struct table_iterator *it) {
+    if (!value || !it)
         return CLS_NULLPTR;
 
-    *out = in->value;
+    *value = it->value;
     return CLS_SUCCESS;
 }

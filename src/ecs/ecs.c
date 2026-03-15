@@ -72,12 +72,12 @@ struct ecs_world_sparse_set {
     size_t component_size;
 };
 
-static void ecs_world_destroy(struct ecs_world *in) {
-    if (!in)
+static void ecs_world_destroy(struct ecs_world *world) {
+    if (!world)
         return;
 
     struct table_iterator *comp_iter = NULL;
-    int error = table_iterator_create(&comp_iter, in->components);
+    int error = table_iterator_create(&comp_iter, world->components);
     if (error)
         return;
 
@@ -100,7 +100,7 @@ static void ecs_world_destroy(struct ecs_world *in) {
     table_iterator_destroy(comp_iter);
 
     struct table_iterator *sys_iter = NULL;
-    error = table_iterator_create(&sys_iter, in->systems);
+    error = table_iterator_create(&sys_iter, world->systems);
     if (error)
         return;
 
@@ -118,44 +118,44 @@ static void ecs_world_destroy(struct ecs_world *in) {
     }
 
     table_iterator_destroy(sys_iter);
-    array_destroy(in->entities);
-    array_destroy(in->free_entities);
-    array_destroy(in->pending_deletions);
-    table_destroy(in->components);
-    table_destroy(in->systems);
+    array_destroy(world->entities);
+    array_destroy(world->free_entities);
+    array_destroy(world->pending_deletions);
+    table_destroy(world->components);
+    table_destroy(world->systems);
 }
 
-static int ecs_world_init(struct ecs_world *out, float tick_rate, int priority,
-                          bool should_update) {
-    if (!out)
+static int ecs_world_init(struct ecs_world *world, float tick_rate,
+                          int priority, bool should_update) {
+    if (!world)
         return CLS_NULLPTR;
 
-    *out = (struct ecs_world){.next_entity_id = 0,
-                              .tick_rate = tick_rate,
-                              .priority = priority,
-                              .should_update = should_update};
+    *world = (struct ecs_world){.next_entity_id = 0,
+                                .tick_rate = tick_rate,
+                                .priority = priority,
+                                .should_update = should_update};
 
     int error =
-        array_create(&out->entities, ECS_WORLD_START_CAPACITY, sizeof(u32));
+        array_create(&world->entities, ECS_WORLD_START_CAPACITY, sizeof(u32));
     if (error)
         goto cleanup;
 
-    error = array_create(&out->free_entities, ECS_WORLD_START_CAPACITY,
+    error = array_create(&world->free_entities, ECS_WORLD_START_CAPACITY,
                          sizeof(u32));
     if (error)
         goto cleanup;
 
-    error = array_create(&out->pending_deletions, ECS_WORLD_START_CAPACITY,
+    error = array_create(&world->pending_deletions, ECS_WORLD_START_CAPACITY,
                          sizeof(u32));
     if (error)
         goto cleanup;
 
-    error = table_create(&out->components, ECS_WORLD_START_CAPACITY,
+    error = table_create(&world->components, ECS_WORLD_START_CAPACITY,
                          sizeof(u32), sizeof(struct ecs_world_sparse_set));
     if (error)
         goto cleanup;
 
-    error = table_create(&out->systems, ECS_WORLD_START_CAPACITY, sizeof(u32),
+    error = table_create(&world->systems, ECS_WORLD_START_CAPACITY, sizeof(u32),
                          sizeof(struct ecs_world_system));
     if (error)
         goto cleanup;
@@ -163,39 +163,43 @@ static int ecs_world_init(struct ecs_world *out, float tick_rate, int priority,
     return CLS_SUCCESS;
 
 cleanup:
-    ecs_world_destroy(out);
+    ecs_world_destroy(world);
     return error;
 }
 
-int ecs_create(struct ecs **out, struct allocator *alloc) {
-    if (!out)
+int ecs_create(struct ecs **ecs, struct allocator *alloc) {
+    if (!ecs)
         return CLS_NULLPTR;
 
-    struct ecs *ecs = NULL;
-    int error = allocator_alloc((void **)&ecs, alloc, sizeof(struct ecs),
+    void *instance_ptr = NULL;
+    int error = allocator_alloc(&instance_ptr, alloc, sizeof(struct ecs),
                                 alignof(struct ecs));
     if (error)
         return error;
 
-    error = table_create(&ecs->worlds, ECS_WORLD_START_CAPACITY, sizeof(u32),
-                         sizeof(struct ecs_world));
+    struct ecs *instance = instance_ptr;
+    if (!instance)
+        return CLS_NULLPTR;
+
+    error = table_create(&instance->worlds, ECS_WORLD_START_CAPACITY,
+                         sizeof(u32), sizeof(struct ecs_world));
     if (error)
         goto cleanup;
 
-    *out = ecs;
+    *ecs = instance;
     return CLS_SUCCESS;
 
 cleanup:
-    ecs_destroy(ecs);
+    ecs_destroy(instance);
     return error;
 }
 
-void ecs_destroy(struct ecs *in) {
-    if (!in)
+void ecs_destroy(struct ecs *ecs) {
+    if (!ecs)
         return;
 
     struct table_iterator *iter = NULL;
-    int error = table_iterator_create(&iter, in->worlds);
+    int error = table_iterator_create(&iter, ecs->worlds);
     if (error)
         return;
 
@@ -211,34 +215,34 @@ void ecs_destroy(struct ecs *in) {
     }
 
     table_iterator_destroy(iter);
-    table_destroy(in->worlds);
+    table_destroy(ecs->worlds);
 }
 
-static void ecs_scene_entity_destroy(struct ecs_scene_entity *in) {
-    if (!in || !in->components)
+static void ecs_scene_entity_destroy(struct ecs_scene_entity *e) {
+    if (!e || !e->components)
         return;
 
     size_t comp_length = 0;
-    array_length_get(&comp_length, in->components);
+    array_length_get(&comp_length, e->components);
 
     for (size_t i = 0; i < comp_length; ++i) {
         void *comp_ptr = NULL;
-        array_elem_get(&comp_ptr, in->components, i);
+        array_elem_get(&comp_ptr, e->components, i);
         struct ecs_comp_serialized *comp = comp_ptr;
         if (comp && comp->data)
             free(comp->data);
     }
 
-    array_destroy(in->components);
+    array_destroy(e->components);
 }
 
-static int ecs_scene_entity_create(struct ecs_scene_entity *out,
+static int ecs_scene_entity_create(struct ecs_scene_entity *scene_e,
                                    const struct ecs_world *world, entity e) {
-    if (!out || !world)
+    if (!scene_e || !world)
         return CLS_NULLPTR;
 
-    int error =
-        array_create(&out->components, 8, sizeof(struct ecs_comp_serialized));
+    int error = array_create(&scene_e->components, 8,
+                             sizeof(struct ecs_comp_serialized));
     if (error)
         return error;
 
@@ -301,7 +305,7 @@ static int ecs_scene_entity_create(struct ecs_scene_entity *out,
                                             .size = set->component_size,
                                             .data = comp_data_cpy};
 
-        error = array_push(&out->components, &saved);
+        error = array_push(&scene_e->components, &saved);
         if (error)
             goto cleanup;
     }
@@ -310,41 +314,41 @@ static int ecs_scene_entity_create(struct ecs_scene_entity *out,
     return CLS_SUCCESS;
 
 cleanup:
-    ecs_scene_entity_destroy(out);
+    ecs_scene_entity_destroy(scene_e);
     table_iterator_destroy(iter);
     return error;
 }
 
-int ecs_scene_create_from_world(struct ecs_scene **out,
-                                const struct ecs_world *in,
+int ecs_scene_create_from_world(struct ecs_scene **scene,
+                                const struct ecs_world *world,
                                 const char *scene_id) {
-    if (!out || !in || !scene_id)
+    if (!scene || !world || !scene_id)
         return CLS_NULLPTR;
 
-    struct ecs_scene *scene = malloc(sizeof(struct ecs_scene));
+    struct ecs_scene *instance = malloc(sizeof(struct ecs_scene));
     if (!scene)
         return CLS_OUT_OF_MEMORY;
 
-    scene->id = scene_id;
+    instance->id = scene_id;
 
     int error =
-        array_create(&scene->entities, 32, sizeof(struct ecs_scene_entity));
+        array_create(&instance->entities, 32, sizeof(struct ecs_scene_entity));
     if (error)
         goto cleanup;
 
     size_t e_length = 0;
-    error = ecs_world_entities_length_get(&e_length, in);
+    error = ecs_world_entities_length_get(&e_length, world);
     if (error)
         goto cleanup;
 
     for (size_t i = 0; i < e_length; ++i) {
         entity e = 0;
-        error = array_elem_get_cpy(&e, in->entities, i);
+        error = array_elem_get_cpy(&e, world->entities, i);
         if (error)
             continue;
 
         struct ecs_scene_entity scene_entity = {0};
-        error = ecs_scene_entity_create(&scene_entity, in, e);
+        error = ecs_scene_entity_create(&scene_entity, world, e);
         if (error) {
             LOGGER_LOG(LOGGER_WARN,
                        "Saving entity (%u) to scene (%s) from world failed", e,
@@ -352,48 +356,48 @@ int ecs_scene_create_from_world(struct ecs_scene **out,
             continue;
         }
 
-        error = array_push(&scene->entities, &scene_entity);
+        error = array_push(&instance->entities, &scene_entity);
         if (error) {
             ecs_scene_entity_destroy(&scene_entity);
             continue;
         }
     }
 
-    *out = scene;
+    *scene = instance;
     return CLS_SUCCESS;
 
 cleanup:
-    array_destroy(scene->entities);
+    array_destroy(instance->entities);
 
-    if (scene)
-        free(scene);
+    if (instance)
+        free(instance);
 
     return error;
 }
 
-int ecs_scene_create_from_query(struct ecs_scene **out,
-                                struct ecs_world_query *in,
+int ecs_scene_create_from_query(struct ecs_scene **scene,
+                                struct ecs_world_query *query,
                                 const char *scene_id) {
-    if (!out || !in || !scene_id)
+    if (!scene || !query || !scene_id)
         return CLS_NULLPTR;
 
-    struct ecs_scene *scene = malloc(sizeof(struct ecs_scene));
+    struct ecs_scene *instance = malloc(sizeof(struct ecs_scene));
     if (!scene)
         return CLS_OUT_OF_MEMORY;
 
-    scene->id = scene_id;
+    instance->id = scene_id;
 
     int error =
-        array_create(&scene->entities, 32, sizeof(struct ecs_scene_entity));
+        array_create(&instance->entities, 32, sizeof(struct ecs_scene_entity));
     if (error)
         goto cleanup;
 
-    in->current_index = 0;
+    query->current_index = 0;
 
     entity e = ENTITY_MAX;
-    while (ecs_world_query_next(&e, in) == CLS_SUCCESS && e != ENTITY_MAX) {
+    while (ecs_world_query_next(&e, query) == CLS_SUCCESS && e != ENTITY_MAX) {
         struct ecs_scene_entity scene_entity = {0};
-        error = ecs_scene_entity_create(&scene_entity, in->world, e);
+        error = ecs_scene_entity_create(&scene_entity, query->world, e);
         if (error) {
             LOGGER_LOG(LOGGER_WARN,
                        "Saving entity (%u) to scene (%s) from query failed", e,
@@ -401,36 +405,36 @@ int ecs_scene_create_from_query(struct ecs_scene **out,
             continue;
         }
 
-        error = array_push(&scene->entities, &scene_entity);
+        error = array_push(&instance->entities, &scene_entity);
         if (error) {
             ecs_scene_entity_destroy(&scene_entity);
             continue;
         }
     }
 
-    *out = scene;
+    *scene = instance;
     return CLS_SUCCESS;
 
 cleanup:
-    array_destroy(scene->entities);
+    array_destroy(instance->entities);
 
-    if (scene)
-        free(scene);
+    if (instance)
+        free(instance);
 
     return error;
 }
 
-void ecs_scene_destroy(struct ecs_scene *in) {
-    if (!in)
+void ecs_scene_destroy(struct ecs_scene *scene) {
+    if (!scene)
         return;
 
-    if (in->entities) {
+    if (scene->entities) {
         size_t entity_count = 0;
-        array_length_get(&entity_count, in->entities);
+        array_length_get(&entity_count, scene->entities);
 
         for (size_t i = 0; i < entity_count; ++i) {
             void *e_ptr = NULL;
-            array_elem_get(&e_ptr, in->entities, i);
+            array_elem_get(&e_ptr, scene->entities, i);
             struct ecs_scene_entity *e = e_ptr;
             if (!e || !e->components)
                 continue;
@@ -438,24 +442,24 @@ void ecs_scene_destroy(struct ecs_scene *in) {
             ecs_scene_entity_destroy(e);
         }
 
-        array_destroy(in->entities);
+        array_destroy(scene->entities);
     }
 
-    free(in);
+    free(scene);
 }
 
-int ecs_scene_spawn(const struct ecs_scene *in, struct ecs_world *world) {
-    if (!in || !world)
+int ecs_scene_spawn(const struct ecs_scene *scene, struct ecs_world *world) {
+    if (!scene || !world)
         return CLS_NULLPTR;
 
     size_t entities_length = 0;
-    int error = array_length_get(&entities_length, in->entities);
+    int error = array_length_get(&entities_length, scene->entities);
     if (error)
         return error;
 
     for (size_t e_index = 0; e_index < entities_length; ++e_index) {
         void *entity_ptr = NULL;
-        error = array_elem_get(&entity_ptr, in->entities, e_index);
+        error = array_elem_get(&entity_ptr, scene->entities, e_index);
         if (error)
             continue;
 
@@ -501,8 +505,8 @@ int ecs_scene_spawn(const struct ecs_scene *in, struct ecs_world *world) {
     return CLS_SUCCESS;
 }
 
-int ecs_scene_save(const struct ecs_scene *in, const char *path) {
-    if (!in || !path)
+int ecs_scene_save(const struct ecs_scene *scene, const char *path) {
+    if (!scene || !path)
         return CLS_NULLPTR;
 
     FILE *file = fopen(path, "wb");
@@ -518,7 +522,7 @@ int ecs_scene_save(const struct ecs_scene *in, const char *path) {
     (void)fwrite(&ver, sizeof(u32), 1, file);
 
     size_t e_length = 0;
-    int error = array_length_get(&e_length, in->entities);
+    int error = array_length_get(&e_length, scene->entities);
     if (error)
         goto cleanup;
 
@@ -527,7 +531,7 @@ int ecs_scene_save(const struct ecs_scene *in, const char *path) {
 
     for (size_t e_index = 0; e_index < e_length; ++e_index) {
         void *e_ptr = NULL;
-        error = array_elem_get(&e_ptr, in->entities, e_index);
+        error = array_elem_get(&e_ptr, scene->entities, e_index);
         if (error)
             continue;
 
@@ -570,13 +574,13 @@ cleanup:
     return error;
 }
 
-int ecs_scene_load(struct ecs_scene **out, const char *scene_id,
+int ecs_scene_load(struct ecs_scene **scene, const char *scene_id,
                    const char *path) {
-    if (!out || !scene_id || !path)
+    if (!scene || !scene_id || !path)
         return CLS_NULLPTR;
 
     int error = CLS_SUCCESS;
-    struct ecs_scene *scene = calloc(1, sizeof(struct ecs_scene));
+    struct ecs_scene *instance = calloc(1, sizeof(struct ecs_scene));
     FILE *file = fopen(path, "rb");
 
     if (!scene) {
@@ -584,7 +588,7 @@ int ecs_scene_load(struct ecs_scene **out, const char *scene_id,
         goto cleanup;
     }
 
-    scene->id = scene_id;
+    instance->id = scene_id;
 
     if (!file) {
         LOGGER_LOG_ERROR(LOGGER_ERROR, CLS_FILE_NOT_FOUND,
@@ -624,7 +628,8 @@ int ecs_scene_load(struct ecs_scene **out, const char *scene_id,
         goto cleanup;
     }
 
-    error = array_create(&scene->entities, 32, sizeof(struct ecs_scene_entity));
+    error =
+        array_create(&instance->entities, 32, sizeof(struct ecs_scene_entity));
     if (error)
         goto cleanup;
 
@@ -687,7 +692,7 @@ int ecs_scene_load(struct ecs_scene **out, const char *scene_id,
             }
         }
 
-        error = array_push(&scene->entities, &e);
+        error = array_push(&instance->entities, &e);
         if (error) {
             array_destroy(e.components);
             goto cleanup;
@@ -695,11 +700,11 @@ int ecs_scene_load(struct ecs_scene **out, const char *scene_id,
     }
 
     (void)fclose(file);
-    *out = scene;
+    *scene = instance;
     return CLS_SUCCESS;
 
 cleanup:
-    ecs_scene_destroy(scene);
+    ecs_scene_destroy(instance);
 
     if (file)
         (void)fclose(file);
@@ -707,9 +712,9 @@ cleanup:
     return error;
 }
 
-int ecs_world_add(struct ecs *in, u32 world_id, float tick_rate, int priority,
+int ecs_world_add(struct ecs *ecs, u32 world_id, float tick_rate, int priority,
                   bool should_update) {
-    if (!in)
+    if (!ecs)
         return CLS_NULLPTR;
 
     struct ecs_world world = {0};
@@ -717,50 +722,51 @@ int ecs_world_add(struct ecs *in, u32 world_id, float tick_rate, int priority,
     if (error)
         return error;
 
-    return table_insert(in->worlds, &world_id, &world);
+    return table_insert(ecs->worlds, &world_id, &world);
 }
 
-int ecs_world_remove(struct ecs *in, u32 world_id) {
-    if (!in || !world_id)
+int ecs_world_remove(struct ecs *ecs, u32 world_id) {
+    if (!ecs || !world_id)
         return CLS_NULLPTR;
 
     void *world_ptr = NULL;
-    int error = table_find(&world_ptr, in->worlds, &world_id);
+    int error = table_find(&world_ptr, ecs->worlds, &world_id);
     if (error)
         return error;
 
     struct ecs_world *world = world_ptr;
     ecs_world_destroy(world);
-    return table_remove(NULL, in->worlds, &world_id);
+    return table_remove(NULL, ecs->worlds, &world_id);
 }
 
-int ecs_world_get(struct ecs_world **out, const struct ecs *in, u32 world_id) {
-    if (!out || !in)
+int ecs_world_get(struct ecs_world **world, const struct ecs *ecs,
+                  u32 world_id) {
+    if (!world || !ecs)
         return CLS_NULLPTR;
 
     void *world_ptr = NULL;
-    int error = table_find(&world_ptr, in->worlds, &world_id);
+    int error = table_find(&world_ptr, ecs->worlds, &world_id);
     if (error)
         return error;
 
-    *out = world_ptr;
+    *world = world_ptr;
     return CLS_SUCCESS;
 }
 
-int ecs_world_get_all(struct table **out, const struct ecs *in) {
-    if (!out || !in)
+int ecs_world_get_all(struct table **worlds, const struct ecs *ecs) {
+    if (!worlds || !ecs)
         return CLS_NULLPTR;
 
-    *out = in->worlds;
+    *worlds = ecs->worlds;
     return CLS_SUCCESS;
 }
 
-int ecs_world_update_all(struct ecs *in, struct app *app) {
-    if (!in)
+int ecs_world_update_all(struct ecs *ecs, struct app *app) {
+    if (!ecs)
         return CLS_NULLPTR;
 
     struct table_iterator *iter = NULL;
-    int error = table_iterator_create(&iter, in->worlds);
+    int error = table_iterator_create(&iter, ecs->worlds);
     if (error)
         return error;
 
@@ -823,45 +829,45 @@ int ecs_world_iter_all(struct ecs *in, ecs_world_iter_callback callback,
     return CLS_SUCCESS;
 }
 
-int ecs_world_entity_add(u32 *out, struct ecs_world *in) {
-    if (!in || !out)
+int ecs_world_entity_add(entity *e, struct ecs_world *world) {
+    if (!e || !world)
         return CLS_NULLPTR;
 
     size_t free_entities_length = 0;
-    int error = array_length_get(&free_entities_length, in->free_entities);
+    int error = array_length_get(&free_entities_length, world->free_entities);
     if (error)
         return error;
 
-    entity e = ENTITY_MAX;
+    entity instance = ENTITY_MAX;
     if (free_entities_length > 0) {
-        error =
-            array_elem_get_cpy(&e, in->free_entities, free_entities_length - 1);
+        error = array_elem_get_cpy(&instance, world->free_entities,
+                                   free_entities_length - 1);
         if (error)
             return error;
 
-        error = array_pop(NULL, in->free_entities);
+        error = array_pop(NULL, world->free_entities);
         if (error)
             return error;
     } else {
-        e = in->next_entity_id;
-        in->next_entity_id++;
+        instance = world->next_entity_id;
+        world->next_entity_id++;
     }
 
-    error = array_push(&in->entities, &e);
+    error = array_push(&world->entities, &instance);
     if (error)
         return error;
 
-    *out = e;
+    *e = instance;
     return CLS_SUCCESS;
 }
 
-static int ecs_world_entity_remove_component(struct ecs_world *in, entity e,
+static int ecs_world_entity_remove_component(struct ecs_world *world, entity e,
                                              u32 comp_id) {
-    if (!in)
+    if (!world)
         return CLS_NULLPTR;
 
     void *set_ptr = NULL;
-    int error = table_find(&set_ptr, in->components, &comp_id);
+    int error = table_find(&set_ptr, world->components, &comp_id);
     if (error)
         return error;
 
@@ -932,8 +938,8 @@ static int ecs_world_entity_remove_component(struct ecs_world *in, entity e,
     return array_elem_set(set->sparse, e, &invalid_e);
 }
 
-int ecs_world_entity_remove(struct ecs_world *in, entity e) {
-    if (!in)
+int ecs_world_entity_remove(struct ecs_world *world, entity e) {
+    if (!world)
         return CLS_NULLPTR;
 
     if (e == ENTITY_MAX)
@@ -941,13 +947,13 @@ int ecs_world_entity_remove(struct ecs_world *in, entity e) {
 
     size_t pending_deletions_length = 0;
     int error =
-        array_length_get(&pending_deletions_length, in->pending_deletions);
+        array_length_get(&pending_deletions_length, world->pending_deletions);
     if (error)
         return error;
 
     for (size_t i = 0; i < pending_deletions_length; ++i) {
         entity pending = ENTITY_MAX;
-        error = array_elem_get_cpy(&pending, in->pending_deletions, i);
+        error = array_elem_get_cpy(&pending, world->pending_deletions, i);
         if (error)
             continue;
 
@@ -955,12 +961,12 @@ int ecs_world_entity_remove(struct ecs_world *in, entity e) {
             return CLS_SUCCESS;
     }
 
-    return array_push(&in->pending_deletions, &e);
+    return array_push(&world->pending_deletions, &e);
 }
 
-int ecs_world_component_type_add(struct ecs_world *in, u32 comp_id,
+int ecs_world_component_type_add(struct ecs_world *world, u32 comp_id,
                                  size_t component_size) {
-    if (!in)
+    if (!world)
         return CLS_NULLPTR;
 
     struct ecs_world_sparse_set set = {.component_size = component_size,
@@ -982,7 +988,7 @@ int ecs_world_component_type_add(struct ecs_world *in, u32 comp_id,
     if (error)
         goto cleanup;
 
-    error = table_insert(in->components, &comp_id, &set);
+    error = table_insert(world->components, &comp_id, &set);
     if (error)
         goto cleanup;
 
@@ -995,12 +1001,12 @@ cleanup:
     return error;
 }
 
-int ecs_world_component_type_remove(struct ecs_world *in, u32 comp_id) {
-    if (!in)
+int ecs_world_component_type_remove(struct ecs_world *world, u32 comp_id) {
+    if (!world)
         return CLS_NULLPTR;
 
     void *set_ptr = NULL;
-    int error = table_find(&set_ptr, in->components, &comp_id);
+    int error = table_find(&set_ptr, world->components, &comp_id);
     if (error)
         return error;
 
@@ -1008,19 +1014,19 @@ int ecs_world_component_type_remove(struct ecs_world *in, u32 comp_id) {
     array_destroy(set->sparse);
     array_destroy(set->dense);
     array_destroy(set->data);
-    return table_remove(NULL, in->components, &comp_id);
+    return table_remove(NULL, world->components, &comp_id);
 }
 
-int ecs_world_component_add(struct ecs_world *in, entity e, u32 comp_id,
+int ecs_world_component_add(struct ecs_world *world, entity e, u32 comp_id,
                             const void *comp_data) {
-    if (!in || !comp_data)
+    if (!world || !comp_data)
         return CLS_NULLPTR;
 
     if (e == ENTITY_MAX)
         return CLS_INVALID_ARG;
 
     size_t entities_length = 0;
-    int error = array_length_get(&entities_length, in->entities);
+    int error = array_length_get(&entities_length, world->entities);
     if (error)
         return error;
 
@@ -1028,7 +1034,7 @@ int ecs_world_component_add(struct ecs_world *in, entity e, u32 comp_id,
         return CLS_INVALID_ARG;
 
     void *set_ptr = NULL;
-    error = table_find(&set_ptr, in->components, &comp_id);
+    error = table_find(&set_ptr, world->components, &comp_id);
     if (error)
         return error;
 
@@ -1068,34 +1074,34 @@ int ecs_world_component_add(struct ecs_world *in, entity e, u32 comp_id,
     return array_push(&set->data, comp_data);
 }
 
-int ecs_world_component_remove(struct ecs_world *in, entity e, u32 comp_id) {
-    if (!in)
+int ecs_world_component_remove(struct ecs_world *world, entity e, u32 comp_id) {
+    if (!world)
         return CLS_NULLPTR;
 
     if (e == ENTITY_MAX)
         return CLS_INVALID_ARG;
 
     size_t entities_length = 0;
-    int error = array_length_get(&entities_length, in->entities);
+    int error = array_length_get(&entities_length, world->entities);
     if (error)
         return error;
 
     if (e > entities_length)
         return CLS_INVALID_ARG;
 
-    return ecs_world_entity_remove_component(in, e, comp_id);
+    return ecs_world_entity_remove_component(world, e, comp_id);
 }
 
-int ecs_world_component_get(void **out, const struct ecs_world *in, entity e,
-                            u32 comp_id) {
-    if (!out || !in)
+int ecs_world_component_get(void **comp, const struct ecs_world *world,
+                            entity e, u32 comp_id) {
+    if (!comp || !world)
         return CLS_NULLPTR;
 
     if (e == ENTITY_MAX)
         return CLS_INVALID_ARG;
 
     void *set_ptr = NULL;
-    int error = table_find(&set_ptr, in->components, &comp_id);
+    int error = table_find(&set_ptr, world->components, &comp_id);
     if (error)
         return error;
 
@@ -1137,25 +1143,25 @@ int ecs_world_component_get(void **out, const struct ecs_world *in, entity e,
     if (check_entity != e)
         return CLS_INVALID_ARG;
 
-    return array_elem_get(out, set->data, dense_index);
+    return array_elem_get(comp, set->data, dense_index);
 }
 
-static int ecs_world_query_create_from_va_list(struct ecs_world_query *out,
+static int ecs_world_query_create_from_va_list(struct ecs_world_query *query,
                                                struct ecs_world *world,
                                                size_t arg_count, va_list args) {
-    if (!out || !world || arg_count == 0)
+    if (!query || !world || arg_count == 0)
         return CLS_INVALID_ARG;
 
-    out->world = world;
-    out->arg_count = arg_count;
-    out->min_set = NULL;
-    out->current_index = 0;
+    query->world = world;
+    query->arg_count = arg_count;
+    query->min_set = NULL;
+    query->current_index = 0;
 
-    int error = array_create(&out->comp_ids, arg_count, sizeof(u32));
+    int error = array_create(&query->comp_ids, arg_count, sizeof(u32));
     if (error)
         goto cleanup;
 
-    error = array_create(&out->sets, arg_count,
+    error = array_create(&query->sets, arg_count,
                          sizeof(struct ecs_world_sparse_set *));
     if (error)
         goto cleanup;
@@ -1163,7 +1169,7 @@ static int ecs_world_query_create_from_va_list(struct ecs_world_query *out,
     for (size_t i = 0; i < arg_count; ++i) {
         u32 comp_id = va_arg(args, u32);
 
-        error = array_push(&out->comp_ids, &comp_id);
+        error = array_push(&query->comp_ids, &comp_id);
         if (error)
             continue;
 
@@ -1175,13 +1181,13 @@ static int ecs_world_query_create_from_va_list(struct ecs_world_query *out,
         if (!set_ptr)
             continue;
 
-        error = array_push(&out->sets, (const void *)&set_ptr);
+        error = array_push(&query->sets, (const void *)&set_ptr);
         if (error)
             continue;
     }
 
     void *set_ptr = NULL;
-    error = array_elem_get(&set_ptr, out->sets, 0);
+    error = array_elem_get(&set_ptr, query->sets, 0);
     if (error)
         goto cleanup;
 
@@ -1192,21 +1198,21 @@ static int ecs_world_query_create_from_va_list(struct ecs_world_query *out,
         goto cleanup;
     }
 
-    out->min_set = first_set;
+    query->min_set = first_set;
 
     size_t min_dense_length = 0;
-    error = array_length_get(&min_dense_length, out->min_set->dense);
+    error = array_length_get(&min_dense_length, query->min_set->dense);
     if (error)
         goto cleanup;
 
     size_t set_count = 0;
-    error = array_length_get(&set_count, out->sets);
+    error = array_length_get(&set_count, query->sets);
     if (error)
         goto cleanup;
 
     for (size_t i = 1; i < arg_count; ++i) {
         struct ecs_world_sparse_set *current_set = NULL;
-        error = array_elem_get_cpy((void *)&current_set, out->sets, i);
+        error = array_elem_get_cpy((void *)&current_set, query->sets, i);
         if (error)
             continue;
 
@@ -1216,40 +1222,38 @@ static int ecs_world_query_create_from_va_list(struct ecs_world_query *out,
             continue;
 
         if (dense_length < min_dense_length)
-            out->min_set = current_set;
+            query->min_set = current_set;
     }
 
     return CLS_SUCCESS;
 
 cleanup:
-    ecs_world_query_destroy(out);
+    ecs_world_query_destroy(query);
     return error;
 }
 
-int ecs_world_query_create(struct ecs_world_query **out,
+int ecs_world_query_create(struct ecs_world_query **query,
                            struct ecs_world *world, size_t count, ...) {
-    if (!out || !world)
+    if (!query || !world)
         return CLS_NULLPTR;
 
     // TODO: Use arena allocator
-    struct ecs_world_query *query = malloc(sizeof(struct ecs_world_query));
+    struct ecs_world_query *instance = malloc(sizeof(struct ecs_world_query));
     if (!query)
         return CLS_OUT_OF_MEMORY;
 
     va_list args;
     va_start(args, count);
-    int error = ecs_world_query_create_from_va_list(query, world, count, args);
+    int error =
+        ecs_world_query_create_from_va_list(instance, world, count, args);
     va_end(args);
-
-    if (error) {
-        LOGGER_LOG_ERROR(LOGGER_ERROR, error, "%s", "Error...");
+    if (error)
         goto cleanup;
-    }
 
-    *out = query;
+    *query = instance;
     return CLS_SUCCESS;
 cleanup:
-    free(query);
+    free(instance);
     return error;
 }
 
@@ -1270,20 +1274,20 @@ int ecs_world_query_world_get(struct ecs_world **world,
     return CLS_SUCCESS;
 }
 
-int ecs_world_query_next(entity *out, struct ecs_world_query *query) {
-    if (!out || !query || !query->min_set)
+int ecs_world_query_next(entity *e, struct ecs_world_query *query) {
+    if (!e || !query || !query->min_set)
         return CLS_INVALID_ARG;
 
-    *out = ENTITY_MAX;
+    *e = ENTITY_MAX;
 
     size_t min_dense_length = 0;
     int error = array_length_get(&min_dense_length, query->min_set->dense);
     if (error)
         return error;
 
+    entity current_e = ENTITY_MAX;
     while (query->current_index < min_dense_length) {
-        entity e = 0;
-        error = array_elem_get_cpy(&e, query->min_set->dense,
+        error = array_elem_get_cpy(&current_e, query->min_set->dense,
                                    query->current_index++);
         if (error != CLS_SUCCESS)
             return error;
@@ -1305,7 +1309,7 @@ int ecs_world_query_next(entity *out, struct ecs_world_query *query) {
             if (error)
                 return error;
 
-            if (e >= sparse_length) {
+            if (current_e >= sparse_length) {
                 match = false;
                 break;
             }
@@ -1316,7 +1320,7 @@ int ecs_world_query_next(entity *out, struct ecs_world_query *query) {
                 return error;
 
             u32 dense_index = 0;
-            error = array_elem_get_cpy(&dense_index, set->sparse, e);
+            error = array_elem_get_cpy(&dense_index, set->sparse, current_e);
             if (error != CLS_SUCCESS || dense_index >= dense_length) {
                 match = false;
                 break;
@@ -1324,14 +1328,14 @@ int ecs_world_query_next(entity *out, struct ecs_world_query *query) {
 
             u32 check = 0;
             error = array_elem_get_cpy(&check, set->dense, dense_index);
-            if (error != CLS_SUCCESS || check != e) {
+            if (error != CLS_SUCCESS || check != current_e) {
                 match = false;
                 break;
             }
         }
 
         if (match) {
-            *out = e;
+            *e = current_e;
             return CLS_SUCCESS;
         }
     }
@@ -1339,10 +1343,10 @@ int ecs_world_query_next(entity *out, struct ecs_world_query *query) {
     return CLS_SUCCESS;
 }
 
-int ecs_world_query_component_get(void **out,
+int ecs_world_query_component_get(void **comp,
                                   const struct ecs_world_query *query,
                                   u32 comp_id, entity e) {
-    if (!out || !query)
+    if (!comp || !query)
         return CLS_NULLPTR;
 
     for (size_t i = 0; i < query->arg_count; ++i) {
@@ -1378,7 +1382,7 @@ int ecs_world_query_component_get(void **out,
             if (dense_index >= data_length)
                 return CLS_INVALID_ARG;
 
-            error = array_elem_get(out, set->data, dense_index);
+            error = array_elem_get(comp, set->data, dense_index);
             if (error)
                 return error;
 
@@ -1389,10 +1393,10 @@ int ecs_world_query_component_get(void **out,
     return CLS_SUCCESS;
 }
 
-int ecs_world_system_add(struct ecs_world *in, u32 system_id,
+int ecs_world_system_add(struct ecs_world *world, u32 system_id,
                          ecs_world_system_fn system, void *user_data,
                          size_t query_count, ...) {
-    if (!in)
+    if (!world)
         return CLS_NULLPTR;
 
     struct ecs_world_system new_system = {.system = system,
@@ -1401,8 +1405,8 @@ int ecs_world_system_add(struct ecs_world *in, u32 system_id,
     if (query_count > 0) {
         va_list args;
         va_start(args, query_count);
-        int error = ecs_world_query_create_from_va_list(&new_system.query, in,
-                                                        query_count, args);
+        int error = ecs_world_query_create_from_va_list(
+            &new_system.query, world, query_count, args);
         va_end(args);
 
         if (error)
@@ -1411,7 +1415,7 @@ int ecs_world_system_add(struct ecs_world *in, u32 system_id,
         new_system.query = (struct ecs_world_query){0};
     }
 
-    int error = table_insert(in->systems, &system_id, &new_system);
+    int error = table_insert(world->systems, &system_id, &new_system);
     if (error) {
         if (query_count > 0)
             ecs_world_query_destroy(&new_system.query);
@@ -1421,12 +1425,12 @@ int ecs_world_system_add(struct ecs_world *in, u32 system_id,
     return CLS_SUCCESS;
 }
 
-int ecs_world_system_remove(struct ecs_world *in, u32 system_id) {
-    if (!in)
+int ecs_world_system_remove(struct ecs_world *world, u32 system_id) {
+    if (!world)
         return CLS_NULLPTR;
 
     void *system_ptr = NULL;
-    int error = table_find(&system_ptr, in->systems, &system_id);
+    int error = table_find(&system_ptr, world->systems, &system_id);
     if (error)
         return error;
 
@@ -1435,12 +1439,12 @@ int ecs_world_system_remove(struct ecs_world *in, u32 system_id) {
         return CLS_NULLPTR;
 
     ecs_world_query_destroy(&system->query);
-    return table_remove(NULL, in->systems, &system_id);
+    return table_remove(NULL, world->systems, &system_id);
 }
 
-static int ecs_world_run_systems(struct ecs_world *in, struct app *app) {
+static int ecs_world_run_systems(struct ecs_world *world, struct app *app) {
     struct table_iterator *iter = NULL;
-    int error = table_iterator_create(&iter, in->systems);
+    int error = table_iterator_create(&iter, world->systems);
     if (error)
         return error;
 
@@ -1466,15 +1470,15 @@ static int ecs_world_run_systems(struct ecs_world *in, struct app *app) {
     return CLS_SUCCESS;
 }
 
-static int ecs_world_entity_remove_now(struct ecs_world *in, entity e) {
-    if (!in)
+static int ecs_world_entity_remove_now(struct ecs_world *world, entity e) {
+    if (!world)
         return CLS_NULLPTR;
 
     if (e == ENTITY_MAX)
         return CLS_INVALID_ARG;
 
     size_t entities_length = 0;
-    int error = array_length_get(&entities_length, in->entities);
+    int error = array_length_get(&entities_length, world->entities);
     if (error)
         return error;
 
@@ -1482,7 +1486,7 @@ static int ecs_world_entity_remove_now(struct ecs_world *in, entity e) {
         return CLS_INVALID_ARG;
 
     struct table_iterator *iter = NULL;
-    error = table_iterator_create(&iter, in->components);
+    error = table_iterator_create(&iter, world->components);
     if (error)
         return error;
 
@@ -1529,56 +1533,56 @@ static int ecs_world_entity_remove_now(struct ecs_world *in, entity e) {
             continue;
 
         u32 *key = key_ptr;
-        error = ecs_world_entity_remove_component(in, e, *key);
+        error = ecs_world_entity_remove_component(world, e, *key);
         if (error)
             return error;
     }
 
     table_iterator_destroy(iter);
-    return array_push(&in->free_entities, &e);
+    return array_push(&world->free_entities, &e);
 }
 
-static int ecs_world_delete_entities(struct ecs_world *in) {
-    if (!in)
+static int ecs_world_delete_entities(struct ecs_world *world) {
+    if (!world)
         return CLS_NULLPTR;
 
     size_t pending_deletions_length = 0;
     int error =
-        array_length_get(&pending_deletions_length, in->pending_deletions);
+        array_length_get(&pending_deletions_length, world->pending_deletions);
     if (error)
         return error;
 
     for (size_t i = 0; i < pending_deletions_length; ++i) {
         entity e = ENTITY_MAX;
-        error = array_elem_get_cpy(&e, in->pending_deletions, i);
+        error = array_elem_get_cpy(&e, world->pending_deletions, i);
         if (error)
             continue;
 
-        error = ecs_world_entity_remove_now(in, e);
+        error = ecs_world_entity_remove_now(world, e);
         if (error)
             LOGGER_LOG(LOGGER_ERROR, "Failed to delete entity %u", e);
     }
 
-    array_clear(in->pending_deletions);
+    array_clear(world->pending_deletions);
     return CLS_SUCCESS;
 }
 
-int ecs_world_update(struct ecs_world *in, struct app *app) {
-    if (!in || !app)
+int ecs_world_update(struct ecs_world *world, struct app *app) {
+    if (!world || !app)
         return CLS_NULLPTR;
 
-    if (!in->should_update)
+    if (!world->should_update)
         return CLS_SUCCESS;
 
-    if (in->tick_rate < 0.0f)
+    if (world->tick_rate < 0.0f)
         return CLS_SUCCESS;
 
-    if (in->tick_rate < 0.00001f) {
-        int error = ecs_world_run_systems(in, app);
+    if (world->tick_rate < 0.00001f) {
+        int error = ecs_world_run_systems(world, app);
         if (error)
             return error;
 
-        return ecs_world_delete_entities(in);
+        return ecs_world_delete_entities(world);
     }
 
     float dt = 0;
@@ -1586,27 +1590,27 @@ int ecs_world_update(struct ecs_world *in, struct app *app) {
     if (error)
         return error;
 
-    float tick_interval = 1.0f / in->tick_rate;
-    in->tick_amount += dt;
+    float tick_interval = 1.0f / world->tick_rate;
+    world->tick_amount += dt;
 
-    while (in->tick_amount >= tick_interval) {
-        error = ecs_world_run_systems(in, app);
+    while (world->tick_amount >= tick_interval) {
+        error = ecs_world_run_systems(world, app);
         if (error)
             return error;
 
-        error = ecs_world_delete_entities(in);
+        error = ecs_world_delete_entities(world);
         if (error)
             return error;
 
-        in->tick_amount -= tick_interval;
+        world->tick_amount -= tick_interval;
     }
 
     return CLS_SUCCESS;
 }
 
-int ecs_world_entities_length_get(size_t *out, const struct ecs_world *in) {
-    if (!out || !in)
+int ecs_world_entities_length_get(size_t *len, const struct ecs_world *world) {
+    if (!len || !world)
         return CLS_NULLPTR;
 
-    return array_length_get(out, in->entities);
+    return array_length_get(len, world->entities);
 }

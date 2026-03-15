@@ -1,5 +1,5 @@
-#ifndef UTIL_ERROR_H
-#define UTIL_ERROR_H
+#ifndef CLS_ERROR_H
+#define CLS_ERROR_H
 
 typedef enum {
     CLS_SUCCESS = 0,
@@ -14,4 +14,4 @@ typedef enum {
     CLS_GL,
 } cls_error;
 
-#endif // UTIL_ERROR_H
+#endif // CLS_ERROR_H

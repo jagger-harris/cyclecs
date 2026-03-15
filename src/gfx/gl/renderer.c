@@ -48,11 +48,11 @@ int gl_renderer_init(ivec4 bg_color) {
     return CLS_SUCCESS;
 }
 
-int gl_renderer_swap_buffers(GLFWwindow *window) {
-    if (!window)
+int gl_renderer_swap_buffers(GLFWwindow *win) {
+    if (!win)
         return CLS_NULLPTR;
 
-    glfwSwapBuffers(window);
+    glfwSwapBuffers(win);
     return CLS_SUCCESS;
 }
 
@@ -61,17 +61,17 @@ void gl_renderer_on_resize(int width, int height) {
 }
 
 static int render_batch(struct app *app, struct renderer_batch *batch) {
-    const struct gl_mesh *mesh = NULL;
+    struct gl_mesh *mesh = NULL;
     int error = assets_mesh_get(&mesh, app->assets, batch->data.mesh_id);
     if (error)
         return error;
 
-    const struct shader *shader = NULL;
+    struct shader *shader = NULL;
     error = assets_shader_get(&shader, app->assets, batch->data.shader_id);
     if (error)
         return error;
 
-    const struct texture2d *texture = NULL;
+    struct texture2d *texture = NULL;
     error = assets_texture2d_get(&texture, app->assets, batch->data.texture_id);
     if (error)
         return error;

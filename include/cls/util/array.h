@@ -1,11 +1,11 @@
-#ifndef UTIL_ARRAY_H
-#define UTIL_ARRAY_H
+#ifndef CLS_ARRAY_H
+#define CLS_ARRAY_H
 
 #include <stddef.h>
 
 /**
  * @struct array
- * @brief Opaque dynamic array.
+ * @brief Dynamic array.
  */
 struct array;
 
@@ -16,13 +16,13 @@ struct array;
  * each of size `elem_size`. Returned array must be destroyed with
  * array_destroy().
  *
- * @param[out] out            Array instance.
+ * @param[out] a              Array instance.
  * @param[in]  start_capacity Initial capacity of the array.
  * @param[in]  elem_size      Size of each element in bytes.
  *
- * @return CLS_SUCCESS on success.
- * @retval CLS_NULLPTR      If `out` is NULL.
- * @retval CLS_INVALID_ARG  If start_capacity or elem_size are zero.
+ * @return CLS_SUCCESS       On success.
+ * @retval CLS_NULLPTR       If `a` is NULL.
+ * @retval CLS_INVALID_ARG   If start_capacity or elem_size are < 1.
  * @retval CLS_OUT_OF_MEMORY If allocation fails.
  *
  * ### Example
@@ -33,29 +33,28 @@ struct array;
  * array_destroy(arr);
  * @endcode
  */
-int array_create(struct array **out, size_t start_capacity, size_t elem_size);
+int array_create(struct array **a, size_t start_capacity, size_t elem_size);
 
 /**
  * @brief Destroys an array and frees its memory.
  *
- * @param[in] in Array instance.
- * Safe to pass NULL. (no-op)
+ * @param[in] a Array instance. NULL valid.
  *
  * ### Example
  * @code
  * array_destroy(arr);
  * @endcode
  */
-void array_destroy(struct array *in);
+void array_destroy(struct array *a);
 
 /**
  * @brief Gets the number of elements in the array.
  *
- * @param[out] out Pointer to receive the length.
- * @param[in]  in  Array instance.
+ * @param[out] len Pointer to receive the length.
+ * @param[in]  a   Array instance.
  *
- * @return CLS_SUCCESS on success.
- * @retval CLS_NULLPTR If `out` or `in` is NULL.
+ * @return CLS_SUCCESS On success.
+ * @retval CLS_NULLPTR If `len` or `a` is NULL.
  *
  * ### Example
  * @code
@@ -63,80 +62,80 @@ void array_destroy(struct array *in);
  * array_length_get(&len, arr);
  * @endcode
  */
-int array_length_get(size_t *out, struct array *in);
+int array_length_get(size_t *len, struct array *a);
 
 /**
  * @brief Gets the raw data in the array.
  *
- * @param[out] out Pointer to receive the raw data.
- * @param[in]  in  Array instance.
+ * @param[out] data Pointer to receive the raw data.
+ * @param[in]  a    Array instance.
  *
- * @return CLS_SUCCESS on success.
- * @retval CLS_NULLPTR If `out` or `in` is NULL.
+ * @return CLS_SUCCESS On success.
+ * @retval CLS_NULLPTR If `data` or `a` is NULL.
  */
-int array_data_get(void **out, struct array *in);
+int array_data_get(void **data, struct array *a);
 
 /**
  * @brief Clears the array without freeing memory.
  *
  * Sets the length to zero. Existing data remains but considered invalid.
  *
- * @param[in] in Array instance.
+ * @param[in] a Array instance.
  *
- * @return CLS_SUCCESS on success.
- * @retval CLS_NULLPTR If in is NULL.
+ * @return CLS_SUCCESS On success.
+ * @retval CLS_NULLPTR If 'a' is NULL.
  */
-int array_clear(struct array *in);
+int array_clear(struct array *a);
 
 /**
  * @brief Gets a const pointer to an element in the array.
  *
- * @param[out] out   Pointer to receive the element address.
- * @param[in]  in    Array instance.
+ * @param[out] dest  Pointer to receive the element address.
+ * @param[in]  a     Array instance.
  * @param[in]  index Index of the element.
  *
- * @return CLS_SUCCESS on success.
- * @retval CLS_NULLPTR     If out or in is NULL.
- * @retval CLS_INVALID_ARG If index is out of bounds.
+ * @return CLS_SUCCESS     On success.
+ * @retval CLS_NULLPTR     If 'dest' or 'a' is NULL.
+ * @retval CLS_INVALID_ARG If 'index' is out of bounds.
  */
-int array_elem_get(void **out, const struct array *in, size_t index);
+int array_elem_get(void **dest, const struct array *a, size_t index);
 
 /**
  * @brief Copies an element from the array into user-provided memory.
  *
- * @param[out] out   Destination buffer of size at least elem_size.
- * @param[in]  in    Array instance.
+ * @param[out] dest  Destination buffer of size at least elem_size.
+ * @param[in]  a     Array instance.
  * @param[in]  index Index of the element to copy.
  *
- * @return CLS_SUCCESS on success.
- * @retval CLS_NULLPTR     If out or in is NULL.
- * @retval CLS_INVALID_ARG If index is out of range.
+ * @return CLS_SUCCESS     On success.
+ * @retval CLS_NULLPTR     If 'dest' or 'a' is NULL.
+ * @retval CLS_INVALID_ARG If 'index' is out of bounds.
  */
-int array_elem_get_cpy(void *out, const struct array *in, size_t index);
+int array_elem_get_cpy(void *dest, const struct array *a, size_t index);
 
 /**
  * @brief Sets the value of an element.
  *
  * Copies elem_size bytes from `data` into the element at `index`.
  *
- * @param[in] in    Array instance.
+ * @param[in] a     Array instance.
  * @param[in] index Index to set.
- * @param[in] data  Pointer to the element data to copy in.
+ * @param[in] elem  Pointer to the element data to copy in.
  *
- * @return CLS_SUCCESS on success.
- * @retval CLS_NULLPTR     If in or data is NULL.
- * @retval CLS_INVALID_ARG If index is out of bounds.
+ * @return CLS_SUCCESS     On success.
+ * @retval CLS_NULLPTR     If 'a' or 'elem' is NULL.
+ * @retval CLS_INVALID_ARG If 'index' is out of bounds.
  */
-int array_elem_set(struct array *in, size_t index, const void *data);
+int array_elem_set(struct array *a, size_t index, const void *elem);
 
 /**
  * @brief Appends an element to the array, growing if needed.
  *
- * @param[in,out] in    Pointer to array instance.
- * @param[in]     data  Pointer to the element to append.
+ * @param[in,out] a    Pointer to array instance.
+ * @param[in]     elem Pointer to the element to append.
  *
- * @return CLS_SUCCESS on success.
- * @retval CLS_NULLPTR      If in, *in, or data is NULL.
+ * @return CLS_SUCCESS       On success.
+ * @retval CLS_NULLPTR       If 'in' or 'elem' is NULL.
  * @retval CLS_OUT_OF_MEMORY If resizing fails.
  *
  * @note If growth occurs, the array pointer will change.
@@ -147,62 +146,62 @@ int array_elem_set(struct array *in, size_t index, const void *data);
  * array_push(&arr, &v);
  * @endcode
  */
-int array_push(struct array **in, const void *data);
+int array_push(struct array **a, const void *elem);
 
 /**
  * @brief Removes last element from array.
  *
- * @param[out] out Pointer to store popped value.
- * @param[in] in Array instance.
+ * @param[out] last Pointer to store popped value. NULL allowed.
+ * @param[in]  a    Array instance.
  *
- * @return CLS_SUCCESS on success.
- * @retval CLS_NULLPTR     If in is NULL.
- * @retval CLS_INVALID_ARG If array is empty.
+ * @return CLS_SUCCESS     On success.
+ * @retval CLS_NULLPTR     If 'a' is NULL.
+ * @retval CLS_INVALID_ARG If 'a' is empty.
  */
-int array_pop(void *last, struct array *in);
+int array_pop(void *last, struct array *a);
 
 /**
  * @brief Inserts an element at given index.
  *
  * Shifts following elements to the right. Grows the array if needed.
  *
- * @param[in] in  Pointer to array pointer.
- * @param[in]     index Insert position.
- * @param[in]     data  Element to insert.
+ * @param[in] a     Pointer to array pointer.
+ * @param[in] index Insert position.
+ * @param[in] elem  Element to insert.
  *
- * @return CLS_SUCCESS on success.
- * @retval CLS_NULLPTR     If in, *in, or data is NULL.
- * @retval CLS_INVALID_ARG If index is invalid.
+ * @return CLS_SUCCESS     On success.
+ * @retval CLS_NULLPTR     If 'a' or 'elem' is NULL.
+ * @retval CLS_INVALID_ARG If 'index' is invalid.
  */
-int array_insert(struct array **in, size_t index, const void *data);
+int array_insert(struct array **a, size_t index, const void *elem);
 
 /**
  * @brief Removes the element at the given index.
  *
  * Following elements are shifted left.
  *
- * @param[in] in Array instance.
+ * @param[in] a     Array instance.
  * @param[in] index Index of element to remove.
  *
- * @return CLS_SUCCESS on success.
- * @retval CLS_NULLPTR     If in is NULL.
- * @retval CLS_INVALID_ARG If index is invalid.
+ * @return CLS_SUCCESS     On success.
+ * @retval CLS_NULLPTR     If 'a' is NULL.
+ * @retval CLS_INVALID_ARG If 'index' is out of bounds.
  */
-int array_remove(struct array *in, size_t index);
+int array_remove(struct array *a, size_t index);
 
 /**
- * @brief Appends all elements of array `b` into array `a`.
+ * @brief Appends all elements of array `src` into array `dest`.
  *
  * Ensures sufficient capacity and performs a contiguous copy.
  *
- * @param[in] in Pointer to array instance.
- * @param[in] b  Source array. Must have same elem_size.
+ * @param[in,out] dest Pointer to array instance.
+ * @param[in]     src  Source array. Must have same elem_size.
  *
- * @return CLS_SUCCESS on success.
- * @retval CLS_NULLPTR     If in, *in, or b is NULL.
- * @retval CLS_INVALID_ARG If elem_size differs.
+ * @return CLS_SUCCESS       On success.
+ * @retval CLS_NULLPTR       If 'dest' or 'src' is NULL.
+ * @retval CLS_INVALID_ARG   If array element size differs.
  * @retval CLS_OUT_OF_MEMORY If growth fails.
  */
-int array_concat(struct array **a, const struct array *b);
+int array_concat(struct array **dest, const struct array *src);
 
-#endif // UTIL_ARRAY_H
+#endif // CLS_ARRAY_H

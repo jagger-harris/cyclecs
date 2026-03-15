@@ -2,16 +2,16 @@
 #include <cls/ecs/component/components.h>
 #include <cls/ecs/ecs.h>
 
-int camera_update(struct camera *in, struct transform *tf) {
-    if (!in)
+int camera_update(struct camera *cam, struct transform *tf) {
+    if (!cam)
         return CLS_NULLPTR;
 
-    in->update = false;
+    cam->update = false;
 
-    switch (in->type) {
+    switch (cam->type) {
     case CAMERA_PERSP: {
-        glm_perspective(in->persp.fov, in->persp.aspect_ratio, in->near_clip,
-                        in->far_clip, in->projection);
+        glm_perspective(cam->persp.fov, cam->persp.aspect_ratio, cam->near_clip,
+                        cam->far_clip, cam->projection);
 
         vec3 forward = {0.0f};
         vec3 target = {0.0f};
@@ -25,32 +25,32 @@ int camera_update(struct camera *in, struct transform *tf) {
 
         glm_vec3_norm(forward);
         glm_vec3_add(tf->pos, forward, target);
-        glm_lookat(tf->pos, target, up, in->view);
+        glm_lookat(tf->pos, target, up, cam->view);
         break;
     }
     case CAMERA_ORTHO: {
-        float zoom = in->zoom;
+        float zoom = cam->zoom;
         if (zoom <= 0.0f)
             zoom = 0.0001f;
 
-        float width = (in->ortho.right - in->ortho.left) / zoom;
-        float height = (in->ortho.bottom - in->ortho.top) / zoom;
+        float width = (cam->ortho.right - cam->ortho.left) / zoom;
+        float height = (cam->ortho.bottom - cam->ortho.top) / zoom;
 
-        float center_x = (in->ortho.right + in->ortho.left) * 0.5f;
-        float center_y = (in->ortho.top + in->ortho.bottom) * 0.5f;
+        float center_x = (cam->ortho.right + cam->ortho.left) * 0.5f;
+        float center_y = (cam->ortho.top + cam->ortho.bottom) * 0.5f;
 
         float left = center_x - width * 0.5f;
         float right = center_x + width * 0.5f;
         float bottom = center_y + height * 0.5f;
         float top = center_y - height * 0.5f;
 
-        glm_ortho(left, right, bottom, top, in->near_clip, in->far_clip,
-                  in->projection);
+        glm_ortho(left, right, bottom, top, cam->near_clip, cam->far_clip,
+                  cam->projection);
 
         mat4 view = {{0.0f}};
         glm_mat4_identity(view);
         glm_translate(view, (vec3){-tf->pos[0], -tf->pos[1], -tf->pos[2]});
-        glm_mat4_copy(view, in->view);
+        glm_mat4_copy(view, cam->view);
         break;
     }
     default:
@@ -60,26 +60,26 @@ int camera_update(struct camera *in, struct transform *tf) {
     return CLS_SUCCESS;
 }
 
-void camera_resize(struct camera *camera, ivec2 size) {
-    if (!camera)
+void camera_resize(struct camera *cam, ivec2 size) {
+    if (!cam)
         return;
 
-    camera->update = true;
+    cam->update = true;
 
-    switch (camera->type) {
+    switch (cam->type) {
     case CAMERA_PERSP:
-        camera->persp.aspect_ratio = (float)size[0] / (float)size[1];
+        cam->persp.aspect_ratio = (float)size[0] / (float)size[1];
         break;
     case CAMERA_ORTHO:
-        camera->ortho.left = 0.0f;
-        camera->ortho.right = (float)size[0];
+        cam->ortho.left = 0.0f;
+        cam->ortho.right = (float)size[0];
 
-        if (camera->ortho.y_down) {
-            camera->ortho.top = 0.0f;
-            camera->ortho.bottom = (float)size[1];
+        if (cam->ortho.y_down) {
+            cam->ortho.top = 0.0f;
+            cam->ortho.bottom = (float)size[1];
         } else {
-            camera->ortho.top = (float)size[1];
-            camera->ortho.bottom = 0.0f;
+            cam->ortho.top = (float)size[1];
+            cam->ortho.bottom = 0.0f;
         }
         break;
     default:
@@ -87,9 +87,9 @@ void camera_resize(struct camera *camera, ivec2 size) {
     }
 }
 
-int camera_screen_to_world(vec2 out, struct camera *camera,
-                           const vec2 cursor_pos, const ivec2 viewport_size) {
-    if (!camera)
+int camera_screen_to_world(vec2 pos, struct camera *cam, const vec2 cursor_pos,
+                           const ivec2 viewport_size) {
+    if (!cam)
         return CLS_NULLPTR;
 
     if (viewport_size[0] <= 0 || viewport_size[1] <= 0)
@@ -102,11 +102,11 @@ int camera_screen_to_world(vec2 out, struct camera *camera,
     mat4 view_projection = {{0}};
     mat4 inverse_view_projection = {{0}};
     vec4 world = {0};
-    glm_mat4_mul(camera->projection, camera->view, view_projection);
+    glm_mat4_mul(cam->projection, cam->view, view_projection);
     glm_mat4_inv(view_projection, inverse_view_projection);
     glm_mat4_mulv(inverse_view_projection, ndc, world);
 
-    out[0] = world[0] / world[3];
-    out[1] = world[1] / world[3];
+    pos[0] = world[0] / world[3];
+    pos[1] = world[1] / world[3];
     return CLS_SUCCESS;
 }

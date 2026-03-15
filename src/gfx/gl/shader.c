@@ -5,42 +5,42 @@
 #include <cls/util/logger.h>
 #include <string.h>
 
-#define STR_MAX 512
+#define LOG_BUFFER 512
 
-static int check_shader(GLuint shader, GLuint type) {
-    if (!glIsShader(shader))
+static int check_shader(GLuint s, GLuint type) {
+    if (!glIsShader(s))
         return CLS_INVALID_ARG;
 
     GLint gl_success = 0;
-    glGetShaderiv(shader, GL_COMPILE_STATUS, &gl_success);
+    glGetShaderiv(s, GL_COMPILE_STATUS, &gl_success);
 
     if (!gl_success) {
-        char log[STR_MAX];
-        glGetShaderInfoLog(shader, STR_MAX, NULL, log);
+        char log[LOG_BUFFER];
+        glGetShaderInfoLog(s, LOG_BUFFER, NULL, log);
 
-        const char *type_name;
+        const char *type_id;
         switch (type) {
         case GL_VERTEX_SHADER:
-            type_name = "vertex";
+            type_id = "vertex";
             break;
         case GL_FRAGMENT_SHADER:
-            type_name = "fragment";
+            type_id = "fragment";
             break;
         default:
-            type_name = "unknown";
+            type_id = "unknown";
             break;
         }
 
         LOGGER_LOG_ERROR(LOGGER_ERROR, CLS_GL,
-                         "Compiling (%s) shader failed: %s", type_name, log);
+                         "Compiling (%s) shader failed: %s", type_id, log);
         return CLS_GL;
     }
 
     return CLS_SUCCESS;
 }
 
-int gl_shader_init(struct shader *out, const struct shader_info *info) {
-    if (!out || !info || !info->vert_src || !info->frag_src)
+int gl_shader_init(struct shader *s, const struct shader_info *info) {
+    if (!s || !info || !info->vert_src || !info->frag_src)
         return CLS_NULLPTR;
 
     GLuint vert = 0;
@@ -60,10 +60,10 @@ int gl_shader_init(struct shader *out, const struct shader_info *info) {
     if (error)
         return error;
 
-    out->gl.id = glCreateProgram();
-    glAttachShader(out->gl.id, vert);
-    glAttachShader(out->gl.id, frag);
-    glLinkProgram(out->gl.id);
+    s->gl.id = glCreateProgram();
+    glAttachShader(s->gl.id, vert);
+    glAttachShader(s->gl.id, frag);
+    glLinkProgram(s->gl.id);
 
     int gl_error = (int)glGetError();
     if (gl_error != GL_NO_ERROR) {
@@ -76,101 +76,101 @@ int gl_shader_init(struct shader *out, const struct shader_info *info) {
     return CLS_SUCCESS;
 }
 
-void gl_shader_destroy(struct shader *in) {
-    if (!in)
+void gl_shader_destroy(struct shader *s) {
+    if (!s)
         return;
 
-    if (!glIsProgram(in->gl.id))
+    if (!glIsProgram(s->gl.id))
         return;
 
-    glDeleteProgram(in->gl.id);
+    glDeleteProgram(s->gl.id);
 }
 
-int gl_shader_use(const struct shader *in) {
-    if (!in)
+int gl_shader_use(const struct shader *s) {
+    if (!s)
         return CLS_NULLPTR;
 
-    if (!glIsProgram(in->gl.id))
+    if (!glIsProgram(s->gl.id))
         return CLS_INVALID_ARG;
 
-    glUseProgram(in->gl.id);
+    glUseProgram(s->gl.id);
     return CLS_SUCCESS;
 }
 
-int gl_shader_set_bool(GLuint shader, const char *name, GLboolean data) {
-    if (!name)
+int gl_shader_set_bool(GLuint s, const char *id, GLboolean value) {
+    if (!id)
         return CLS_NULLPTR;
 
-    if (!glIsProgram(shader))
+    if (!glIsProgram(s))
         return CLS_INVALID_ARG;
 
-    glUniform1i(glGetUniformLocation(shader, name), data);
+    glUniform1i(glGetUniformLocation(s, id), value);
     return CLS_SUCCESS;
 }
 
-int gl_shader_set_int(GLuint shader, const char *name, GLint data) {
-    if (!name)
+int gl_shader_set_int(GLuint s, const char *id, GLint value) {
+    if (!id)
         return CLS_NULLPTR;
 
-    if (!glIsProgram(shader))
+    if (!glIsProgram(s))
         return CLS_INVALID_ARG;
 
-    glUniform1i(glGetUniformLocation(shader, name), data);
+    glUniform1i(glGetUniformLocation(s, id), value);
     return CLS_SUCCESS;
 }
 
-int gl_shader_set_float(GLuint shader, const char *name, GLfloat data) {
-    if (!name)
+int gl_shader_set_float(GLuint s, const char *id, GLfloat value) {
+    if (!id)
         return CLS_NULLPTR;
 
-    if (!glIsProgram(shader))
+    if (!glIsProgram(s))
         return CLS_INVALID_ARG;
 
-    glUniform1f(glGetUniformLocation(shader, name), data);
+    glUniform1f(glGetUniformLocation(s, id), value);
     return CLS_SUCCESS;
 }
 
-int gl_shader_set_mat4(GLuint shader, const char *name, mat4 *data) {
-    if (!name || !data)
+int gl_shader_set_mat4(GLuint s, const char *id, mat4 *value) {
+    if (!id || !value)
         return CLS_NULLPTR;
 
-    if (!glIsProgram(shader))
+    if (!glIsProgram(s))
         return CLS_INVALID_ARG;
 
-    glUniformMatrix4fv(glGetUniformLocation(shader, name), 1, GL_FALSE,
-                       (const GLfloat *)data);
+    glUniformMatrix4fv(glGetUniformLocation(s, id), 1, GL_FALSE,
+                       (const GLfloat *)value);
     return CLS_SUCCESS;
 }
 
-int gl_shader_set_vec2(GLuint shader, const char *name, vec2 *data) {
-    if (!name || !data)
+int gl_shader_set_vec2(GLuint s, const char *id, vec2 *value) {
+    if (!id || !value)
         return CLS_NULLPTR;
 
-    if (!glIsProgram(shader))
+    if (!glIsProgram(s))
         return CLS_INVALID_ARG;
 
-    glUniform2fv(glGetUniformLocation(shader, name), 1, (const GLfloat *)data);
+    glUniform2fv(glGetUniformLocation(s, id), 1, (const GLfloat *)value);
     return CLS_SUCCESS;
 }
 
-int gl_shader_set_vec3(GLuint shader, const char *name, vec3 *data) {
-    if (!name || !data)
+int gl_shader_set_vec3(GLuint s, const char *id, vec3 *value) {
+    if (!id || !value)
         return CLS_NULLPTR;
 
-    if (!glIsProgram(shader))
+    if (!glIsProgram(s))
         return CLS_INVALID_ARG;
 
-    glUniform3fv(glGetUniformLocation(shader, name), 1, (const GLfloat *)data);
+    glUniform3fv(glGetUniformLocation(s, id), 1, (const GLfloat *)value);
     return CLS_SUCCESS;
 }
 
-int gl_shader_set_vec4(GLuint shader, const char *name, vec4 *data) {
-    if (!name || !data)
+int gl_shader_set_vec4(GLuint s, const char *id, vec4 *value) {
+    if (!id || !value)
         return CLS_NULLPTR;
 
-    if (!glIsProgram(shader))
+    if (!glIsProgram(s))
         return CLS_INVALID_ARG;
 
-    glUniform4fv(glGetUniformLocation(shader, name), 1, (const GLfloat *)data);
+    glUniform4fv(glGetUniformLocation(s, id), 1, (const GLfloat *)value);
     return CLS_SUCCESS;
 }

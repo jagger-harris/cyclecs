@@ -1,18 +1,18 @@
-#ifndef UTIL_ALLOCATOR_H
-#define UTIL_ALLOCATOR_H
+#ifndef CLS_ALLOCATOR_H
+#define CLS_ALLOCATOR_H
 
 #include <stddef.h>
 
-typedef int (*allocator_alloc_fn)(void **out, void *ctx, size_t size,
+typedef int (*allocator_alloc_fn)(void **dest, void *ctx, size_t size,
                                   size_t align);
-typedef void (*allocator_free_fn)(void *in, void *ctx);
+typedef void (*allocator_free_fn)(void *src, void *ctx);
 struct allocator;
 
-int allocator_create(struct allocator **out, allocator_alloc_fn alloc,
+int allocator_create(struct allocator **alloc, allocator_alloc_fn alloc_fn,
                      allocator_free_fn free, void *ctx);
-void allocator_destroy(struct allocator *in);
-int allocator_alloc(void **out, struct allocator *in, size_t size,
+void allocator_destroy(struct allocator *alloc);
+int allocator_alloc(void **dest, struct allocator *alloc, size_t size,
                     size_t align);
-void allocator_free(struct allocator *in, void *data);
+void allocator_free(struct allocator *alloc, void *src);
 
-#endif // UTIL_ALLOCATOR_H
+#endif // CLS_ALLOCATOR_H

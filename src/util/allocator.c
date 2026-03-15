@@ -10,35 +10,35 @@ struct allocator {
     void *ctx;
 };
 
-int allocator_create(struct allocator **out, allocator_alloc_fn alloc,
+int allocator_create(struct allocator **alloc, allocator_alloc_fn alloc_fn,
                      allocator_free_fn free, void *ctx) {
-    if (!out)
+    if (!alloc)
         return CLS_NULLPTR;
 
     struct allocator *allocator = malloc(sizeof(struct allocator));
     if (!allocator)
         return CLS_OUT_OF_MEMORY;
 
-    allocator->alloc = alloc;
+    allocator->alloc = alloc_fn;
     allocator->free = free;
     allocator->ctx = ctx;
 
-    *out = allocator;
+    *alloc = allocator;
     return CLS_SUCCESS;
 }
 
-void allocator_destroy(struct allocator *in) {
-    if (!in)
+void allocator_destroy(struct allocator *alloc) {
+    if (!alloc)
         return;
 
-    free(in);
+    free(alloc);
 }
 
-int allocator_alloc(void **out, struct allocator *in, size_t size,
+int allocator_alloc(void **dest, struct allocator *alloc, size_t size,
                     size_t align) {
-    return in->alloc(out, in->ctx, size, align);
+    return alloc->alloc(dest, alloc->ctx, size, align);
 }
 
-void allocator_free(struct allocator *in, void *data) {
-    in->free(data, in->ctx);
+void allocator_free(struct allocator *alloc, void *src) {
+    alloc->free(src, alloc->ctx);
 }
