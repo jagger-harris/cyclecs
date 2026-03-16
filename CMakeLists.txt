@@ -79,15 +79,14 @@ else()
 endif()
 
 set_target_properties(cls PROPERTIES
-    C_CLANG_TIDY $<$<CONFIG:Debug>:clang-tidy>
+    C_CLANG_TIDY "$<$<CONFIG:Debug>:clang-tidy;--use-color>"
 )
 
 # Compile commands
-add_custom_target(copy_compile_commands ALL
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+execute_process(
+    COMMAND ${CMAKE_COMMAND} -E create_symlink
         ${CMAKE_BINARY_DIR}/compile_commands.json
         ${CMAKE_SOURCE_DIR}/compile_commands.json
-    COMMENT "Copying compile_commands.json to project root"
 )
 
 # Assets
