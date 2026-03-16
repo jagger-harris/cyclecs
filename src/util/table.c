@@ -312,15 +312,15 @@ int table_remove(void *value, struct table *t, const void *key) {
             t->length--;
             *probe_metadata = 0;
 
+            if (value)
+                memcpy(value, value_ptr, t->value_size);
+
             if ((double)t->length / (double)t->capacity < MIN_LOAD_FACTOR) {
                 error = table_resize(
                     t, (size_t)((double)t->capacity * SHRINK_FACTOR));
                 if (error)
                     return error;
             }
-
-            if (value)
-                memcpy(value, value_ptr, t->value_size);
 
             return CLS_SUCCESS;
         }
