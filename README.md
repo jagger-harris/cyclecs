@@ -1,13 +1,13 @@
 # Cyclecs Engine
-A custom game engine written in C (C17) which uses a custom ECS architecture for game objects. Currently only working for Linux as of now.
+A custom game engine written in C (C17) which uses a custom ECS architecture for game objects and logic. Currently only tested on Linux.
 
 ## Libraries
-- CGLM - 0.9.6
-- FreeType - 2.14.1
-- GLFW - 3.4
-- Glad 2 - OpenGL 3.3 Core
-- stb_image - 2.30
-- stb_image_write - 1.16
+- [CGLM](https://github.com/recp/cglm) - 0.9.6 - MIT
+- [FreeType](https://gitlab.freedesktop.org/freetype/freetype) - 2.14.1 - Custom
+- [GLFW](https://github.com/glfw/glfw) - 3.4 - Zlib
+- [Glad 2](https://github.com/Dav1dde/glad) - OpenGL 3.3 Core - MIT
+- [stb_image](https://github.com/nothings/stb) - 2.30 - MIT
+- [stb_image_write](https://github.com/nothings/stb) - 1.16 - MIT
 
 ## Dependencies
 - OpenGL >= 3.3 supported graphics
