@@ -24,16 +24,16 @@ int ui_button_system(struct ecs_world_query *query, struct app *app,
         return error;
 
     struct ecs_world_query *cam_query = NULL;
-    error = ecs_world_query_create(&cam_query, world, 2, CLS_ECS_COMP_CAMERA,
-                                   CLS_ECS_COMP_CAMERA_ACTIVE);
+    error =
+        ecs_world_query_create(&cam_query, world, 2, "camera", "camera_active");
     if (error)
         return error;
 
     while (ecs_world_query_next(&cam, cam_query) == CLS_SUCCESS &&
            cam != ENTITY_MAX) {
         void *cam_ptr = NULL;
-        error = ecs_world_query_component_get(&cam_ptr, cam_query,
-                                              CLS_ECS_COMP_CAMERA, cam);
+        error =
+            ecs_world_query_component_get(&cam_ptr, cam_query, "camera", cam);
         if (error)
             continue;
 
@@ -52,7 +52,7 @@ int ui_button_system(struct ecs_world_query *query, struct app *app,
            button != U32_MAX) {
         void *button_comp_ptr = NULL;
         error = ecs_world_query_component_get(&button_comp_ptr, query,
-                                              CLS_ECS_COMP_UI_BUTTON, button);
+                                              "ui_button", button);
         if (error)
             continue;
 
@@ -61,8 +61,8 @@ int ui_button_system(struct ecs_world_query *query, struct app *app,
             continue;
 
         void *tf_ptr = NULL;
-        error = ecs_world_query_component_get(&tf_ptr, query,
-                                              CLS_ECS_COMP_TRANSFORM, button);
+        error =
+            ecs_world_query_component_get(&tf_ptr, query, "transform", button);
         if (error)
             continue;
 

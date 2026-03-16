@@ -41,22 +41,6 @@ struct game_state {
     enum player winner;
 };
 
-enum ecs_worlds { GAME_WORLD_MAIN = 0, GAME_WORLD_UI };
-enum comp_types {
-    COMP_BOARD = CLS_ECS_COMP_LENGTH,
-    COMP_BOARD_GROUP,
-    COMP_BOARD_BUTTON,
-    COMP_ARROW
-};
-enum game_sys {
-    SYS_CAMERA = CLS_ECS_SYS_LENGTH,
-    SYS_UI_BUTTON,
-    SYS_BOARD_BUTTON,
-    SYS_WINNER,
-    SYS_BENCHMARK,
-    SYS_SAVE_SCENE,
-};
-
 static int preset_board_spawn(entity *board, struct ecs_world *world,
                               const char *id, vec2 pos, enum player state[9]) {
     int rows = 3;
@@ -94,12 +78,12 @@ static int preset_board_spawn(entity *board, struct ecs_world *world,
         goto cleanup;
 
     error = ecs_world_component_add(
-        world, root, CLS_ECS_COMP_GROUP,
+        world, root, "group",
         &(struct group){.grp_id = id_hash, .user_id = root_hash});
     if (error)
         goto cleanup;
 
-    error = ecs_world_component_add(world, root, COMP_BOARD_GROUP,
+    error = ecs_world_component_add(world, root, "board_group",
                                     &(struct board_group){0});
     if (error)
         goto cleanup;
@@ -107,7 +91,7 @@ static int preset_board_spawn(entity *board, struct ecs_world *world,
     struct board board_comp = {0};
     memcpy(board_comp.state, state, sizeof(board_comp.state));
 
-    error = ecs_world_component_add(world, root, COMP_BOARD, &board);
+    error = ecs_world_component_add(world, root, "board", &board);
     if (error)
         goto cleanup;
 
@@ -129,12 +113,12 @@ static int preset_board_spawn(entity *board, struct ecs_world *world,
         goto cleanup;
 
     error = ecs_world_component_add(
-        world, bg, CLS_ECS_COMP_GROUP,
+        world, bg, "group",
         &(struct group){.grp_id = id_hash, .user_id = bg_hash});
     if (error)
         goto cleanup;
 
-    error = ecs_world_component_add(world, bg, COMP_BOARD_GROUP,
+    error = ecs_world_component_add(world, bg, "board_group",
                                     &(struct board_group){0});
     if (error)
         goto cleanup;
@@ -174,18 +158,18 @@ static int preset_board_spawn(entity *board, struct ecs_world *world,
             goto cleanup;
 
         error = ecs_world_component_add(
-            world, button, CLS_ECS_COMP_GROUP,
+            world, button, "group",
             &(struct group){.grp_id = id_hash, .user_id = button_hash});
         if (error)
             goto cleanup;
 
-        error = ecs_world_component_add(world, button, COMP_BOARD_GROUP,
+        error = ecs_world_component_add(world, button, "board_group",
                                         &(struct board_group){0});
         if (error)
             goto cleanup;
 
         error = ecs_world_component_add(
-            world, button, COMP_BOARD_BUTTON,
+            world, button, "board_button",
             &(struct board_button){.turn = board_comp.state[i]});
         if (error)
             goto cleanup;
@@ -204,52 +188,52 @@ cleanup:
 static int add_component_types(struct ecs_world *world, void *user_comp) {
     (void)user_comp;
 
-    int error = ecs_world_component_type_add(world, CLS_ECS_COMP_GROUP,
-                                             sizeof(struct group));
+    int error =
+        ecs_world_component_type_add(world, "group", sizeof(struct group));
     if (error)
         return error;
 
-    error = ecs_world_component_type_add(world, CLS_ECS_COMP_TRANSFORM,
+    error = ecs_world_component_type_add(world, "transform",
                                          sizeof(struct transform));
     if (error)
         return error;
 
-    error = ecs_world_component_type_add(world, CLS_ECS_COMP_RENDERABLE,
+    error = ecs_world_component_type_add(world, "renderable",
                                          sizeof(struct renderable));
     if (error)
         return error;
 
-    error = ecs_world_component_type_add(world, CLS_ECS_COMP_CAMERA,
-                                         sizeof(struct camera));
+    error =
+        ecs_world_component_type_add(world, "camera", sizeof(struct camera));
     if (error)
         return error;
 
-    error = ecs_world_component_type_add(world, CLS_ECS_COMP_CAMERA_ACTIVE,
+    error = ecs_world_component_type_add(world, "camera_active",
                                          sizeof(struct camera_active));
     if (error)
         return error;
 
-    error = ecs_world_component_type_add(world, CLS_ECS_COMP_UI_BASE,
-                                         sizeof(struct ui_base));
+    error =
+        ecs_world_component_type_add(world, "ui_base", sizeof(struct ui_base));
     if (error)
         return error;
 
-    error = ecs_world_component_type_add(world, CLS_ECS_COMP_UI_BUTTON,
+    error = ecs_world_component_type_add(world, "ui_button",
                                          sizeof(struct ui_button));
     if (error)
         return error;
 
-    error = ecs_world_component_type_add(world, CLS_ECS_COMP_UI_BUTTON_GROUP,
+    error = ecs_world_component_type_add(world, "button_group",
                                          sizeof(struct ui_button_group));
     if (error)
         return error;
 
-    error = ecs_world_component_type_add(world, CLS_ECS_COMP_UI_LABEL,
+    error = ecs_world_component_type_add(world, "ui_label",
                                          sizeof(struct ui_label));
     if (error)
         return error;
 
-    error = ecs_world_component_type_add(world, CLS_ECS_COMP_UI_LABEL_GROUP,
+    error = ecs_world_component_type_add(world, "label_group",
                                          sizeof(struct ui_label_group));
     if (error)
         return error;
@@ -305,8 +289,8 @@ static int board_button_system(struct ecs_world_query *query, struct app *app,
     while (ecs_world_query_next(&button, query) == CLS_SUCCESS &&
            button != U32_MAX) {
         void *button_comp_ptr = NULL;
-        int error = ecs_world_query_component_get(
-            &button_comp_ptr, query, CLS_ECS_COMP_UI_BUTTON, button);
+        int error = ecs_world_query_component_get(&button_comp_ptr, query,
+                                                  "ui_button", button);
 
         struct ui_button *button_comp = button_comp_ptr;
         if (!button)
@@ -314,7 +298,7 @@ static int board_button_system(struct ecs_world_query *query, struct app *app,
 
         void *bg_ren_comp_ptr = NULL;
         error = ecs_world_query_component_get(&bg_ren_comp_ptr, query,
-                                              CLS_ECS_COMP_RENDERABLE, button);
+                                              "renderable", button);
         if (!bg_ren_comp_ptr)
             continue;
 
@@ -343,7 +327,7 @@ static int winner_system(struct ecs_world_query *query, struct app *app,
            board != U32_MAX) {
         void *board_comp_ptr = NULL;
         int error = ecs_world_query_component_get(&board_comp_ptr, query,
-                                                  COMP_BOARD, board);
+                                                  "board", board);
         if (error)
             continue;
 
@@ -372,11 +356,11 @@ static int game_init(struct game_state *state, struct app *app) {
                          TEXTURE_WRAP_CLAMP);
 
     // Components
-    int error = ecs_world_add(ecs, GAME_WORLD_MAIN, 0.0f, 0, true);
+    int error = ecs_world_add(ecs, "main", 0.0f, 0, true);
     if (error)
         return error;
 
-    error = ecs_world_add(ecs, GAME_WORLD_UI, 20.0f, 0, true);
+    error = ecs_world_add(ecs, "ui", 20.0f, 0, true);
     if (error)
         return error;
 
@@ -385,45 +369,44 @@ static int game_init(struct game_state *state, struct app *app) {
         return error;
 
     struct ecs_world *main_world = NULL;
-    error = ecs_world_get(&main_world, ecs, GAME_WORLD_MAIN);
+    error = ecs_world_get(&main_world, ecs, "main");
     if (error)
         return error;
 
-    error = ecs_world_component_type_add(main_world, COMP_BOARD_GROUP,
+    error = ecs_world_component_type_add(main_world, "board_group",
                                          sizeof(struct board_group));
     if (error)
         return error;
 
-    error = ecs_world_component_type_add(main_world, COMP_BOARD,
-                                         sizeof(struct board));
+    error =
+        ecs_world_component_type_add(main_world, "board", sizeof(struct board));
     if (error)
         return error;
 
-    error = ecs_world_component_type_add(main_world, COMP_BOARD_BUTTON,
+    error = ecs_world_component_type_add(main_world, "board_button",
                                          sizeof(struct board_button));
     if (error)
         return error;
 
     // Systems
-    error = ecs_world_system_add(
-        main_world, CLS_ECS_SYS_UI_BUTTON, ui_button_system, NULL, 3,
-        CLS_ECS_COMP_UI_BASE, CLS_ECS_COMP_UI_BUTTON, CLS_ECS_COMP_TRANSFORM);
+    error = ecs_world_system_add(main_world, "ui_button", ui_button_system,
+                                 NULL, 3, "ui_base", "ui_button", "transform");
     if (error)
         return error;
 
-    error = ecs_world_system_add(
-        main_world, SYS_BOARD_BUTTON, board_button_system, NULL, 2,
-        CLS_ECS_COMP_RENDERABLE, CLS_ECS_COMP_UI_BUTTON);
+    error =
+        ecs_world_system_add(main_world, "board_button", board_button_system,
+                             NULL, 2, "renderable", "ui_button");
     if (error)
         return error;
 
-    error = ecs_world_system_add(main_world, SYS_WINNER, winner_system, state,
-                                 1, COMP_BOARD);
+    error = ecs_world_system_add(main_world, "winner", winner_system, state, 1,
+                                 "board");
     if (error)
         return error;
 
     struct ecs_world *ui_world = NULL;
-    error = ecs_world_get(&ui_world, ecs, GAME_WORLD_UI);
+    error = ecs_world_get(&ui_world, ecs, "ui");
     if (error)
         return error;
 

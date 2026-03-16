@@ -33,17 +33,16 @@ int preset_camera_ortho_spawn(entity *camera, struct ecs_world *world, vec3 pos,
     if (error)
         return error;
 
-    error =
-        ecs_world_component_add(world, root, CLS_ECS_COMP_CAMERA, &cam_data);
+    error = ecs_world_component_add(world, root, "camera", &cam_data);
     if (error)
         goto cleanup;
 
-    error = ecs_world_component_add(world, root, CLS_ECS_COMP_TRANSFORM, &tf);
+    error = ecs_world_component_add(world, root, "transform", &tf);
     if (error)
         goto cleanup;
 
     if (active) {
-        error = ecs_world_component_add(world, root, CLS_ECS_COMP_CAMERA_ACTIVE,
+        error = ecs_world_component_add(world, root, "camera_active",
                                         &(struct camera_active){0});
         if (error)
             goto cleanup;
@@ -96,12 +95,11 @@ int preset_renderable_spawn(entity *ren, struct ecs_world *world,
     if (error)
         return error;
 
-    error = ecs_world_component_add(world, root, CLS_ECS_COMP_RENDERABLE,
-                                    &ren_data);
+    error = ecs_world_component_add(world, root, "renderable", &ren_data);
     if (error)
         goto cleanup;
 
-    error = ecs_world_component_add(world, root, CLS_ECS_COMP_TRANSFORM, &tf);
+    error = ecs_world_component_add(world, root, "transform", &tf);
     if (error)
         goto cleanup;
 
@@ -162,22 +160,21 @@ int preset_ui_image_button_spawn(entity *button, struct ecs_world *world,
         goto cleanup;
 
     error = ecs_world_component_add(
-        world, root, CLS_ECS_COMP_GROUP,
+        world, root, "group",
         &(struct group){.grp_id = id_hash, .user_id = root_hash});
     if (error)
         goto cleanup;
 
-    error = ecs_world_component_add(world, root, CLS_ECS_COMP_UI_BUTTON_GROUP,
+    error = ecs_world_component_add(world, root, "button_group",
                                     &(struct ui_button_group){0});
     if (error)
         goto cleanup;
 
-    error = ecs_world_component_add(world, root, CLS_ECS_COMP_UI_BASE, &base);
+    error = ecs_world_component_add(world, root, "ui_base", &base);
     if (error)
         goto cleanup;
 
-    error = ecs_world_component_add(world, root, CLS_ECS_COMP_UI_BUTTON,
-                                    &button_data);
+    error = ecs_world_component_add(world, root, "ui_button", &button_data);
     if (error)
         goto cleanup;
 
@@ -195,12 +192,12 @@ int preset_ui_image_button_spawn(entity *button, struct ecs_world *world,
         goto cleanup;
 
     error = ecs_world_component_add(
-        world, sprite, CLS_ECS_COMP_GROUP,
+        world, sprite, "group",
         &(struct group){.grp_id = id_hash, .user_id = sprite_hash});
     if (error)
         goto cleanup;
 
-    error = ecs_world_component_add(world, sprite, CLS_ECS_COMP_UI_BUTTON_GROUP,
+    error = ecs_world_component_add(world, sprite, "button_group",
                                     &(struct ui_button_group){0});
     if (error)
         goto cleanup;
@@ -252,22 +249,21 @@ int preset_ui_label_spawn(entity *label, struct ecs_world *world,
     if (error)
         return error;
 
-    error = ecs_world_component_add(world, root, CLS_ECS_COMP_GROUP,
+    error = ecs_world_component_add(world, root, "group",
                                     &(struct group){.grp_id = id_hash});
     if (error)
         goto cleanup;
 
-    error = ecs_world_component_add(world, root, CLS_ECS_COMP_UI_LABEL_GROUP,
+    error = ecs_world_component_add(world, root, "label_group",
                                     &(struct ui_label_group){0});
     if (error)
         goto cleanup;
 
-    error = ecs_world_component_add(world, root, CLS_ECS_COMP_UI_BASE, &base);
+    error = ecs_world_component_add(world, root, "ui_base", &base);
     if (error)
         return error;
 
-    error = ecs_world_component_add(world, root, CLS_ECS_COMP_UI_LABEL,
-                                    &label_data);
+    error = ecs_world_component_add(world, root, "ui_label", &label_data);
     if (error)
         return error;
 
@@ -308,14 +304,13 @@ int preset_ui_label_spawn(entity *label, struct ecs_world *world,
         if (error)
             goto cleanup;
 
-        error = ecs_world_component_add(world, glyph, CLS_ECS_COMP_GROUP,
+        error = ecs_world_component_add(world, glyph, "group",
                                         &(struct group){.grp_id = id_hash});
         if (error)
             goto cleanup;
 
-        error =
-            ecs_world_component_add(world, glyph, CLS_ECS_COMP_UI_LABEL_GROUP,
-                                    &(struct ui_label_group){0});
+        error = ecs_world_component_add(world, glyph, "label_group",
+                                        &(struct ui_label_group){0});
         if (error)
             goto cleanup;
 

@@ -153,9 +153,8 @@ static int find_active_camera(struct camera **cam, struct transform **tf,
         return CLS_NULLPTR;
 
     struct ecs_world_query *cam_query = NULL;
-    int error = ecs_world_query_create(
-        &cam_query, world, 3, CLS_ECS_COMP_CAMERA, CLS_ECS_COMP_CAMERA_ACTIVE,
-        CLS_ECS_COMP_TRANSFORM);
+    int error = ecs_world_query_create(&cam_query, world, 3, "camera",
+                                       "camera_active", "transform");
     if (error)
         return error;
 
@@ -163,14 +162,13 @@ static int find_active_camera(struct camera **cam, struct transform **tf,
     while (ecs_world_query_next(&e, cam_query) == CLS_SUCCESS &&
            e != ENTITY_MAX) {
         void *cam_ptr = NULL;
-        error = ecs_world_query_component_get(&cam_ptr, cam_query,
-                                              CLS_ECS_COMP_CAMERA, e);
+        error = ecs_world_query_component_get(&cam_ptr, cam_query, "camera", e);
         if (error)
             continue;
 
         void *tf_ptr = NULL;
-        error = ecs_world_query_component_get(&tf_ptr, cam_query,
-                                              CLS_ECS_COMP_TRANSFORM, e);
+        error =
+            ecs_world_query_component_get(&tf_ptr, cam_query, "transform", e);
         if (error)
             continue;
 
@@ -239,8 +237,8 @@ static int renderer_ecs_create_render_cmds(struct renderer *rend,
         };
 
         struct ecs_world_query *query = NULL;
-        error = ecs_world_query_create(
-            &query, world, 2, CLS_ECS_COMP_RENDERABLE, CLS_ECS_COMP_TRANSFORM);
+        error =
+            ecs_world_query_create(&query, world, 2, "renderable", "transform");
         if (error)
             continue;
 
@@ -249,14 +247,14 @@ static int renderer_ecs_create_render_cmds(struct renderer *rend,
                e != ENTITY_MAX) {
 
             void *ren_ptr = NULL;
-            error = ecs_world_query_component_get(&ren_ptr, query,
-                                                  CLS_ECS_COMP_RENDERABLE, e);
+            error =
+                ecs_world_query_component_get(&ren_ptr, query, "renderable", e);
             if (error)
                 continue;
 
             void *tf_ptr = NULL;
-            error = ecs_world_query_component_get(&tf_ptr, query,
-                                                  CLS_ECS_COMP_TRANSFORM, e);
+            error =
+                ecs_world_query_component_get(&tf_ptr, query, "transform", e);
             if (error)
                 continue;
 
