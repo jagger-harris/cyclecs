@@ -5,7 +5,7 @@ A custom game engine written in C (C17) which uses a custom ECS architecture for
 - CGLM - 0.9.6
 - FreeType - 2.14.1
 - GLFW - 3.4
-- Glad - OpenGL 3.3 Core
+- Glad 2 - OpenGL 3.3 Core
 - stb_image - 2.30
 - stb_image_write - 1.16
 
