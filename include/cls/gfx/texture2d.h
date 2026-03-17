@@ -1,5 +1,5 @@
-#ifndef GFX_TEXTURE2D_H
-#define GFX_TEXTURE2D_H
+#ifndef CLS_TEXTURE2D_H
+#define CLS_TEXTURE2D_H
 
 #include <cls/gfx/gl/texture2d.h>
 #include <cls/util/types.h>
@@ -23,4 +23,4 @@ struct texture2d_info {
     enum texture2d_wrap wrap;
 };
 
-#endif // GFX_TEXTURE2D_H
+#endif // CLS_TEXTURE2D_H

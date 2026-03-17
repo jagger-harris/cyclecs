@@ -1,5 +1,5 @@
-#ifndef GFX_API_H
-#define GFX_API_H
+#ifndef CLS_API_H
+#define CLS_API_H
 
 #include <cglm/types.h>
 
@@ -16,7 +16,8 @@ struct gfx_api {
     int (*init)(ivec4 bg_color);
     int (*swap_buffers)(GLFWwindow *win);
     void (*on_resize)(int width, int height);
-    int (*draw_frame)(struct app *app, struct array *render_batches);
+    int (*draw_frame)(struct app *app, struct array *transparent_cmds,
+                      struct array *batches);
     int (*shader_init)(struct shader *s, const struct shader_info *info);
     void (*shader_destroy)(struct shader *s);
     int (*shader_use)(const struct shader *s);
@@ -25,4 +26,4 @@ struct gfx_api {
     int (*texture2d_use)(const struct texture2d *tex);
 };
 
-#endif // GFX_API_H
+#endif // CLS_API_H

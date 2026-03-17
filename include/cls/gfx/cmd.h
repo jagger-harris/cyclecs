@@ -1,5 +1,5 @@
-#ifndef GFX_RENDERER_CMD_H
-#define GFX_RENDERER_CMD_H
+#ifndef CLS_RENDERER_CMD_H
+#define CLS_RENDERER_CMD_H
 
 #include <cglm/types.h>
 
@@ -10,6 +10,7 @@ struct renderer_cmd {
     mat4 mvp;
     struct renderable *ren;
     struct transform *tf;
+    float depth;
 };
 
-#endif // GFX_RENDERER_CMD_H
+#endif // CLS_RENDERER_CMD_H

@@ -1,5 +1,5 @@
-#ifndef GFX_SHADER_H
-#define GFX_SHADER_H
+#ifndef CLS_SHADER_H
+#define CLS_SHADER_H
 
 #include <cls/gfx/gl/shader.h>
 #include <cls/util/types.h>
@@ -16,4 +16,4 @@ struct shader_info {
     const char *frag_src;
 };
 
-#endif // GFX_SHADER_H
+#endif // CLS_SHADER_H

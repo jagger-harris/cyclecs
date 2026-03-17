@@ -15,10 +15,12 @@
 #include <cls/util/logger.h>
 #include <cls/util/profiler.h>
 
-#define RENDERER_BATCH_START_CAPACITY 64
+#define START_CMD_CAPACITY 128
+#define BATCH_START_CAPACITY 64
 
 struct renderer {
     struct allocator *alloc_frame;
+    struct array *transparent_cmds;
     struct array *batches;
     struct table *batch_indices;
     struct gfx_api *api;
@@ -30,6 +32,7 @@ struct ecs_renderer_ctx {
     struct camera *active_cam;
     struct renderer *rend;
     struct renderable *ren;
+    struct transform *cam_tf;
     struct transform *tf;
     struct ecs_world *world;
 };
@@ -38,6 +41,10 @@ static int renderer_batch_add_cmd(struct renderer *rend,
                                   struct renderer_cmd *cmd) {
     if (!rend || !cmd || !cmd->ren)
         return CLS_NULLPTR;
+
+    bool transparent = cmd->ren->transparent || cmd->ren->opacity < 1.0f;
+    if (transparent)
+        return array_push(&rend->transparent_cmds, (void *)&cmd);
 
     struct renderer_batch_data key = {
         .mesh_id = cmd->ren->mesh_id,
@@ -79,7 +86,7 @@ static int renderer_batch_add_cmd(struct renderer *rend,
         if (!batch)
             return error;
 
-        error = array_create(&batch_cmds, RENDERER_BATCH_START_CAPACITY,
+        error = array_create(&batch_cmds, BATCH_START_CAPACITY,
                              sizeof(struct renderer_ren *));
         if (error)
             goto cleanup;
@@ -124,7 +131,11 @@ static int add_ecs_base_renderer_cmd(struct ecs_renderer_ctx *ctx) {
 
     cmd->ren = ctx->ren;
 
-    mat4 model;
+    vec3 delta = {0.0f};
+    glm_vec3_sub(ctx->tf->pos, ctx->cam_tf->pos, delta);
+    cmd->depth = glm_vec3_dot(ctx->active_cam->forward, delta);
+
+    mat4 model = {{0.0f}};
     glm_mat4_identity(model);
     glm_translate(model, ctx->tf->pos);
     glm_rotate_at(model, ctx->tf->origin, ctx->tf->rot_angle,
@@ -232,6 +243,7 @@ static int renderer_ecs_create_render_cmds(struct renderer *rend,
         struct ecs_renderer_ctx ctx = {
             .app = app,
             .active_cam = active_cam,
+            .cam_tf = cam_tf,
             .rend = rend,
             .world = world,
         };
@@ -300,6 +312,10 @@ static int renderer_frame_clear(struct renderer *rend, struct app *app) {
             array_destroy(batch->cmds);
     }
 
+    error = array_clear(rend->transparent_cmds);
+    if (error)
+        return error;
+
     error = array_clear(rend->batches);
     if (error)
         return error;
@@ -336,6 +352,31 @@ static void renderer_frame_destroy(struct renderer *rend) {
     }
 }
 
+static int cmd_depth_compare(const void *a, const void *b) {
+    const struct renderer_cmd *ca = *(const struct renderer_cmd **)a;
+    const struct renderer_cmd *cb = *(const struct renderer_cmd **)b;
+    if (cb->depth > ca->depth)
+        return 1;
+    if (cb->depth < ca->depth)
+        return -1;
+    return 0;
+}
+
+static int renderer_sort_transparent(struct renderer *rend) {
+    size_t count = 0;
+    int error = array_length_get(&count, rend->transparent_cmds);
+    if (error)
+        return error;
+
+    void *data = NULL;
+    error = array_data_get(&data, rend->transparent_cmds);
+    if (error)
+        return error;
+
+    qsort(data, count, sizeof(struct renderer_cmd *), cmd_depth_compare);
+    return CLS_SUCCESS;
+}
+
 int renderer_create(struct renderer **rend, struct allocator *alloc_perm,
                     struct allocator *alloc_frame, struct gfx_api *api,
                     ivec4 bg_color) {
@@ -357,12 +398,17 @@ int renderer_create(struct renderer **rend, struct allocator *alloc_perm,
     instance->api = api;
     glm_ivec4_copy(bg_color, instance->bg_color);
 
-    error = array_create(&instance->batches, RENDERER_START_CMD_CAPACITY,
+    error = array_create(&instance->transparent_cmds, START_CMD_CAPACITY,
+                         sizeof(struct renderer_cmd *));
+    if (error)
+        goto cleanup;
+
+    error = array_create(&instance->batches, START_CMD_CAPACITY,
                          sizeof(struct renderer_batch));
     if (error)
         goto cleanup;
 
-    error = table_create(&instance->batch_indices, RENDERER_START_CMD_CAPACITY,
+    error = table_create(&instance->batch_indices, START_CMD_CAPACITY,
                          sizeof(struct renderer_batch_data), sizeof(size_t));
     if (error)
         goto cleanup;
@@ -384,6 +430,7 @@ void renderer_destroy(struct renderer *rend) {
         return;
 
     renderer_frame_destroy(rend);
+    array_destroy(rend->transparent_cmds);
     array_destroy(rend->batches);
     table_destroy(rend->batch_indices);
 }
@@ -415,7 +462,11 @@ int renderer_frame_create(struct renderer *rend, struct app *app) {
     if (error)
         return error;
 
-    error = rend->api->draw_frame(app, rend->batches);
+    error = renderer_sort_transparent(rend);
+    if (error)
+        return error;
+
+    error = rend->api->draw_frame(app, rend->transparent_cmds, rend->batches);
     if (error)
         return error;
 

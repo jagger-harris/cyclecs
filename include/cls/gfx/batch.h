@@ -1,5 +1,5 @@
-#ifndef GFX_RENDERER_BATCH_H
-#define GFX_RENDERER_BATCH_H
+#ifndef CLS_RENDERER_BATCH_H
+#define CLS_RENDERER_BATCH_H
 
 #include <cls/util/array.h>
 #include <cls/util/globals.h>
@@ -18,4 +18,4 @@ struct renderer_batch {
     struct array *cmds;
 };
 
-#endif // GFX_RENDERER_BATCH_H
+#endif // CLS_RENDERER_BATCH_H

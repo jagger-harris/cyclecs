@@ -14,10 +14,10 @@
 #include <cls/util/xxhash32.h>
 
 #define START_CAPACITY 64
-#define DEFAULT_PATH "data/base/"
-#define FONT_PATH DEFAULT_PATH "gfx/fonts/"
-#define SHADER_PATH DEFAULT_PATH "gfx/shaders/"
-#define TEXTURE2D_PATH DEFAULT_PATH "gfx/texture2ds/"
+#define CORE_PATH "data/core/"
+#define FONT_PATH CORE_PATH "gfx/fonts/"
+#define SHADER_PATH CORE_PATH "gfx/shaders/"
+#define TEXTURE2D_PATH CORE_PATH "gfx/texture2ds/"
 #define TEXTURE2D_DEFAULT_BLANK "DEFAULT_BLANK"
 #define TEXTURE2D_DEFAULT_MISSING "DEFAULT_MISSING"
 

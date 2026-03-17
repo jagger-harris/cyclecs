@@ -60,6 +60,44 @@ void gl_renderer_on_resize(int width, int height) {
     glViewport(0, 0, width, height);
 }
 
+static int render_cmd(struct app *app, struct renderer_cmd *cmd) {
+    struct gl_mesh *mesh = NULL;
+    int error = assets_mesh_get(&mesh, app->assets, cmd->ren->mesh_id);
+    if (error)
+        return error;
+
+    struct shader *shader = NULL;
+    error = assets_shader_get(&shader, app->assets, cmd->ren->shader_id);
+    if (error)
+        return error;
+
+    struct texture2d *texture = NULL;
+    error = assets_texture2d_get(&texture, app->assets, cmd->ren->texture_id);
+    if (error)
+        return error;
+
+    error = gl_shader_use(shader);
+    if (error)
+        return error;
+
+    error = gl_texture2d_use(texture);
+    if (error)
+        return error;
+
+    vec4 tint = {
+        (float)cmd->ren->tint[0] / 255.0f, (float)cmd->ren->tint[1] / 255.0f,
+        (float)cmd->ren->tint[2] / 255.0f, (float)cmd->ren->tint[3] / 255.0f};
+
+    gl_shader_set_mat4(shader->gl.id, "u_mvp", &cmd->mvp);
+    gl_shader_set_vec4(shader->gl.id, "u_tint", &tint);
+    gl_shader_set_vec2(shader->gl.id, "u_uv_offset", &cmd->ren->uv_offset);
+    gl_shader_set_vec2(shader->gl.id, "u_uv_scale", &cmd->ren->uv_scale);
+    gl_shader_set_bool(shader->gl.id, "u_use_instancing", GL_FALSE);
+    gl_mesh_draw(mesh);
+
+    return CLS_SUCCESS;
+}
+
 static int render_batch(struct app *app, struct renderer_batch *batch) {
     struct gl_mesh *mesh = NULL;
     int error = assets_mesh_get(&mesh, app->assets, batch->data.mesh_id);
@@ -83,8 +121,6 @@ static int render_batch(struct app *app, struct renderer_batch *batch) {
     error = gl_texture2d_use(texture);
     if (error)
         return error;
-
-    batch->data.transparent ? glEnable(GL_BLEND) : glDisable(GL_BLEND);
 
     size_t cmds_length = 0;
     error = array_length_get(&cmds_length, batch->cmds);
@@ -163,7 +199,8 @@ static int render_batch(struct app *app, struct renderer_batch *batch) {
     return CLS_SUCCESS;
 }
 
-int gl_renderer_draw_frame(struct app *app, struct array *batches) {
+int gl_renderer_draw_frame(struct app *app, struct array *transparent_cmds,
+                           struct array *batches) {
     if (!app || !batches)
         return CLS_NULLPTR;
 
@@ -189,6 +226,40 @@ int gl_renderer_draw_frame(struct app *app, struct array *batches) {
                              "GL rendering render batch failed");
             continue;
         }
+    }
+
+    size_t transparent_length = 0;
+    error = array_length_get(&transparent_length, transparent_cmds);
+    if (error)
+        return error;
+
+    if (transparent_length > 0) {
+        glEnable(GL_BLEND);
+        glDepthMask(GL_FALSE);
+
+        for (size_t i = 0; i < transparent_length; ++i) {
+            void *cmd_ptr = NULL;
+            error = array_elem_get(&cmd_ptr, transparent_cmds, i);
+            if (error)
+                continue;
+
+            if (!cmd_ptr)
+                continue;
+
+            struct renderer_cmd *cmd = *(struct renderer_cmd **)cmd_ptr;
+            if (!cmd)
+                continue;
+
+            error = render_cmd(app, cmd);
+            if (error) {
+                LOGGER_LOG_ERROR(LOGGER_ERROR, error, "%s",
+                                 "GL rendering transparent cmd failed");
+                continue;
+            }
+        }
+
+        glDepthMask(GL_TRUE);
+        glDisable(GL_BLEND);
     }
 
     return CLS_SUCCESS;

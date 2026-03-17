@@ -36,7 +36,7 @@ struct board_button {
     enum player turn;
 };
 
-struct game_state {
+struct state {
     enum player turn;
     enum player winner;
 };
@@ -321,7 +321,7 @@ static int winner_system(struct ecs_world_query *query, struct app *app,
     if (!query || !app)
         return CLS_NULLPTR;
 
-    struct game_state *state = user_data;
+    struct state *state = user_data;
     entity board = ENTITY_MAX;
     while (ecs_world_query_next(&board, query) == CLS_SUCCESS &&
            board != U32_MAX) {
@@ -345,7 +345,7 @@ static int winner_system(struct ecs_world_query *query, struct app *app,
     return CLS_SUCCESS;
 }
 
-static int game_init(struct game_state *state, struct app *app) {
+static int game_init(struct state *state, struct app *app) {
     struct assets *assets = app->assets;
     struct ecs *ecs = app->ecs;
     state->turn = PLAYER_X;
@@ -439,8 +439,9 @@ static int game_init(struct game_state *state, struct app *app) {
         return error;
 
     error = preset_ui_label_spawn(
-        NULL, ui_world, assets, "winner_text", (vec2){100.0f, 500.0f}, 1.0f, "",
-        150, "human_sans-regular.otf", true, (ivec4){255, 255, 255, 255});
+        NULL, ui_world, assets, "winner", (vec2){100.0f, 500.0f}, 1.0f,
+        "this is some test text", 150, "human_sans-regular.otf", true,
+        (ivec4){255, 255, 255, 255});
     if (error)
         return error;
 
@@ -459,7 +460,7 @@ int main(void) {
                          .texture2d_init = gl_texture2d_init,
                          .texture2d_destroy = gl_texture2d_destroy,
                          .texture2d_use = gl_texture2d_use};
-    struct game_state state = {0};
+    struct state state = {0};
     struct app app = {0};
     int error = app_init(&app, &api, (ivec2){SCREEN_WIDTH, SCREEN_HEIGHT},
                          SCREEN_TITLE, SCREEN_COLOR);

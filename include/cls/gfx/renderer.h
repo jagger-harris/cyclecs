@@ -1,12 +1,10 @@
-#ifndef GFX_RENDERER_H
-#define GFX_RENDERER_H
+#ifndef CLS_RENDERER_H
+#define CLS_RENDERER_H
 
 #include <cglm/types.h>
 #include <cls/util/allocator.h>
 #include <cls/util/array.h>
 #include <cls/util/table.h>
-
-#define RENDERER_START_CMD_CAPACITY 128
 
 typedef struct GLFWwindow GLFWwindow;
 struct allocator;
@@ -22,4 +20,4 @@ int renderer_swap_buffers(struct renderer *rend, GLFWwindow *win);
 int renderer_on_resize(struct renderer *rend, int width, int height);
 int renderer_frame_create(struct renderer *rend, struct app *app);
 
-#endif // GFX_RENDERER_H
+#endif // CLS_RENDERER_H

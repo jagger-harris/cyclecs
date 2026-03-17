@@ -1,5 +1,5 @@
-#ifndef GFX_GL_SHADER_H
-#define GFX_GL_SHADER_H
+#ifndef CLS_GL_SHADER_H
+#define CLS_GL_SHADER_H
 
 #include <cglm/cglm.h>
 #include <glad/gl.h>
@@ -23,4 +23,4 @@ int gl_shader_set_vec2(GLuint s, const char *id, vec2 *value);
 int gl_shader_set_vec3(GLuint s, const char *id, vec3 *value);
 int gl_shader_set_vec4(GLuint s, const char *id, vec4 *value);
 
-#endif // GFX_GL_SHADER_H
+#endif // CLS_GL_SHADER_H

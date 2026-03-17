@@ -3,60 +3,44 @@
 #include <cls/ecs/ecs.h>
 
 int camera_update(struct camera *cam, struct transform *tf) {
-    if (!cam)
+    if (!cam || !tf)
         return CLS_NULLPTR;
 
-    cam->update = false;
+    vec3 forward = {0.0f, 0.0f, -1.0f};
+    vec3 up = {0.0f, 1.0f, 0.0f};
+
+    mat4 rot = {{0.0f}};
+    glm_mat4_identity(rot);
+    glm_rotate(rot, tf->rot_angle, tf->rot_axis);
+
+    vec4 fwd4 = {0.0f, 0.0f, -1.0f, 0.0f};
+    vec4 up4 = {0.0f, 1.0f, 0.0f, 0.0f};
+    glm_mat4_mulv(rot, fwd4, fwd4);
+    glm_mat4_mulv(rot, up4, up4);
+
+    glm_vec3(fwd4, forward);
+    glm_vec3(up4, up);
+
+    vec3 target;
+    glm_vec3_add(tf->pos, forward, target);
+    glm_lookat(tf->pos, target, up, cam->view);
 
     switch (cam->type) {
-    case CAMERA_PERSP: {
-        glm_perspective(cam->persp.fov, cam->persp.aspect_ratio, cam->near_clip,
-                        cam->far_clip, cam->projection);
-
-        vec3 forward = {0.0f};
-        vec3 target = {0.0f};
-        vec3 up = {0.0f, 1.0f, 0.0f};
-        float pitch = glm_rad(tf->rot_axis[0]);
-        float yaw = glm_rad(tf->rot_axis[1]);
-
-        forward[0] = cosf(pitch) * cosf(yaw);
-        forward[1] = sinf(pitch);
-        forward[2] = cosf(pitch) * sinf(yaw);
-
-        glm_vec3_norm(forward);
-        glm_vec3_add(tf->pos, forward, target);
-        glm_lookat(tf->pos, target, up, cam->view);
+    case CAMERA_PERSP:
+        glm_perspective(glm_rad(cam->persp.fov / cam->zoom),
+                        cam->persp.aspect_ratio, cam->near_clip, cam->far_clip,
+                        cam->projection);
         break;
-    }
     case CAMERA_ORTHO: {
-        float zoom = cam->zoom;
-        if (zoom <= 0.0f)
-            zoom = 0.0001f;
-
-        float width = (cam->ortho.right - cam->ortho.left) / zoom;
-        float height = (cam->ortho.bottom - cam->ortho.top) / zoom;
-
-        float center_x = (cam->ortho.right + cam->ortho.left) * 0.5f;
-        float center_y = (cam->ortho.top + cam->ortho.bottom) * 0.5f;
-
-        float left = center_x - width * 0.5f;
-        float right = center_x + width * 0.5f;
-        float bottom = center_y + height * 0.5f;
-        float top = center_y - height * 0.5f;
-
-        glm_ortho(left, right, bottom, top, cam->near_clip, cam->far_clip,
-                  cam->projection);
-
-        mat4 view = {{0.0f}};
-        glm_mat4_identity(view);
-        glm_translate(view, (vec3){-tf->pos[0], -tf->pos[1], -tf->pos[2]});
-        glm_mat4_copy(view, cam->view);
+        float z = cam->zoom;
+        glm_ortho(cam->ortho.left / z, cam->ortho.right / z,
+                  cam->ortho.bottom / z, cam->ortho.top / z, cam->near_clip,
+                  cam->far_clip, cam->projection);
         break;
     }
-    default:
-        return CLS_INVALID_ARG;
     }
 
+    cam->update = false;
     return CLS_SUCCESS;
 }
 

@@ -1,5 +1,5 @@
-#ifndef GFX_QUAD_H
-#define GFX_QUAD_H
+#ifndef CLS_QUAD_H
+#define CLS_QUAD_H
 
 #include <cls/gfx/gl/mesh.h>
 #include <cls/util/array.h>
@@ -14,4 +14,4 @@ static const unsigned int QUAD_INDICES[] = {0, 2, 1, 0, 3, 2};
 static const size_t QUAD_VERTEX_COUNT = ARRAY_LENGTH(QUAD_VERTICES);
 static const size_t QUAD_INDEX_COUNT = ARRAY_LENGTH(QUAD_INDICES);
 
-#endif // GFX_QUAD_H
+#endif // CLS_QUAD_H

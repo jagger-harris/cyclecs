@@ -30,6 +30,7 @@ struct camera {
     };
     mat4 view;
     mat4 projection;
+    vec3 forward;
     enum camera_type type;
     float zoom;
     float near_clip;
