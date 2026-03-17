@@ -1,8 +1,6 @@
 #include <cls/app/app.h>
 #include <cls/app/assets.h>
 #include <cls/app/window.h>
-#include <cls/ecs/component/camera.h>
-#include <cls/ecs/component/components.h>
 #include <cls/ecs/ecs.h>
 #include <cls/ecs/preset/presets.h>
 #include <cls/ecs/system/ui_button.h>
@@ -185,62 +183,6 @@ cleanup:
     return error;
 }
 
-static int add_component_types(struct ecs_world *world, void *user_comp) {
-    (void)user_comp;
-
-    int error =
-        ecs_world_component_type_add(world, "group", sizeof(struct group));
-    if (error)
-        return error;
-
-    error = ecs_world_component_type_add(world, "transform",
-                                         sizeof(struct transform));
-    if (error)
-        return error;
-
-    error = ecs_world_component_type_add(world, "renderable",
-                                         sizeof(struct renderable));
-    if (error)
-        return error;
-
-    error =
-        ecs_world_component_type_add(world, "camera", sizeof(struct camera));
-    if (error)
-        return error;
-
-    error = ecs_world_component_type_add(world, "camera_active",
-                                         sizeof(struct camera_active));
-    if (error)
-        return error;
-
-    error =
-        ecs_world_component_type_add(world, "ui_base", sizeof(struct ui_base));
-    if (error)
-        return error;
-
-    error = ecs_world_component_type_add(world, "ui_button",
-                                         sizeof(struct ui_button));
-    if (error)
-        return error;
-
-    error = ecs_world_component_type_add(world, "button_group",
-                                         sizeof(struct ui_button_group));
-    if (error)
-        return error;
-
-    error = ecs_world_component_type_add(world, "ui_label",
-                                         sizeof(struct ui_label));
-    if (error)
-        return error;
-
-    error = ecs_world_component_type_add(world, "label_group",
-                                         sizeof(struct ui_label_group));
-    if (error)
-        return error;
-
-    return CLS_SUCCESS;
-}
-
 static enum player check_winner(enum player state[9]) {
     static const int wins[8][3] = {
         {0, 1, 2}, {3, 4, 5}, {6, 7, 8}, // Rows
@@ -361,10 +303,6 @@ static int game_init(struct state *state, struct app *app) {
         return error;
 
     error = ecs_world_add(ecs, "ui", 20.0f, 0, true);
-    if (error)
-        return error;
-
-    error = ecs_world_iter_all(ecs, add_component_types, NULL);
     if (error)
         return error;
 

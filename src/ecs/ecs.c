@@ -1,5 +1,7 @@
 #include <cls/app/app.h>
 #include <cls/app/window.h>
+#include <cls/ecs/component/camera.h>
+#include <cls/ecs/component/components.h>
 #include <cls/ecs/ecs.h>
 #include <cls/util/allocator.h>
 #include <cls/util/array.h>
@@ -126,6 +128,60 @@ static void ecs_world_destroy(struct ecs_world *world) {
     table_destroy(world->systems);
 }
 
+static int add_default_component_types(struct ecs_world *world) {
+    int error =
+        ecs_world_component_type_add(world, "group", sizeof(struct group));
+    if (error)
+        return error;
+
+    error = ecs_world_component_type_add(world, "transform",
+                                         sizeof(struct transform));
+    if (error)
+        return error;
+
+    error = ecs_world_component_type_add(world, "renderable",
+                                         sizeof(struct renderable));
+    if (error)
+        return error;
+
+    error =
+        ecs_world_component_type_add(world, "camera", sizeof(struct camera));
+    if (error)
+        return error;
+
+    error = ecs_world_component_type_add(world, "camera_active",
+                                         sizeof(struct camera_active));
+    if (error)
+        return error;
+
+    error =
+        ecs_world_component_type_add(world, "ui_base", sizeof(struct ui_base));
+    if (error)
+        return error;
+
+    error = ecs_world_component_type_add(world, "ui_button",
+                                         sizeof(struct ui_button));
+    if (error)
+        return error;
+
+    error = ecs_world_component_type_add(world, "button_group",
+                                         sizeof(struct ui_button_group));
+    if (error)
+        return error;
+
+    error = ecs_world_component_type_add(world, "ui_label",
+                                         sizeof(struct ui_label));
+    if (error)
+        return error;
+
+    error = ecs_world_component_type_add(world, "label_group",
+                                         sizeof(struct ui_label_group));
+    if (error)
+        return error;
+
+    return CLS_SUCCESS;
+}
+
 static int ecs_world_init(struct ecs_world *world, float tick_rate,
                           int priority, bool should_update) {
     if (!world)
@@ -158,6 +214,10 @@ static int ecs_world_init(struct ecs_world *world, float tick_rate,
 
     error = table_create(&world->systems, ECS_WORLD_START_CAPACITY, sizeof(u32),
                          sizeof(struct ecs_world_system));
+    if (error)
+        goto cleanup;
+
+    error = add_default_component_types(world);
     if (error)
         goto cleanup;
 
