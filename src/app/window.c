@@ -143,6 +143,7 @@ static int input_create(struct input **in, struct allocator *alloc) {
     if (error)
         return error;
 
+    memset(instance_ptr, 0, sizeof(struct input));
     *in = instance_ptr;
     return CLS_SUCCESS;
 }
