@@ -8,14 +8,15 @@
 
 #define ARRAY_GROWTH_FACTOR 1.5
 
-struct array {
+struct cls_array {
     size_t capacity;
     size_t length;
     size_t elem_size;
     void *data;
 };
 
-int array_create(struct array **a, size_t start_capacity, size_t elem_size) {
+int cls_array_create(struct cls_array **a, size_t start_capacity,
+                     size_t elem_size) {
     if (!a)
         return CLS_NULLPTR;
 
@@ -24,13 +25,13 @@ int array_create(struct array **a, size_t start_capacity, size_t elem_size) {
 
     const size_t align = alignof(max_align_t);
     size_t total_size =
-        sizeof(struct array) + start_capacity * elem_size + (align - 1);
+        sizeof(struct cls_array) + start_capacity * elem_size + (align - 1);
 
-    struct array *array = malloc(total_size);
+    struct cls_array *array = malloc(total_size);
     if (!array)
         return CLS_OUT_OF_MEMORY;
 
-    uintptr_t base = (uintptr_t)array + sizeof(struct array);
+    uintptr_t base = (uintptr_t)array + sizeof(struct cls_array);
     uintptr_t aligned = (base + (align - 1)) & ~(uintptr_t)(align - 1);
 
     array->data = (void *)aligned;
@@ -42,14 +43,14 @@ int array_create(struct array **a, size_t start_capacity, size_t elem_size) {
     return CLS_SUCCESS;
 }
 
-void array_destroy(struct array *a) {
+void cls_array_destroy(struct cls_array *a) {
     if (!a)
         return;
 
     free(a);
 }
 
-int array_length_get(size_t *out, struct array *a) {
+int cls_array_length_get(size_t *out, struct cls_array *a) {
     if (!out || !a)
         return CLS_NULLPTR;
 
@@ -57,7 +58,7 @@ int array_length_get(size_t *out, struct array *a) {
     return CLS_SUCCESS;
 }
 
-int array_data_get(void **out, struct array *a) {
+int cls_array_data_get(void **out, struct cls_array *a) {
     if (!out || !a)
         return CLS_NULLPTR;
 
@@ -65,7 +66,7 @@ int array_data_get(void **out, struct array *a) {
     return CLS_SUCCESS;
 }
 
-int array_clear(struct array *a) {
+int cls_array_clear(struct cls_array *a) {
     if (!a)
         return CLS_NULLPTR;
 
@@ -73,7 +74,7 @@ int array_clear(struct array *a) {
     return CLS_SUCCESS;
 }
 
-int array_elem_get(void **out, const struct array *a, size_t index) {
+int cls_array_elem_get(void **out, const struct cls_array *a, size_t index) {
     if (!out || !a)
         return CLS_NULLPTR;
 
@@ -84,7 +85,7 @@ int array_elem_get(void **out, const struct array *a, size_t index) {
     return CLS_SUCCESS;
 }
 
-int array_elem_get_cpy(void *out, const struct array *a, size_t index) {
+int cls_array_elem_get_cpy(void *out, const struct cls_array *a, size_t index) {
     if (!out || !a)
         return CLS_NULLPTR;
 
@@ -95,7 +96,7 @@ int array_elem_get_cpy(void *out, const struct array *a, size_t index) {
     return CLS_SUCCESS;
 }
 
-int array_elem_set(struct array *a, size_t index, const void *data) {
+int cls_array_elem_set(struct cls_array *a, size_t index, const void *data) {
     if (!a || !data)
         return CLS_NULLPTR;
 
@@ -106,8 +107,8 @@ int array_elem_set(struct array *a, size_t index, const void *data) {
     return CLS_SUCCESS;
 }
 
-static int array_grow(struct array **in) {
-    struct array *array = *in;
+static int array_grow(struct cls_array **in) {
+    struct cls_array *array = *in;
     size_t new_capacity =
         (size_t)((double)array->capacity * ARRAY_GROWTH_FACTOR);
 
@@ -115,16 +116,16 @@ static int array_grow(struct array **in) {
         new_capacity = array->capacity + 1;
 
     const size_t align = alignof(max_align_t);
-    size_t total_size =
-        sizeof(struct array) + new_capacity * array->elem_size + (align - 1);
+    size_t total_size = sizeof(struct cls_array) +
+                        new_capacity * array->elem_size + (align - 1);
 
     size_t old_data_offset = (size_t)((u8 *)array->data - (u8 *)array);
 
-    struct array *temp = realloc(array, total_size);
+    struct cls_array *temp = realloc(array, total_size);
     if (!temp)
         return CLS_OUT_OF_MEMORY;
 
-    uintptr_t base = (uintptr_t)temp + sizeof(struct array);
+    uintptr_t base = (uintptr_t)temp + sizeof(struct cls_array);
     uintptr_t aligned = (base + (align - 1)) & ~(uintptr_t)(align - 1);
     void *new_data = (void *)aligned;
 
@@ -139,11 +140,11 @@ static int array_grow(struct array **in) {
     return CLS_SUCCESS;
 }
 
-int array_push(struct array **in, const void *data) {
+int cls_array_push(struct cls_array **in, const void *data) {
     if (!in || !*in || !data)
         return CLS_NULLPTR;
 
-    struct array *array = *in;
+    struct cls_array *array = *in;
 
     if (array->length >= array->capacity) {
         int error = array_grow(in);
@@ -160,7 +161,7 @@ int array_push(struct array **in, const void *data) {
     return CLS_SUCCESS;
 }
 
-int array_pop(void *last, struct array *a) {
+int cls_array_pop(void *last, struct cls_array *a) {
     if (!a)
         return CLS_NULLPTR;
 
@@ -176,11 +177,11 @@ int array_pop(void *last, struct array *a) {
     return CLS_SUCCESS;
 }
 
-int array_insert(struct array **a, size_t index, const void *data) {
+int cls_array_insert(struct cls_array **a, size_t index, const void *data) {
     if (!a || !*a || !data)
         return CLS_NULLPTR;
 
-    struct array *array = *a;
+    struct cls_array *array = *a;
 
     if (index > array->length)
         return CLS_INVALID_ARG;
@@ -203,7 +204,7 @@ int array_insert(struct array **a, size_t index, const void *data) {
     return CLS_SUCCESS;
 }
 
-int array_remove(struct array *a, size_t index) {
+int cls_array_remove(struct cls_array *a, size_t index) {
     if (!a)
         return CLS_NULLPTR;
 
@@ -218,11 +219,11 @@ int array_remove(struct array *a, size_t index) {
     return CLS_SUCCESS;
 }
 
-int array_concat(struct array **dest, const struct array *src) {
+int cls_array_concat(struct cls_array **dest, const struct cls_array *src) {
     if (!dest || !*dest || !src)
         return CLS_NULLPTR;
 
-    struct array *array = *dest;
+    struct cls_array *array = *dest;
 
     if (array->elem_size != src->elem_size)
         return CLS_INVALID_ARG;
@@ -234,15 +235,15 @@ int array_concat(struct array **dest, const struct array *src) {
             new_capacity = (size_t)((double)new_capacity * ARRAY_GROWTH_FACTOR);
 
         const size_t align = alignof(max_align_t);
-        size_t total_size = sizeof(struct array) +
+        size_t total_size = sizeof(struct cls_array) +
                             new_capacity * array->elem_size + (align - 1);
 
         size_t old_data_offset = (size_t)((u8 *)array->data - (u8 *)array);
-        struct array *temp = realloc(array, total_size);
+        struct cls_array *temp = realloc(array, total_size);
         if (!temp)
             return CLS_OUT_OF_MEMORY;
 
-        uintptr_t base = (uintptr_t)temp + sizeof(struct array);
+        uintptr_t base = (uintptr_t)temp + sizeof(struct cls_array);
         uintptr_t aligned = (base + (align - 1)) & ~(uintptr_t)(align - 1);
         void *new_data = (void *)aligned;
 

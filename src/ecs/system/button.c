@@ -9,7 +9,7 @@
 #include <cls/util/logger.h>
 #include <stdio.h>
 
-int button_system(struct ecs_world_query *query, struct app *app,
+int button_system(struct cls_ecs_world_query *query, struct cls_app *app,
                   void *user_data) {
     (void)user_data;
 
@@ -17,23 +17,23 @@ int button_system(struct ecs_world_query *query, struct app *app,
         return CLS_NULLPTR;
 
     struct camera *cam_data = NULL;
-    entity cam = ENTITY_MAX;
-    struct ecs_world *world = NULL;
-    int error = ecs_world_query_world_get(&world, query);
+    cls_entity cam = CLS_ENTITY_MAX;
+    struct cls_ecs_world *world = NULL;
+    int error = cls_ecs_world_query_world_get(&world, query);
     if (error)
         return error;
 
-    struct ecs_world_query *cam_query = NULL;
-    error = ecs_world_query_create(&cam_query, world, 2, CLS_COMP_CAMERA,
-                                   CLS_COMP_CAMERA_ACTIVE);
+    struct cls_ecs_world_query *cam_query = NULL;
+    error = cls_ecs_world_query_create(&cam_query, world, 2, CLS_COMP_CAMERA,
+                                       CLS_COMP_CAMERA_ACTIVE);
     if (error)
         return error;
 
-    while (ecs_world_query_next(&cam, cam_query) == CLS_SUCCESS &&
-           cam != ENTITY_MAX) {
+    while (cls_ecs_world_query_next(&cam, cam_query) == CLS_SUCCESS &&
+           cam != CLS_ENTITY_MAX) {
         void *cam_ptr = NULL;
-        error = ecs_world_query_component_get(&cam_ptr, cam_query,
-                                              CLS_COMP_CAMERA, cam);
+        error = cls_ecs_world_query_component_get(&cam_ptr, cam_query,
+                                                  CLS_COMP_CAMERA, cam);
         if (error)
             continue;
 
@@ -42,17 +42,17 @@ int button_system(struct ecs_world_query *query, struct app *app,
             break;
     }
 
-    ecs_world_query_destroy(cam_query);
+    cls_ecs_world_query_destroy(cam_query);
 
     if (!cam)
         return CLS_NULLPTR;
 
     u32 button = U32_MAX;
-    while (ecs_world_query_next(&button, query) == CLS_SUCCESS &&
+    while (cls_ecs_world_query_next(&button, query) == CLS_SUCCESS &&
            button != U32_MAX) {
         void *button_comp_ptr = NULL;
-        error = ecs_world_query_component_get(&button_comp_ptr, query,
-                                              CLS_COMP_BUTTON, button);
+        error = cls_ecs_world_query_component_get(&button_comp_ptr, query,
+                                                  CLS_COMP_BUTTON, button);
         if (error)
             continue;
 
@@ -61,8 +61,8 @@ int button_system(struct ecs_world_query *query, struct app *app,
             continue;
 
         void *tf_ptr = NULL;
-        error = ecs_world_query_component_get(&tf_ptr, query,
-                                              CLS_COMP_TRANSFORM, button);
+        error = cls_ecs_world_query_component_get(&tf_ptr, query,
+                                                  CLS_COMP_TRANSFORM, button);
         if (error)
             continue;
 
@@ -78,12 +78,12 @@ int button_system(struct ecs_world_query *query, struct app *app,
         float max_y = tf->pos[1] + half_height;
 
         vec2 cursor_pos = {0};
-        error = window_input_cursor_pos_get(cursor_pos, app->window);
+        error = cls_window_input_cursor_pos_get(cursor_pos, app->window);
         if (error)
             return error;
 
         ivec2 fb_size = {0};
-        error = window_fb_size_get(fb_size, app->window);
+        error = cls_window_fb_size_get(fb_size, app->window);
         if (error)
             return error;
 
@@ -96,12 +96,12 @@ int button_system(struct ecs_world_query *query, struct app *app,
         button_comp->hovering = inside;
 
         if (inside) {
-            window_input_mouse_pressed(&button_comp->pressed, app->window,
-                                       GLFW_MOUSE_BUTTON_LEFT);
-            window_input_mouse_released(&button_comp->released, app->window,
+            cls_window_input_mouse_pressed(&button_comp->pressed, app->window,
+                                           GLFW_MOUSE_BUTTON_LEFT);
+            cls_window_input_mouse_released(&button_comp->released, app->window,
+                                            GLFW_MOUSE_BUTTON_LEFT);
+            cls_window_input_mouse_down(&button_comp->down, app->window,
                                         GLFW_MOUSE_BUTTON_LEFT);
-            window_input_mouse_down(&button_comp->down, app->window,
-                                    GLFW_MOUSE_BUTTON_LEFT);
         }
     }
 

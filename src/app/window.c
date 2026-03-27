@@ -8,7 +8,7 @@
 #include <cls/util/logger.h>
 #include <string.h>
 
-struct input {
+struct cls_input {
     bool keys[WINDOW_INPUT_KEYS_SIZE];
     bool last_keys[WINDOW_INPUT_KEYS_SIZE];
     bool mouse_buttons[WINDOW_INPUT_MOUSE_BUTTONS_SIZE];
@@ -17,7 +17,7 @@ struct input {
     vec2 scroll_offset;
 };
 
-struct timing {
+struct cls_timing {
     float dt;
     float total;
     double last_frame;
@@ -27,27 +27,27 @@ struct timing {
     float fps_timer;
 };
 
-struct window {
-    struct input *input;
-    struct renderer *renderer;
-    struct timing *timing;
+struct cls_window {
+    struct cls_input *input;
+    struct cls_renderer *renderer;
+    struct cls_timing *timing;
     ivec2 win_size;
     ivec2 fb_size;
     GLFWwindow *glfw_window;
 };
 
 static void error_callback(int error, const char *msg) {
-    LOGGER_LOG_ERROR(LOGGER_ERROR, error, "GLFW error: %s", msg);
+    CLS_LOGGER_LOG_ERROR(CLS_LOGGER_ERROR, error, "GLFW error: %s", msg);
 }
 
 static void window_size_callback(GLFWwindow *glfw_window, int width,
                                  int height) {
-    struct window *window =
-        (struct window *)glfwGetWindowUserPointer(glfw_window);
+    struct cls_window *window =
+        (struct cls_window *)glfwGetWindowUserPointer(glfw_window);
 
     if (!window) {
-        LOGGER_LOG_ERROR(LOGGER_ERROR, CLS_GLFW, "%s",
-                         "GLFW framebuffer resize failed");
+        CLS_LOGGER_LOG_ERROR(CLS_LOGGER_ERROR, CLS_GLFW, "%s",
+                             "GLFW framebuffer resize failed");
         return;
     }
 
@@ -56,19 +56,20 @@ static void window_size_callback(GLFWwindow *glfw_window, int width,
 
 static void framebuffer_size_callback(GLFWwindow *glfw_window, int width,
                                       int height) {
-    struct window *window =
-        (struct window *)glfwGetWindowUserPointer(glfw_window);
+    struct cls_window *window =
+        (struct cls_window *)glfwGetWindowUserPointer(glfw_window);
 
     if (!window) {
-        LOGGER_LOG_ERROR(LOGGER_ERROR, CLS_GLFW, "%s",
-                         "GLFW framebuffer resize failed");
+        CLS_LOGGER_LOG_ERROR(CLS_LOGGER_ERROR, CLS_GLFW, "%s",
+                             "GLFW framebuffer resize failed");
         return;
     }
 
     glm_ivec2_copy((ivec2){width, height}, window->fb_size);
-    int error = renderer_on_resize(window->renderer, width, height);
+    int error = cls_renderer_on_resize(window->renderer, width, height);
     if (error)
-        LOGGER_LOG_ERROR(LOGGER_ERROR, error, "%s", "Renderer resize failed");
+        CLS_LOGGER_LOG_ERROR(CLS_LOGGER_ERROR, error, "%s",
+                             "Renderer resize failed");
 }
 
 static void key_callback(GLFWwindow *glfw_window, int key, int scancode,
@@ -76,105 +77,110 @@ static void key_callback(GLFWwindow *glfw_window, int key, int scancode,
     (void)scancode;
     (void)mods;
 
-    struct window *window =
-        (struct window *)glfwGetWindowUserPointer(glfw_window);
+    struct cls_window *window =
+        (struct cls_window *)glfwGetWindowUserPointer(glfw_window);
 
     if (!window) {
-        LOGGER_LOG_ERROR(LOGGER_ERROR, CLS_GLFW, "%s",
-                         "GLFW getting key failed");
+        CLS_LOGGER_LOG_ERROR(CLS_LOGGER_ERROR, CLS_GLFW, "%s",
+                             "GLFW getting key failed");
         return;
     }
 
-    window_input_key(window, key, action);
+    cls_window_input_key(window, key, action);
 }
 
 static void mouse_button_callback(GLFWwindow *glfw_window, int button,
                                   int action, int mods) {
     (void)mods;
 
-    struct window *window =
-        (struct window *)glfwGetWindowUserPointer(glfw_window);
+    struct cls_window *window =
+        (struct cls_window *)glfwGetWindowUserPointer(glfw_window);
 
     if (!window) {
-        LOGGER_LOG_ERROR(LOGGER_ERROR, CLS_GLFW, "%s",
-                         "GLFW getting mouse button failed");
+        CLS_LOGGER_LOG_ERROR(CLS_LOGGER_ERROR, CLS_GLFW, "%s",
+                             "GLFW getting mouse button failed");
         return;
     }
 
-    window_input_mouse_button_set(window, button, action);
+    cls_window_input_mouse_button_set(window, button, action);
 }
 
 static void scroll_callback(GLFWwindow *glfw_window, double offset_x,
                             double offset_y) {
-    struct window *window =
-        (struct window *)glfwGetWindowUserPointer(glfw_window);
+    struct cls_window *window =
+        (struct cls_window *)glfwGetWindowUserPointer(glfw_window);
 
     if (!window) {
-        LOGGER_LOG_ERROR(LOGGER_ERROR, CLS_GLFW, "%s",
-                         "GLFW getting mouse button failed");
+        CLS_LOGGER_LOG_ERROR(CLS_LOGGER_ERROR, CLS_GLFW, "%s",
+                             "GLFW getting mouse button failed");
         return;
     }
 
-    window_input_scroll_offset_set(window,
-                                   (vec2){(float)offset_x, (float)offset_y});
+    cls_window_input_scroll_offset_set(
+        window, (vec2){(float)offset_x, (float)offset_y});
 }
 
 static void cursor_pos_callback(GLFWwindow *glfw_window, double pos_x,
                                 double pos_y) {
-    struct window *window =
-        (struct window *)glfwGetWindowUserPointer(glfw_window);
+    struct cls_window *window =
+        (struct cls_window *)glfwGetWindowUserPointer(glfw_window);
 
     if (!window) {
-        LOGGER_LOG_ERROR(LOGGER_ERROR, CLS_GLFW, "%s",
-                         "GLFW getting cursor pos failed");
+        CLS_LOGGER_LOG_ERROR(CLS_LOGGER_ERROR, CLS_GLFW, "%s",
+                             "GLFW getting cursor pos failed");
         return;
     }
 
-    window_input_cursor_pos_set(window, (vec2){(float)pos_x, (float)pos_y});
+    cls_window_input_cursor_pos_set(window, (vec2){(float)pos_x, (float)pos_y});
 }
 
-static int input_create(struct input **in, struct allocator *alloc) {
+static int input_create(struct cls_input **in, struct cls_allocator *alloc) {
     if (!in || !alloc)
         return CLS_NULLPTR;
 
     void *instance_ptr = NULL;
-    int error = allocator_alloc(&instance_ptr, alloc, sizeof(struct input),
-                                alignof(struct input));
+    int error =
+        cls_allocator_alloc(&instance_ptr, alloc, sizeof(struct cls_input),
+                            alignof(struct cls_input));
     if (error)
         return error;
 
-    memset(instance_ptr, 0, sizeof(struct input));
+    memset(instance_ptr, 0, sizeof(struct cls_input));
     *in = instance_ptr;
     return CLS_SUCCESS;
 }
 
-static int timing_create(struct timing **t, struct allocator *alloc) {
+static int timing_create(struct cls_timing **t, struct cls_allocator *alloc) {
     if (!t || !alloc)
         return CLS_NULLPTR;
 
     void *instance_ptr = NULL;
-    int error = allocator_alloc(&instance_ptr, alloc, sizeof(struct timing),
-                                alignof(struct timing));
+    int error =
+        cls_allocator_alloc(&instance_ptr, alloc, sizeof(struct cls_timing),
+                            alignof(struct cls_timing));
     if (error)
         return error;
 
-    struct timing *instance = instance_ptr;
+    struct cls_timing *instance = instance_ptr;
     instance->last_frame = glfwGetTime();
 
     *t = instance;
     return CLS_SUCCESS;
 }
 
-int window_create(struct window **win, struct allocator *allocator_persistant,
-                  struct allocator *allocator_frame, struct gfx_api *api,
-                  ivec2 size, const char *title, bool vsync, ivec4 bg_color) {
+int cls_window_create(struct cls_window **win,
+                      struct cls_allocator *allocator_persistant,
+                      struct cls_allocator *allocator_frame,
+                      struct cls_gfx_api *api, ivec2 size, const char *title,
+                      bool vsync, ivec4 bg_color) {
     if (!win || !allocator_persistant || !allocator_frame || !title)
         return CLS_NULLPTR;
 
     glfwSetErrorCallback(error_callback);
 
     if (!glfwInit()) {
-        LOGGER_LOG_ERROR(LOGGER_ERROR, CLS_GLFW, "%s", "Init GLFW failed");
+        CLS_LOGGER_LOG_ERROR(CLS_LOGGER_ERROR, CLS_GLFW, "%s",
+                             "Init GLFW failed");
         return CLS_GLFW;
     }
 
@@ -183,17 +189,18 @@ int window_create(struct window **win, struct allocator *allocator_persistant,
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
     glfwWindowHint(GLFW_MAXIMIZED, GLFW_TRUE);
 
-    struct window *instance = NULL;
-    int error = allocator_alloc((void **)&instance, allocator_persistant,
-                                sizeof(struct window), alignof(struct window));
+    struct cls_window *instance = NULL;
+    int error = cls_allocator_alloc((void **)&instance, allocator_persistant,
+                                    sizeof(struct cls_window),
+                                    alignof(struct cls_window));
     if (error)
         return error;
 
     instance->glfw_window =
         glfwCreateWindow(size[0], size[1], title, NULL, NULL);
     if (!instance->glfw_window) {
-        LOGGER_LOG_ERROR(LOGGER_ERROR, CLS_GLFW, "%s",
-                         "Creating GLFW window failed");
+        CLS_LOGGER_LOG_ERROR(CLS_LOGGER_ERROR, CLS_GLFW, "%s",
+                             "Creating GLFW window failed");
         glfwTerminate();
         error = CLS_GLFW;
         goto cleanup;
@@ -212,23 +219,23 @@ int window_create(struct window **win, struct allocator *allocator_persistant,
 
     error = input_create(&instance->input, allocator_persistant);
     if (error) {
-        LOGGER_LOG_ERROR(LOGGER_ERROR, error, "%s",
-                         "Creating window input failed");
+        CLS_LOGGER_LOG_ERROR(CLS_LOGGER_ERROR, error, "%s",
+                             "Creating window input failed");
         goto cleanup;
     }
 
-    error = renderer_create(&instance->renderer, allocator_persistant,
-                            allocator_frame, api, bg_color);
+    error = cls_renderer_create(&instance->renderer, allocator_persistant,
+                                allocator_frame, api, bg_color);
     if (error) {
-        LOGGER_LOG_ERROR(LOGGER_ERROR, error, "%s",
-                         "Creating window renderer failed");
+        CLS_LOGGER_LOG_ERROR(CLS_LOGGER_ERROR, error, "%s",
+                             "Creating window renderer failed");
         goto cleanup;
     }
 
     error = timing_create(&instance->timing, allocator_persistant);
     if (error) {
-        LOGGER_LOG_ERROR(LOGGER_ERROR, error, "%s",
-                         "Creating window timing failed");
+        CLS_LOGGER_LOG_ERROR(CLS_LOGGER_ERROR, error, "%s",
+                             "Creating window timing failed");
         goto cleanup;
     }
 
@@ -239,59 +246,59 @@ int window_create(struct window **win, struct allocator *allocator_persistant,
     return CLS_SUCCESS;
 
 cleanup:
-    window_destroy(instance);
+    cls_window_destroy(instance);
     return error;
 }
 
-void window_destroy(struct window *win) {
+void cls_window_destroy(struct cls_window *win) {
     if (!win)
         return;
 
     glfwDestroyWindow(win->glfw_window);
-    renderer_destroy(win->renderer);
+    cls_renderer_destroy(win->renderer);
 }
 
-int window_update(bool *should_close, struct window *win) {
-    int error = window_should_close(should_close, win);
+int cls_window_update(bool *should_close, struct cls_window *win) {
+    int error = cls_window_should_close(should_close, win);
     if (error)
         return error;
 
-    error = window_timing_update(win);
+    error = cls_window_timing_update(win);
     if (error) {
-        LOGGER_LOG_ERROR(LOGGER_ERROR, error, "%s",
-                         "Updating window time failed");
+        CLS_LOGGER_LOG_ERROR(CLS_LOGGER_ERROR, error, "%s",
+                             "Updating window time failed");
         return error;
     }
 
-    error = window_input_update(win);
+    error = cls_window_input_update(win);
     if (error) {
-        LOGGER_LOG_ERROR(LOGGER_ERROR, error, "%s",
-                         "Updating window input failed");
-        return error;
-    }
-
-    return CLS_SUCCESS;
-}
-
-int window_renderer_update(struct window *win, struct app *app) {
-    int error = renderer_frame_create(win->renderer, app);
-    if (error) {
-        LOGGER_LOG_ERROR(LOGGER_ERROR, error, "%s",
-                         "Renderer creating frame failed");
-        return error;
-    }
-
-    error = renderer_swap_buffers(win->renderer, win->glfw_window);
-    if (error) {
-        LOGGER_LOG_ERROR(LOGGER_ERROR, error, "%s",
-                         "Renderer swapping buffers failed");
+        CLS_LOGGER_LOG_ERROR(CLS_LOGGER_ERROR, error, "%s",
+                             "Updating window input failed");
         return error;
     }
 
     return CLS_SUCCESS;
 }
 
-int window_should_close(bool *should_close, const struct window *win) {
+int cls_window_renderer_update(struct cls_window *win, struct cls_app *app) {
+    int error = cls_renderer_frame_create(win->renderer, app);
+    if (error) {
+        CLS_LOGGER_LOG_ERROR(CLS_LOGGER_ERROR, error, "%s",
+                             "Renderer creating frame failed");
+        return error;
+    }
+
+    error = cls_renderer_swap_buffers(win->renderer, win->glfw_window);
+    if (error) {
+        CLS_LOGGER_LOG_ERROR(CLS_LOGGER_ERROR, error, "%s",
+                             "Renderer swapping buffers failed");
+        return error;
+    }
+
+    return CLS_SUCCESS;
+}
+
+int cls_window_should_close(bool *should_close, const struct cls_window *win) {
     if (!should_close || !win)
         return CLS_NULLPTR;
 
@@ -299,7 +306,7 @@ int window_should_close(bool *should_close, const struct window *win) {
     return CLS_SUCCESS;
 }
 
-int window_size_get(ivec2 size, struct window *win) {
+int cls_window_size_get(ivec2 size, struct cls_window *win) {
     if (!size || !win)
         return CLS_NULLPTR;
 
@@ -307,7 +314,7 @@ int window_size_get(ivec2 size, struct window *win) {
     return CLS_SUCCESS;
 }
 
-int window_fb_size_get(ivec2 fb_size, struct window *win) {
+int cls_window_fb_size_get(ivec2 fb_size, struct cls_window *win) {
     if (!fb_size || !win)
         return CLS_NULLPTR;
 
@@ -315,7 +322,7 @@ int window_fb_size_get(ivec2 fb_size, struct window *win) {
     return CLS_SUCCESS;
 }
 
-int window_input_update(struct window *win) {
+int cls_window_input_update(struct cls_window *win) {
     if (!win)
         return CLS_NULLPTR;
 
@@ -327,7 +334,7 @@ int window_input_update(struct window *win) {
     return CLS_SUCCESS;
 }
 
-int window_input_key(struct window *win, int key, int action) {
+int cls_window_input_key(struct cls_window *win, int key, int action) {
     if (!win)
         return CLS_NULLPTR;
 
@@ -340,7 +347,8 @@ int window_input_key(struct window *win, int key, int action) {
     return CLS_SUCCESS;
 }
 
-int window_input_mouse_button_set(struct window *win, int button, int action) {
+int cls_window_input_mouse_button_set(struct cls_window *win, int button,
+                                      int action) {
     if (!win)
         return CLS_NULLPTR;
 
@@ -356,7 +364,7 @@ int window_input_mouse_button_set(struct window *win, int button, int action) {
     return CLS_SUCCESS;
 }
 
-int window_input_cursor_pos_get(vec2 pos, struct window *win) {
+int cls_window_input_cursor_pos_get(vec2 pos, struct cls_window *win) {
     if (!win)
         return CLS_NULLPTR;
 
@@ -364,7 +372,7 @@ int window_input_cursor_pos_get(vec2 pos, struct window *win) {
     return CLS_SUCCESS;
 }
 
-int window_input_cursor_pos_set(struct window *win, vec2 pos) {
+int cls_window_input_cursor_pos_set(struct cls_window *win, vec2 pos) {
     if (!win)
         return CLS_NULLPTR;
 
@@ -372,7 +380,7 @@ int window_input_cursor_pos_set(struct window *win, vec2 pos) {
     return CLS_SUCCESS;
 }
 
-int window_input_scroll_offset_get(vec2 offset, struct window *win) {
+int cls_window_input_scroll_offset_get(vec2 offset, struct cls_window *win) {
     if (!win)
         return CLS_NULLPTR;
 
@@ -381,7 +389,7 @@ int window_input_scroll_offset_get(vec2 offset, struct window *win) {
     return CLS_SUCCESS;
 }
 
-int window_input_scroll_offset_set(struct window *win, vec2 offset) {
+int cls_window_input_scroll_offset_set(struct cls_window *win, vec2 offset) {
     if (!win)
         return CLS_NULLPTR;
 
@@ -389,7 +397,8 @@ int window_input_scroll_offset_set(struct window *win, vec2 offset) {
     return CLS_SUCCESS;
 }
 
-int window_input_key_pressed(bool *pressed, const struct window *win, int key) {
+int cls_window_input_key_pressed(bool *pressed, const struct cls_window *win,
+                                 int key) {
     if (!pressed || !win)
         return CLS_NULLPTR;
 
@@ -397,8 +406,8 @@ int window_input_key_pressed(bool *pressed, const struct window *win, int key) {
     return CLS_SUCCESS;
 }
 
-int window_input_key_released(bool *released, const struct window *win,
-                              int key) {
+int cls_window_input_key_released(bool *released, const struct cls_window *win,
+                                  int key) {
     if (!released || !win)
         return CLS_NULLPTR;
 
@@ -406,7 +415,8 @@ int window_input_key_released(bool *released, const struct window *win,
     return CLS_SUCCESS;
 }
 
-int window_input_key_down(bool *down, const struct window *win, int key) {
+int cls_window_input_key_down(bool *down, const struct cls_window *win,
+                              int key) {
     if (!down || !win)
         return CLS_NULLPTR;
 
@@ -414,8 +424,8 @@ int window_input_key_down(bool *down, const struct window *win, int key) {
     return CLS_SUCCESS;
 }
 
-int window_input_mouse_pressed(bool *pressed, const struct window *win,
-                               int button) {
+int cls_window_input_mouse_pressed(bool *pressed, const struct cls_window *win,
+                                   int button) {
     if (!pressed || !win)
         return CLS_NULLPTR;
 
@@ -424,8 +434,8 @@ int window_input_mouse_pressed(bool *pressed, const struct window *win,
     return CLS_SUCCESS;
 }
 
-int window_input_mouse_released(bool *released, const struct window *win,
-                                int button) {
+int cls_window_input_mouse_released(bool *released,
+                                    const struct cls_window *win, int button) {
     if (!released || !win)
         return CLS_NULLPTR;
 
@@ -434,7 +444,8 @@ int window_input_mouse_released(bool *released, const struct window *win,
     return CLS_SUCCESS;
 }
 
-int window_input_mouse_down(bool *down, const struct window *win, int button) {
+int cls_window_input_mouse_down(bool *down, const struct cls_window *win,
+                                int button) {
     if (!down || !win)
         return CLS_NULLPTR;
 
@@ -443,7 +454,7 @@ int window_input_mouse_down(bool *down, const struct window *win, int button) {
     return CLS_SUCCESS;
 }
 
-int window_timing_update(struct window *win) {
+int cls_window_timing_update(struct cls_window *win) {
     if (!win)
         return CLS_NULLPTR;
 
@@ -468,7 +479,7 @@ int window_timing_update(struct window *win) {
     return CLS_SUCCESS;
 }
 
-int window_timing_dt_get(float *dt, const struct window *win) {
+int cls_window_timing_dt_get(float *dt, const struct cls_window *win) {
     if (!dt || !win)
         return CLS_NULLPTR;
 
@@ -476,7 +487,7 @@ int window_timing_dt_get(float *dt, const struct window *win) {
     return CLS_SUCCESS;
 }
 
-int window_timing_fps_get(float *fps, const struct window *win) {
+int cls_window_timing_fps_get(float *fps, const struct cls_window *win) {
     if (!fps || !win)
         return CLS_NULLPTR;
 
@@ -484,7 +495,8 @@ int window_timing_fps_get(float *fps, const struct window *win) {
     return CLS_SUCCESS;
 }
 
-int window_timing_fps_avg_get(float *fps_avg, const struct window *win) {
+int cls_window_timing_fps_avg_get(float *fps_avg,
+                                  const struct cls_window *win) {
     if (!fps_avg || !win)
         return CLS_NULLPTR;
 

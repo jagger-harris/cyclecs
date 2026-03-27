@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-int ascii_init(const char **ascii, const char *path) {
+int cls_ascii_init(const char **ascii, const char *path) {
     if (!ascii || !path)
         return CLS_FILE_NOT_FOUND;
 
@@ -63,7 +63,7 @@ cleanup:
     return error;
 }
 
-void ascii_destroy(const char **ascii) {
+void cls_ascii_destroy(const char **ascii) {
     if (!ascii)
         return;
 

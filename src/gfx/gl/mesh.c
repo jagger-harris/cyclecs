@@ -4,9 +4,9 @@
 #include <cls/util/types.h>
 #include <stddef.h>
 
-int gl_mesh_init(struct gl_mesh *mesh, const struct vertex *vertices,
-                 size_t vertex_count, const unsigned int *indices,
-                 size_t index_count) {
+int cls_gl_mesh_init(struct cls_gl_mesh *mesh,
+                     const struct cls_vertex *vertices, size_t vertex_count,
+                     const unsigned int *indices, size_t index_count) {
     if (!mesh || !vertices || !indices)
         return CLS_NULLPTR;
 
@@ -20,27 +20,27 @@ int gl_mesh_init(struct gl_mesh *mesh, const struct vertex *vertices,
 
     glBindBuffer(GL_ARRAY_BUFFER, mesh->vbo);
     glBufferData(GL_ARRAY_BUFFER,
-                 (GLsizeiptr)(vertex_count * sizeof(struct vertex)), vertices,
-                 GL_STATIC_DRAW);
+                 (GLsizeiptr)(vertex_count * sizeof(struct cls_vertex)),
+                 vertices, GL_STATIC_DRAW);
 
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh->ebo);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER,
                  (GLsizeiptr)(index_count * sizeof(u32)), indices,
                  GL_STATIC_DRAW);
 
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(struct vertex),
-                          (const void *)offsetof(struct vertex, position));
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(struct vertex),
-                          (const void *)offsetof(struct vertex, normal));
-    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(struct vertex),
-                          (const void *)offsetof(struct vertex, uv));
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(struct cls_vertex),
+                          (const void *)offsetof(struct cls_vertex, position));
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(struct cls_vertex),
+                          (const void *)offsetof(struct cls_vertex, normal));
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(struct cls_vertex),
+                          (const void *)offsetof(struct cls_vertex, uv));
     glEnableVertexAttribArray(0);
     glEnableVertexAttribArray(1);
     glEnableVertexAttribArray(2);
     return CLS_SUCCESS;
 }
 
-void gl_mesh_destroy(struct gl_mesh *mesh) {
+void cls_gl_mesh_destroy(struct cls_gl_mesh *mesh) {
     if (!mesh)
         return;
 
@@ -49,7 +49,7 @@ void gl_mesh_destroy(struct gl_mesh *mesh) {
     glDeleteBuffers(1, &mesh->ebo);
 }
 
-int gl_mesh_draw(const struct gl_mesh *mesh) {
+int cls_gl_mesh_draw(const struct cls_gl_mesh *mesh) {
     if (!mesh)
         return CLS_NULLPTR;
 
@@ -58,9 +58,9 @@ int gl_mesh_draw(const struct gl_mesh *mesh) {
     return CLS_SUCCESS;
 }
 
-int gl_mesh_draw_instanced(struct gl_mesh *mesh,
-                           struct gl_mesh_instance_data *instances,
-                           GLsizei instance_count) {
+int cls_gl_mesh_draw_instanced(struct cls_gl_mesh *mesh,
+                               struct cls_gl_mesh_instance_data *instances,
+                               GLsizei instance_count) {
     if (!mesh || instance_count == 0)
         return CLS_NULLPTR;
 
@@ -70,11 +70,11 @@ int gl_mesh_draw_instanced(struct gl_mesh *mesh,
         glBindBuffer(GL_ARRAY_BUFFER, mesh->instance_vbo);
         glBufferData(GL_ARRAY_BUFFER,
                      (GLsizeiptr)((size_t)instance_count *
-                                  sizeof(struct gl_mesh_instance_data)),
+                                  sizeof(struct cls_gl_mesh_instance_data)),
                      NULL, GL_DYNAMIC_DRAW);
 
-        GLsizei stride = sizeof(struct gl_mesh_instance_data);
-        size_t offset_mvp = offsetof(struct gl_mesh_instance_data, mvp);
+        GLsizei stride = sizeof(struct cls_gl_mesh_instance_data);
+        size_t offset_mvp = offsetof(struct cls_gl_mesh_instance_data, mvp);
         for (GLuint i = 0; i < 4; ++i) {
             glEnableVertexAttribArray(3 + i);
             glVertexAttribPointer(
@@ -83,21 +83,21 @@ int gl_mesh_draw_instanced(struct gl_mesh *mesh,
             glVertexAttribDivisor(3 + i, 1);
         }
 
-        size_t offset_tint = offsetof(struct gl_mesh_instance_data, tint);
+        size_t offset_tint = offsetof(struct cls_gl_mesh_instance_data, tint);
         glEnableVertexAttribArray(7);
         glVertexAttribPointer(7, 4, GL_FLOAT, GL_FALSE, stride,
                               (const void *)offset_tint);
         glVertexAttribDivisor(7, 1);
 
         size_t offset_uv_offset =
-            offsetof(struct gl_mesh_instance_data, uv_offset);
+            offsetof(struct cls_gl_mesh_instance_data, uv_offset);
         glEnableVertexAttribArray(8);
         glVertexAttribPointer(8, 2, GL_FLOAT, GL_FALSE, stride,
                               (const void *)offset_uv_offset);
         glVertexAttribDivisor(8, 1);
 
         size_t offset_uv_scale =
-            offsetof(struct gl_mesh_instance_data, uv_scale);
+            offsetof(struct cls_gl_mesh_instance_data, uv_scale);
         glEnableVertexAttribArray(9);
         glVertexAttribPointer(9, 2, GL_FLOAT, GL_FALSE, stride,
                               (const void *)offset_uv_scale);
@@ -106,7 +106,7 @@ int gl_mesh_draw_instanced(struct gl_mesh *mesh,
 
     glBindBuffer(GL_ARRAY_BUFFER, mesh->instance_vbo);
     GLsizeiptr size = (GLsizeiptr)((size_t)instance_count *
-                                   sizeof(struct gl_mesh_instance_data));
+                                   sizeof(struct cls_gl_mesh_instance_data));
 
     if (size > mesh->instance_capacity) {
         glBufferData(GL_ARRAY_BUFFER, size, instances, GL_DYNAMIC_DRAW);

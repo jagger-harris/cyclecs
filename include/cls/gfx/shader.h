@@ -5,13 +5,13 @@
 #include <cls/util/types.h>
 #include <stdbool.h>
 
-struct shader {
+struct cls_shader {
     union {
-        struct gl_shader gl;
+        struct cls_gl_shader gl;
     };
 };
 
-struct shader_info {
+struct cls_shader_info {
     const char *vert_src;
     const char *frag_src;
 };

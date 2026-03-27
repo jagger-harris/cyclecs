@@ -4,9 +4,9 @@
 #include <cls/ecs/component/camera.h>
 #include <cls/ecs/component/components.h>
 #include <cls/ecs/ecs.h>
-#include <cls/gfx/api.h>
 #include <cls/gfx/batch.h>
 #include <cls/gfx/cmd.h>
+#include <cls/gfx/gfx_api.h>
 #include <cls/gfx/renderer.h>
 #include <cls/util/allocator.h>
 #include <cls/util/arena.h>
@@ -18,35 +18,35 @@
 #define START_CMD_CAPACITY 128
 #define BATCH_START_CAPACITY 64
 
-struct renderer {
-    struct allocator *alloc_frame;
-    struct array *transparent_cmds;
-    struct array *batches;
-    struct table *batch_indices;
-    struct gfx_api *api;
+struct cls_renderer {
+    struct cls_allocator *alloc_frame;
+    struct cls_array *transparent_cmds;
+    struct cls_array *batches;
+    struct cls_table *batch_indices;
+    struct cls_gfx_api *api;
     ivec4 bg_color;
 };
 
-struct ecs_renderer_ctx {
-    struct app *app;
+struct cls_ecs_renderer_ctx {
+    struct cls_app *app;
     struct camera *active_cam;
-    struct renderer *rend;
+    struct cls_renderer *rend;
     struct renderable *ren;
     struct transform *cam_tf;
     struct transform *tf;
-    struct ecs_world *world;
+    struct cls_ecs_world *world;
 };
 
-static int renderer_batch_add_cmd(struct renderer *rend,
-                                  struct renderer_cmd *cmd) {
+static int renderer_batch_add_cmd(struct cls_renderer *rend,
+                                  struct cls_renderer_cmd *cmd) {
     if (!rend || !cmd || !cmd->ren)
         return CLS_NULLPTR;
 
     bool transparent = cmd->ren->transparent || cmd->ren->opacity < 1.0f;
     if (transparent)
-        return array_push(&rend->transparent_cmds, (void *)&cmd);
+        return cls_array_push(&rend->transparent_cmds, (void *)&cmd);
 
-    struct renderer_batch_data key = {
+    struct cls_renderer_batch_data key = {
         .mesh_id = cmd->ren->mesh_id,
         .shader_id = cmd->ren->shader_id,
         .texture_id = cmd->ren->texture_id,
@@ -54,40 +54,40 @@ static int renderer_batch_add_cmd(struct renderer *rend,
     };
 
     void *found_ptr = NULL;
-    int error = table_find(&found_ptr, rend->batch_indices, &key);
+    int error = cls_table_find(&found_ptr, rend->batch_indices, &key);
     if (error)
         return error;
 
-    struct array *batch_cmds = NULL;
+    struct cls_array *batch_cmds = NULL;
     size_t *found = found_ptr;
     size_t batch_index;
     if (!found) {
-        struct renderer_batch new_batch = {.data = key};
-        error = array_push(&rend->batches, &new_batch);
+        struct cls_renderer_batch new_batch = {.data = key};
+        error = cls_array_push(&rend->batches, &new_batch);
         if (error)
             return error;
 
         size_t batches_length = 0;
-        error = array_length_get(&batches_length, rend->batches);
+        error = cls_array_length_get(&batches_length, rend->batches);
         if (error)
             return error;
 
         batch_index = batches_length - 1;
-        error = table_insert(rend->batch_indices, &key, &batch_index);
+        error = cls_table_insert(rend->batch_indices, &key, &batch_index);
         if (error)
             return error;
 
         void *batch_ptr = NULL;
-        error = array_elem_get(&batch_ptr, rend->batches, batch_index);
+        error = cls_array_elem_get(&batch_ptr, rend->batches, batch_index);
         if (error)
             return error;
 
-        struct renderer_batch *batch = batch_ptr;
+        struct cls_renderer_batch *batch = batch_ptr;
         if (!batch)
             return error;
 
-        error = array_create(&batch_cmds, BATCH_START_CAPACITY,
-                             sizeof(struct renderer_ren *));
+        error = cls_array_create(&batch_cmds, BATCH_START_CAPACITY,
+                                 sizeof(struct renderer_ren *));
         if (error)
             goto cleanup;
     } else {
@@ -95,34 +95,34 @@ static int renderer_batch_add_cmd(struct renderer *rend,
     }
 
     void *batch_ptr = NULL;
-    error = array_elem_get(&batch_ptr, rend->batches, batch_index);
+    error = cls_array_elem_get(&batch_ptr, rend->batches, batch_index);
     if (error)
         return error;
 
-    struct renderer_batch *batch = batch_ptr;
+    struct cls_renderer_batch *batch = batch_ptr;
     if (!batch)
         return error;
 
     if (!found)
         batch->cmds = batch_cmds;
 
-    return array_push(&batch->cmds, (void *)&cmd);
+    return cls_array_push(&batch->cmds, (void *)&cmd);
 
 cleanup:
-    array_destroy(batch_cmds);
+    cls_array_destroy(batch_cmds);
     return error;
 }
 
-static int add_ecs_base_renderer_cmd(struct ecs_renderer_ctx *ctx) {
-    arena_marker marker = 0;
-    int error = arena_marker_save(&marker, ctx->app->arena_frame);
+static int add_ecs_base_renderer_cmd(struct cls_ecs_renderer_ctx *ctx) {
+    cls_arena_marker marker = 0;
+    int error = cls_arena_marker_save(&marker, ctx->app->arena_frame);
     if (error)
         return error;
 
-    struct renderer_cmd *cmd = NULL;
-    error = allocator_alloc((void **)&cmd, ctx->rend->alloc_frame,
-                            sizeof(struct renderer_cmd),
-                            alignof(struct renderer_cmd));
+    struct cls_renderer_cmd *cmd = NULL;
+    error = cls_allocator_alloc((void **)&cmd, ctx->rend->alloc_frame,
+                                sizeof(struct cls_renderer_cmd),
+                                alignof(struct cls_renderer_cmd));
     if (error)
         goto cleanup;
 
@@ -154,32 +154,33 @@ static int add_ecs_base_renderer_cmd(struct ecs_renderer_ctx *ctx) {
     return CLS_SUCCESS;
 
 cleanup:
-    arena_marker_restore(ctx->app->arena_frame, &marker);
+    cls_arena_marker_restore(ctx->app->arena_frame, &marker);
     return error;
 }
 
 static int find_active_camera(struct camera **cam, struct transform **tf,
-                              struct ecs_world *world) {
+                              struct cls_ecs_world *world) {
     if (!cam || !world)
         return CLS_NULLPTR;
 
-    struct ecs_world_query *cam_query = NULL;
-    int error = ecs_world_query_create(&cam_query, world, 3, "camera",
-                                       "camera_active", "transform");
+    struct cls_ecs_world_query *cam_query = NULL;
+    int error = cls_ecs_world_query_create(&cam_query, world, 3, "camera",
+                                           "camera_active", "transform");
     if (error)
         return error;
 
-    entity e = ENTITY_MAX;
-    while (ecs_world_query_next(&e, cam_query) == CLS_SUCCESS &&
-           e != ENTITY_MAX) {
+    cls_entity e = CLS_ENTITY_MAX;
+    while (cls_ecs_world_query_next(&e, cam_query) == CLS_SUCCESS &&
+           e != CLS_ENTITY_MAX) {
         void *cam_ptr = NULL;
-        error = ecs_world_query_component_get(&cam_ptr, cam_query, "camera", e);
+        error =
+            cls_ecs_world_query_component_get(&cam_ptr, cam_query, "camera", e);
         if (error)
             continue;
 
         void *tf_ptr = NULL;
-        error =
-            ecs_world_query_component_get(&tf_ptr, cam_query, "transform", e);
+        error = cls_ecs_world_query_component_get(&tf_ptr, cam_query,
+                                                  "transform", e);
         if (error)
             continue;
 
@@ -187,34 +188,35 @@ static int find_active_camera(struct camera **cam, struct transform **tf,
         *tf = tf_ptr;
     }
 
-    ecs_world_query_destroy(cam_query);
+    cls_ecs_world_query_destroy(cam_query);
     free(cam_query);
     return CLS_SUCCESS;
 }
 
-static int renderer_ecs_create_render_cmds(struct renderer *rend,
-                                           struct app *app) {
+static int renderer_ecs_create_render_cmds(struct cls_renderer *rend,
+                                           struct cls_app *app) {
     if (!app)
         return CLS_NULLPTR;
 
-    struct table *ecs_worlds = NULL;
-    int error = ecs_world_get_all(&ecs_worlds, app->ecs);
+    struct cls_table *ecs_worlds = NULL;
+    int error = cls_ecs_world_get_all(&ecs_worlds, app->ecs);
     if (error)
         return error;
 
-    struct table_iterator *iter = NULL;
-    error = table_iterator_create(&iter, ecs_worlds);
+    struct cls_table_iterator *iter = NULL;
+    error = cls_table_iterator_create(&iter, ecs_worlds);
     if (error)
         return error;
 
     bool iter_next = false;
-    while (table_iterator_next(&iter_next, iter) == CLS_SUCCESS && iter_next) {
+    while (cls_table_iterator_next(&iter_next, iter) == CLS_SUCCESS &&
+           iter_next) {
         void *world_ptr = NULL;
-        error = table_iterator_value_get(&world_ptr, iter);
+        error = cls_table_iterator_value_get(&world_ptr, iter);
         if (error)
             continue;
 
-        struct ecs_world *world = world_ptr;
+        struct cls_ecs_world *world = world_ptr;
         if (!world)
             continue;
 
@@ -228,7 +230,7 @@ static int renderer_ecs_create_render_cmds(struct renderer *rend,
             continue;
 
         ivec2 fb_size = {0};
-        error = window_fb_size_get(fb_size, app->window);
+        error = cls_window_fb_size_get(fb_size, app->window);
         if (error)
             continue;
 
@@ -236,11 +238,11 @@ static int renderer_ecs_create_render_cmds(struct renderer *rend,
         if (active_cam->update) {
             error = camera_update(active_cam, cam_tf);
             if (error)
-                LOGGER_LOG_ERROR(LOGGER_ERROR, error, "%s",
-                                 "Updating renderer active camera failed");
+                CLS_LOGGER_LOG_ERROR(CLS_LOGGER_ERROR, error, "%s",
+                                     "Updating renderer active camera failed");
         }
 
-        struct ecs_renderer_ctx ctx = {
+        struct cls_ecs_renderer_ctx ctx = {
             .app = app,
             .active_cam = active_cam,
             .cam_tf = cam_tf,
@@ -248,25 +250,25 @@ static int renderer_ecs_create_render_cmds(struct renderer *rend,
             .world = world,
         };
 
-        struct ecs_world_query *query = NULL;
-        error =
-            ecs_world_query_create(&query, world, 2, "renderable", "transform");
+        struct cls_ecs_world_query *query = NULL;
+        error = cls_ecs_world_query_create(&query, world, 2, "renderable",
+                                           "transform");
         if (error)
             continue;
 
-        entity e = ENTITY_MAX;
-        while (ecs_world_query_next(&e, query) == CLS_SUCCESS &&
-               e != ENTITY_MAX) {
+        cls_entity e = CLS_ENTITY_MAX;
+        while (cls_ecs_world_query_next(&e, query) == CLS_SUCCESS &&
+               e != CLS_ENTITY_MAX) {
 
             void *ren_ptr = NULL;
-            error =
-                ecs_world_query_component_get(&ren_ptr, query, "renderable", e);
+            error = cls_ecs_world_query_component_get(&ren_ptr, query,
+                                                      "renderable", e);
             if (error)
                 continue;
 
             void *tf_ptr = NULL;
-            error =
-                ecs_world_query_component_get(&tf_ptr, query, "transform", e);
+            error = cls_ecs_world_query_component_get(&tf_ptr, query,
+                                                      "transform", e);
             if (error)
                 continue;
 
@@ -284,77 +286,77 @@ static int renderer_ecs_create_render_cmds(struct renderer *rend,
                 continue;
         }
 
-        ecs_world_query_destroy(query);
-        free(query);
+        cls_ecs_world_query_destroy(query);
     }
 
-    table_iterator_destroy(iter);
+    cls_table_iterator_destroy(iter);
     return CLS_SUCCESS;
 }
 
-static int renderer_frame_clear(struct renderer *rend, struct app *app) {
+static int renderer_frame_clear(struct cls_renderer *rend,
+                                struct cls_app *app) {
     if (!rend)
         return CLS_NULLPTR;
 
     size_t batches_length = 0;
-    int error = array_length_get(&batches_length, rend->batches);
+    int error = cls_array_length_get(&batches_length, rend->batches);
     if (error)
         return error;
 
     for (size_t i = 0; i < batches_length; ++i) {
         void *batch_ptr = NULL;
-        error = array_elem_get(&batch_ptr, rend->batches, i);
+        error = cls_array_elem_get(&batch_ptr, rend->batches, i);
         if (error)
             continue;
 
-        struct renderer_batch *batch = batch_ptr;
+        struct cls_renderer_batch *batch = batch_ptr;
         if (batch)
-            array_destroy(batch->cmds);
+            cls_array_destroy(batch->cmds);
     }
 
-    error = array_clear(rend->transparent_cmds);
+    error = cls_array_clear(rend->transparent_cmds);
     if (error)
         return error;
 
-    error = array_clear(rend->batches);
+    error = cls_array_clear(rend->batches);
     if (error)
         return error;
 
-    error = table_clear(rend->batch_indices);
+    error = cls_table_clear(rend->batch_indices);
     if (error)
         return error;
 
-    error = arena_clear(app->arena_frame);
+    error = cls_arena_clear(app->arena_frame);
     if (error)
         return error;
 
     return CLS_SUCCESS;
 }
 
-static void renderer_frame_destroy(struct renderer *rend) {
+static void renderer_frame_destroy(struct cls_renderer *rend) {
     if (!rend)
         return;
 
     size_t batches_length = 0;
-    int error = array_length_get(&batches_length, rend->batches);
+    int error = cls_array_length_get(&batches_length, rend->batches);
     if (error)
         return;
 
     for (size_t i = 0; i < batches_length; ++i) {
         void *batch_ptr = NULL;
-        error = array_elem_get(&batch_ptr, rend->batches, i);
+        error = cls_array_elem_get(&batch_ptr, rend->batches, i);
         if (error)
             continue;
 
-        struct renderer_batch *batch = batch_ptr;
+        struct cls_renderer_batch *batch = batch_ptr;
         if (batch)
-            array_destroy(batch->cmds);
+            cls_array_destroy(batch->cmds);
     }
 }
 
 static int cmd_depth_compare(const void *a, const void *b) {
-    const struct renderer_cmd *ca = *(const struct renderer_cmd **)a;
-    const struct renderer_cmd *cb = *(const struct renderer_cmd **)b;
+    const struct cls_renderer_cmd *ca = *(const struct cls_renderer_cmd **)a;
+    const struct cls_renderer_cmd *cb = *(const struct cls_renderer_cmd **)b;
     if (cb->depth > ca->depth)
         return 1;
     if (cb->depth < ca->depth)
@@ -362,14 +364,14 @@ static int cmd_depth_compare(const void *a, const void *b) {
     return 0;
 }
 
-static int renderer_sort_transparent(struct renderer *rend) {
+static int renderer_sort_transparent(struct cls_renderer *rend) {
     size_t count = 0;
-    int error = array_length_get(&count, rend->transparent_cmds);
+    int error = cls_array_length_get(&count, rend->transparent_cmds);
     if (error)
         return error;
 
     void *data = NULL;
-    error = array_data_get(&data, rend->transparent_cmds);
+    error = cls_array_data_get(&data, rend->transparent_cmds);
     if (error)
         return error;
 
@@ -377,20 +379,21 @@ static int renderer_sort_transparent(struct renderer *rend) {
     return CLS_SUCCESS;
 }
 
-int renderer_create(struct renderer **rend, struct allocator *alloc_perm,
-                    struct allocator *alloc_frame, struct gfx_api *api,
-                    ivec4 bg_color) {
+int cls_renderer_create(struct cls_renderer **rend,
+                        struct cls_allocator *alloc_perm,
+                        struct cls_allocator *alloc_frame,
+                        struct cls_gfx_api *api, ivec4 bg_color) {
     if (!rend || !alloc_frame || !api)
         return CLS_NULLPTR;
 
     void *instance_ptr = NULL;
-    int error =
-        allocator_alloc(&instance_ptr, alloc_perm, sizeof(struct renderer),
-                        alignof(struct renderer));
+    int error = cls_allocator_alloc(&instance_ptr, alloc_perm,
+                                    sizeof(struct cls_renderer),
+                                    alignof(struct cls_renderer));
     if (error)
         return error;
 
-    struct renderer *instance = instance_ptr;
+    struct cls_renderer *instance = instance_ptr;
     if (!instance)
         return CLS_NULLPTR;
 
@@ -398,18 +401,19 @@ int renderer_create(struct renderer **rend, struct allocator *alloc_perm,
     instance->api = api;
     glm_ivec4_copy(bg_color, instance->bg_color);
 
-    error = array_create(&instance->transparent_cmds, START_CMD_CAPACITY,
-                         sizeof(struct renderer_cmd *));
+    error = cls_array_create(&instance->transparent_cmds, START_CMD_CAPACITY,
+                             sizeof(struct cls_renderer_cmd *));
     if (error)
         goto cleanup;
 
-    error = array_create(&instance->batches, START_CMD_CAPACITY,
-                         sizeof(struct renderer_batch));
+    error = cls_array_create(&instance->batches, START_CMD_CAPACITY,
+                             sizeof(struct cls_renderer_batch));
     if (error)
         goto cleanup;
 
-    error = table_create(&instance->batch_indices, START_CMD_CAPACITY,
-                         sizeof(struct renderer_batch_data), sizeof(size_t));
+    error = cls_table_create(&instance->batch_indices, START_CMD_CAPACITY,
+                             sizeof(struct cls_renderer_batch_data),
+                             sizeof(size_t));
     if (error)
         goto cleanup;
 
@@ -421,28 +425,28 @@ int renderer_create(struct renderer **rend, struct allocator *alloc_perm,
     return CLS_SUCCESS;
 
 cleanup:
-    renderer_destroy(instance);
+    cls_renderer_destroy(instance);
     return error;
 }
 
-void renderer_destroy(struct renderer *rend) {
+void cls_renderer_destroy(struct cls_renderer *rend) {
     if (!rend)
         return;
 
     renderer_frame_destroy(rend);
-    array_destroy(rend->transparent_cmds);
-    array_destroy(rend->batches);
-    table_destroy(rend->batch_indices);
+    cls_array_destroy(rend->transparent_cmds);
+    cls_array_destroy(rend->batches);
+    cls_table_destroy(rend->batch_indices);
 }
 
-int renderer_swap_buffers(struct renderer *rend, GLFWwindow *window) {
+int cls_renderer_swap_buffers(struct cls_renderer *rend, GLFWwindow *window) {
     if (!rend)
         return CLS_NULLPTR;
 
     return rend->api->swap_buffers(window);
 }
 
-int renderer_on_resize(struct renderer *rend, int width, int height) {
+int cls_renderer_on_resize(struct cls_renderer *rend, int width, int height) {
     if (!rend)
         return CLS_NULLPTR;
 
@@ -450,7 +454,7 @@ int renderer_on_resize(struct renderer *rend, int width, int height) {
     return CLS_SUCCESS;
 }
 
-int renderer_frame_create(struct renderer *rend, struct app *app) {
+int cls_renderer_frame_create(struct cls_renderer *rend, struct cls_app *app) {
     if (!rend || !app)
         return CLS_NULLPTR;
 

@@ -6,7 +6,7 @@
 struct renderable;
 struct transform;
 
-struct renderer_cmd {
+struct cls_renderer_cmd {
     mat4 mvp;
     struct renderable *ren;
     struct transform *tf;

@@ -4,18 +4,19 @@
 #include <stdlib.h>
 #include <string.h>
 
-struct allocator {
-    allocator_alloc_fn alloc;
-    allocator_free_fn free;
+struct cls_allocator {
+    cls_allocator_alloc_fn alloc;
+    cls_allocator_free_fn free;
     void *ctx;
 };
 
-int allocator_create(struct allocator **alloc, allocator_alloc_fn alloc_fn,
-                     allocator_free_fn free, void *ctx) {
+int cls_allocator_create(struct cls_allocator **alloc,
+                         cls_allocator_alloc_fn alloc_fn,
+                         cls_allocator_free_fn free, void *ctx) {
     if (!alloc)
         return CLS_NULLPTR;
 
-    struct allocator *allocator = malloc(sizeof(struct allocator));
+    struct cls_allocator *allocator = malloc(sizeof(struct cls_allocator));
     if (!allocator)
         return CLS_OUT_OF_MEMORY;
 
@@ -27,18 +28,18 @@ int allocator_create(struct allocator **alloc, allocator_alloc_fn alloc_fn,
     return CLS_SUCCESS;
 }
 
-void allocator_destroy(struct allocator *alloc) {
+void cls_allocator_destroy(struct cls_allocator *alloc) {
     if (!alloc)
         return;
 
     free(alloc);
 }
 
-int allocator_alloc(void **dest, struct allocator *alloc, size_t size,
-                    size_t align) {
+int cls_allocator_alloc(void **dest, struct cls_allocator *alloc, size_t size,
+                        size_t align) {
     return alloc->alloc(dest, alloc->ctx, size, align);
 }
 
-void allocator_free(struct allocator *alloc, void *src) {
+void cls_allocator_free(struct cls_allocator *alloc, void *src) {
     alloc->free(src, alloc->ctx);
 }

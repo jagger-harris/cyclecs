@@ -7,14 +7,14 @@
  * @struct array
  * @brief Dynamic array.
  */
-struct array;
+struct cls_array;
 
 /**
  * @brief Creates a new dynamic array.
  *
  * Allocates a new array with enough space for `start_capacity` elements,
  * each of size `elem_size`. Returned array must be destroyed with
- * array_destroy().
+ * cls_array_destroy().
  *
  * @param[out] a              Array instance.
  * @param[in]  start_capacity Initial capacity of the array.
@@ -27,13 +27,14 @@ struct array;
  *
  * ### Example
  * @code
- * struct array *arr;
- * array_create(&arr, 16, sizeof(int));
+ * struct cls_array *arr;
+ * cls_array_create(&arr, 16, sizeof(int));
  * // Use arr
  * array_destroy(arr);
  * @endcode
  */
-int array_create(struct array **a, size_t start_capacity, size_t elem_size);
+int cls_array_create(struct cls_array **a, size_t start_capacity,
+                     size_t elem_size);
 
 /**
  * @brief Destroys an array and frees its memory.
@@ -42,10 +43,10 @@ int array_create(struct array **a, size_t start_capacity, size_t elem_size);
  *
  * ### Example
  * @code
- * array_destroy(arr);
+ * cls_array_destroy(arr);
  * @endcode
  */
-void array_destroy(struct array *a);
+void cls_array_destroy(struct cls_array *a);
 
 /**
  * @brief Gets the number of elements in the array.
@@ -59,10 +60,10 @@ void array_destroy(struct array *a);
  * ### Example
  * @code
  * size_t len;
- * array_length_get(&len, arr);
+ * cls_array_length_get(&len, arr);
  * @endcode
  */
-int array_length_get(size_t *len, struct array *a);
+int cls_array_length_get(size_t *len, struct cls_array *a);
 
 /**
  * @brief Gets the raw data in the array.
@@ -73,7 +74,7 @@ int array_length_get(size_t *len, struct array *a);
  * @return CLS_SUCCESS On success.
  * @retval CLS_NULLPTR If `data` or `a` is NULL.
  */
-int array_data_get(void **data, struct array *a);
+int cls_array_data_get(void **data, struct cls_array *a);
 
 /**
  * @brief Clears the array without freeing memory.
@@ -85,7 +86,7 @@ int array_data_get(void **data, struct array *a);
  * @return CLS_SUCCESS On success.
  * @retval CLS_NULLPTR If 'a' is NULL.
  */
-int array_clear(struct array *a);
+int cls_array_clear(struct cls_array *a);
 
 /**
  * @brief Gets a const pointer to an element in the array.
@@ -98,7 +99,7 @@ int array_clear(struct array *a);
  * @retval CLS_NULLPTR     If 'dest' or 'a' is NULL.
  * @retval CLS_INVALID_ARG If 'index' is out of bounds.
  */
-int array_elem_get(void **dest, const struct array *a, size_t index);
+int cls_array_elem_get(void **dest, const struct cls_array *a, size_t index);
 
 /**
  * @brief Copies an element from the array into user-provided memory.
@@ -111,7 +112,7 @@ int array_elem_get(void **dest, const struct array *a, size_t index);
  * @retval CLS_NULLPTR     If 'dest' or 'a' is NULL.
  * @retval CLS_INVALID_ARG If 'index' is out of bounds.
  */
-int array_elem_get_cpy(void *dest, const struct array *a, size_t index);
+int cls_array_elem_get_cpy(void *dest, const struct cls_array *a, size_t index);
 
 /**
  * @brief Sets the value of an element.
@@ -126,7 +127,7 @@ int array_elem_get_cpy(void *dest, const struct array *a, size_t index);
  * @retval CLS_NULLPTR     If 'a' or 'elem' is NULL.
  * @retval CLS_INVALID_ARG If 'index' is out of bounds.
  */
-int array_elem_set(struct array *a, size_t index, const void *elem);
+int cls_array_elem_set(struct cls_array *a, size_t index, const void *elem);
 
 /**
  * @brief Appends an element to the array, growing if needed.
@@ -143,10 +144,10 @@ int array_elem_set(struct array *a, size_t index, const void *elem);
  * ### Example
  * @code
  * int v = 42;
- * array_push(&arr, &v);
+ * cls_array_push(&arr, &v);
  * @endcode
  */
-int array_push(struct array **a, const void *elem);
+int cls_array_push(struct cls_array **a, const void *elem);
 
 /**
  * @brief Removes last element from array.
@@ -158,7 +159,7 @@ int array_push(struct array **a, const void *elem);
  * @retval CLS_NULLPTR     If 'a' is NULL.
  * @retval CLS_INVALID_ARG If 'a' is empty.
  */
-int array_pop(void *last, struct array *a);
+int cls_array_pop(void *last, struct cls_array *a);
 
 /**
  * @brief Inserts an element at given index.
@@ -173,7 +174,7 @@ int array_pop(void *last, struct array *a);
  * @retval CLS_NULLPTR     If 'a' or 'elem' is NULL.
  * @retval CLS_INVALID_ARG If 'index' is invalid.
  */
-int array_insert(struct array **a, size_t index, const void *elem);
+int cls_array_insert(struct cls_array **a, size_t index, const void *elem);
 
 /**
  * @brief Removes the element at the given index.
@@ -187,7 +188,7 @@ int array_insert(struct array **a, size_t index, const void *elem);
  * @retval CLS_NULLPTR     If 'a' is NULL.
  * @retval CLS_INVALID_ARG If 'index' is out of bounds.
  */
-int array_remove(struct array *a, size_t index);
+int cls_array_remove(struct cls_array *a, size_t index);
 
 /**
  * @brief Appends all elements of array `src` into array `dest`.
@@ -202,6 +203,6 @@ int array_remove(struct array *a, size_t index);
  * @retval CLS_INVALID_ARG   If array element size differs.
  * @retval CLS_OUT_OF_MEMORY If growth fails.
  */
-int array_concat(struct array **dest, const struct array *src);
+int cls_array_concat(struct cls_array **dest, const struct cls_array *src);
 
 #endif // CLS_ARRAY_H

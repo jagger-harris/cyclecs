@@ -7,7 +7,7 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include <stb_image_write.h>
 
-int image_init(struct image *img, const char *path) {
+int cls_image_init(struct cls_image *img, const char *path) {
     if (!img || !path)
         return CLS_NULLPTR;
 
@@ -18,7 +18,7 @@ int image_init(struct image *img, const char *path) {
     return CLS_SUCCESS;
 }
 
-void image_destroy(struct image *img) {
+void cls_image_destroy(struct cls_image *img) {
     if (!img || !img->data)
         return;
 
@@ -26,7 +26,7 @@ void image_destroy(struct image *img) {
     img->data = NULL;
 }
 
-int image_save(const struct image *img, const char *path) {
+int cls_image_save(const struct cls_image *img, const char *path) {
     if (!img || !img->data || !path)
         return CLS_NULLPTR;
 

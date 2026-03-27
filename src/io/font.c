@@ -18,7 +18,7 @@
 #define FONT_GLYPH_PADDING 2 // Prevents texture bleeding
 #define FONT_SDF_SPREAD 8 // SDF spread in pixels
 
-struct font_meta {
+struct cls_font_meta {
     unsigned int atlas_width;
     unsigned int atlas_height;
     int pixel_size;
@@ -36,7 +36,7 @@ static unsigned int next_pow2(unsigned int i) {
     return i;
 }
 
-static int font_save(const struct font *f, const char *path) {
+static int font_save(const struct cls_font *f, const char *path) {
     if (!f || !path)
         return CLS_NULLPTR;
 
@@ -55,11 +55,11 @@ static int font_save(const struct font *f, const char *path) {
     for (size_t i = 0; i < size; ++i)
         atlas[i] = f->atlas[i];
 
-    struct image atlas_image = {.data = atlas,
-                                .width = (int)f->atlas_width,
-                                .height = (int)f->atlas_height,
-                                .channels = 1};
-    int error = image_save(&atlas_image, atlas_image_path);
+    struct cls_image atlas_image = {.data = atlas,
+                                    .width = (int)f->atlas_width,
+                                    .height = (int)f->atlas_height,
+                                    .channels = 1};
+    int error = cls_image_save(&atlas_image, atlas_image_path);
     if (error)
         goto cleanup;
 
@@ -75,18 +75,19 @@ static int font_save(const struct font *f, const char *path) {
         goto cleanup;
     }
 
-    struct font_meta meta = {.atlas_width = f->atlas_width,
-                             .atlas_height = f->atlas_height,
-                             .pixel_size = f->pixel_size,
-                             .sdf_spread = FONT_SDF_SPREAD};
+    struct cls_font_meta meta = {.atlas_width = f->atlas_width,
+                                 .atlas_height = f->atlas_height,
+                                 .pixel_size = f->pixel_size,
+                                 .sdf_spread = FONT_SDF_SPREAD};
     unsigned long length = fwrite(&meta, sizeof(meta), 1, file);
     if (length < 1) {
         error = CLS_ACCESS_DENIED;
         goto cleanup;
     }
 
-    length = fwrite(f->glyphs, sizeof(struct glyph), FONT_CHAR_LENGTH, file);
-    if (length < FONT_CHAR_LENGTH) {
+    length =
+        fwrite(f->glyphs, sizeof(struct cls_glyph), CLS_FONT_CHAR_LENGTH, file);
+    if (length < CLS_FONT_CHAR_LENGTH) {
         error = CLS_ACCESS_DENIED;
         goto cleanup;
     }
@@ -107,7 +108,7 @@ cleanup:
     return error;
 }
 
-static int font_load(struct font *f, const char *path) {
+static int font_load(struct cls_font *f, const char *path) {
     if (!f || !path)
         return CLS_NULLPTR;
 
@@ -122,8 +123,8 @@ static int font_load(struct font *f, const char *path) {
     if (ret < 0)
         return CLS_FAILURE;
 
-    struct image atlas_image = {0};
-    int error = image_init(&atlas_image, atlas_image_path);
+    struct cls_image atlas_image = {0};
+    int error = cls_image_init(&atlas_image, atlas_image_path);
     if (error)
         return error;
 
@@ -133,15 +134,15 @@ static int font_load(struct font *f, const char *path) {
         goto cleanup;
     }
 
-    struct font_meta meta = {0};
+    struct cls_font_meta meta = {0};
 
     if (fread(&meta, sizeof(meta), 1, file) != 1) {
         error = CLS_FILE_CORRUPT;
         goto cleanup;
     }
 
-    if (fread(f->glyphs, sizeof(struct glyph), FONT_CHAR_LENGTH, file) !=
-        FONT_CHAR_LENGTH) {
+    if (fread(f->glyphs, sizeof(struct cls_glyph), CLS_FONT_CHAR_LENGTH,
+              file) != CLS_FONT_CHAR_LENGTH) {
         error = CLS_FILE_CORRUPT;
         goto cleanup;
     }
@@ -161,7 +162,7 @@ static int font_load(struct font *f, const char *path) {
     }
 
     memcpy(f->atlas, atlas_image.data, atlas_size);
-    image_destroy(&atlas_image);
+    cls_image_destroy(&atlas_image);
     f->face = NULL;
     return CLS_SUCCESS;
 
@@ -169,11 +170,12 @@ cleanup:
     if (file)
         (void)fclose(file);
 
-    image_destroy(&atlas_image);
+    cls_image_destroy(&atlas_image);
     return error;
 }
 
-int font_init(struct font *f, FT_Library ft, const char *path, int pixel_size) {
+int cls_font_init(struct cls_font *f, FT_Library ft, const char *path,
+                  int pixel_size) {
     if (!f || !ft || !path)
         return CLS_NULLPTR;
 
@@ -199,7 +201,7 @@ int font_init(struct font *f, FT_Library ft, const char *path, int pixel_size) {
     unsigned int total_area = 0;
     unsigned int max_width = 0;
     unsigned int max_height = 0;
-    for (u8 c = FONT_CHAR_START; c <= FONT_CHAR_END; ++c) {
+    for (u8 c = CLS_FONT_CHAR_START; c <= CLS_FONT_CHAR_END; ++c) {
         // Load with SDF render mode
         if (FT_Load_Char(f->face, c, FT_LOAD_DEFAULT))
             continue;
@@ -234,7 +236,7 @@ int font_init(struct font *f, FT_Library ft, const char *path, int pixel_size) {
         unsigned int test_shelf_height = 0;
         packing_success = true;
 
-        for (u8 c = FONT_CHAR_START; c <= FONT_CHAR_END; ++c) {
+        for (u8 c = CLS_FONT_CHAR_START; c <= CLS_FONT_CHAR_END; ++c) {
             if (FT_Load_Char(f->face, c, FT_LOAD_DEFAULT))
                 continue;
 
@@ -275,7 +277,7 @@ int font_init(struct font *f, FT_Library ft, const char *path, int pixel_size) {
     unsigned int shelf_y = 0;
     unsigned int shelf_height = 0;
 
-    for (u8 c = FONT_CHAR_START; c <= FONT_CHAR_END; ++c) {
+    for (u8 c = CLS_FONT_CHAR_START; c <= CLS_FONT_CHAR_END; ++c) {
         if (FT_Load_Char(f->face, c, FT_LOAD_DEFAULT))
             continue;
 
@@ -306,7 +308,7 @@ int font_init(struct font *f, FT_Library ft, const char *path, int pixel_size) {
         }
 
         // Store glyph metadata
-        struct glyph *glyph = &f->glyphs[c - FONT_CHAR_START];
+        struct cls_glyph *glyph = &f->glyphs[c - CLS_FONT_CHAR_START];
         glyph->width = glyph_width;
         glyph->height = glyph_height;
         glyph->bearing_x = slot->bitmap_left;
@@ -328,7 +330,7 @@ int font_init(struct font *f, FT_Library ft, const char *path, int pixel_size) {
     return CLS_SUCCESS;
 }
 
-void font_destroy(struct font *f) {
+void cls_font_destroy(struct cls_font *f) {
     if (!f)
         return;
 

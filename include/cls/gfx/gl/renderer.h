@@ -4,14 +4,15 @@
 #include <GLFW/glfw3.h>
 #include <cglm/types.h>
 
-struct app;
-struct array;
-struct renderer_ctx;
+struct cls_app;
+struct cls_array;
+struct cls_renderer_ctx;
 
-int gl_renderer_init(ivec4 bg_color);
-int gl_renderer_swap_buffers(GLFWwindow *win);
-void gl_renderer_on_resize(int width, int height);
-int gl_renderer_draw_frame(struct app *app, struct array *transparent_cmds,
-                           struct array *draw_cmds);
+int cls_gl_renderer_init(ivec4 bg_color);
+int cls_gl_renderer_swap_buffers(GLFWwindow *win);
+void cls_gl_renderer_on_resize(int width, int height);
+int cls_gl_renderer_draw_frame(struct cls_app *app,
+                               struct cls_array *transparent_cmds,
+                               struct cls_array *draw_cmds);
 
 #endif // CLS_GL_RENDERER_H

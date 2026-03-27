@@ -6,18 +6,18 @@
 #include <stdlib.h>
 #include <string.h>
 
-struct arena {
+struct cls_arena {
     size_t size;
     size_t used;
     size_t last_offset;
     void *data;
 };
 
-static inline void *arena_data(struct arena *a) {
-    return (u8 *)a + sizeof(struct arena);
+static inline void *arena_data(struct cls_arena *a) {
+    return (u8 *)a + sizeof(struct cls_arena);
 }
 
-int arena_create(struct arena **a, size_t size) {
+int cls_arena_create(struct cls_arena **a, size_t size) {
     if (!a)
         return CLS_NULLPTR;
 
@@ -25,13 +25,13 @@ int arena_create(struct arena **a, size_t size) {
         return CLS_INVALID_ARG;
 
     const size_t align = alignof(max_align_t);
-    size_t total_size = sizeof(struct arena) + size + (align - 1);
+    size_t total_size = sizeof(struct cls_arena) + size + (align - 1);
 
-    struct arena *arena = malloc(total_size);
+    struct cls_arena *arena = malloc(total_size);
     if (!arena)
         return CLS_OUT_OF_MEMORY;
 
-    uintptr_t base = (uintptr_t)arena + sizeof(struct arena);
+    uintptr_t base = (uintptr_t)arena + sizeof(struct cls_arena);
     uintptr_t aligned = (base + (align - 1)) & ~(uintptr_t)(align - 1);
 
     arena->data = (void *)aligned;
@@ -43,14 +43,15 @@ int arena_create(struct arena **a, size_t size) {
     return CLS_SUCCESS;
 }
 
-void arena_destroy(struct arena *a) {
+void cls_arena_destroy(struct cls_arena *a) {
     if (!a)
         return;
 
     free(a);
 }
 
-int arena_alloc(void **dest, struct arena *a, size_t size, size_t align) {
+int cls_arena_alloc(void **dest, struct cls_arena *a, size_t size,
+                    size_t align) {
     if (!dest || !a)
         return CLS_NULLPTR;
 
@@ -72,7 +73,7 @@ int arena_alloc(void **dest, struct arena *a, size_t size, size_t align) {
     return CLS_SUCCESS;
 }
 
-int arena_clear(struct arena *a) {
+int cls_arena_clear(struct cls_arena *a) {
     if (!a)
         return CLS_NULLPTR;
 
@@ -81,7 +82,7 @@ int arena_clear(struct arena *a) {
     return CLS_SUCCESS;
 }
 
-int arena_marker_save(arena_marker *marker, struct arena *a) {
+int cls_arena_marker_save(cls_arena_marker *marker, struct cls_arena *a) {
     if (!marker || !a)
         return CLS_NULLPTR;
 
@@ -89,7 +90,7 @@ int arena_marker_save(arena_marker *marker, struct arena *a) {
     return CLS_SUCCESS;
 }
 
-int arena_marker_restore(struct arena *a, arena_marker *marker) {
+int cls_arena_marker_restore(struct cls_arena *a, cls_arena_marker *marker) {
     if (!a || !marker)
         return CLS_NULLPTR;
 

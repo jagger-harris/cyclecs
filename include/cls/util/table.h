@@ -8,20 +8,20 @@
  * @struct table
  * @brief Hash table.
  */
-struct table;
+struct cls_table;
 
 /**
  * @struct table_iterator
  * @brief Iterator for traversing a table.
  */
-struct table_iterator;
+struct cls_table_iterator;
 
 /**
  * @brief Creates a new hash table.
  *
  * Allocates a new table with capacity `start_capacity`, where each slot holds
  * a key of size `key_size` and a value of size `value_size`. Table must be
- * destroyed using table_destroy().
+ * destroyed using cls_table_destroy().
  *
  * @param[out] t              Pointer to receive the created table.
  * @param[in]  start_capacity Initial slot count. Must be > 0.
@@ -35,14 +35,14 @@ struct table_iterator;
  *
  * ### Example
  * @code
- * struct table *t = NULL;
- * table_create(&t, 16, sizeof(int), sizeof(float));
+ * struct cls_table *t = NULL;
+ * cls_table_create(&t, 16, sizeof(int), sizeof(float));
  * // Use t
- * table_destroy(t);
+ * cls_table_destroy(t);
  * @endcode
  */
-int table_create(struct table **t, size_t start_capacity, size_t key_size,
-                 size_t value_size);
+int cls_table_create(struct cls_table **t, size_t start_capacity,
+                     size_t key_size, size_t value_size);
 
 /**
  * @brief Destroys a table and frees all memory.
@@ -51,10 +51,10 @@ int table_create(struct table **t, size_t start_capacity, size_t key_size,
  *
  * ### Example
  * @code
- * table_destroy(t);
+ * cls_table_destroy(t);
  * @endcode
  */
-void table_destroy(struct table *t);
+void cls_table_destroy(struct cls_table *t);
 
 /**
  * @brief Inserts a key/value pair into the table.
@@ -74,10 +74,10 @@ void table_destroy(struct table *t);
  * @code
  * int k = 10;
  * float v = 3.14f;
- * table_insert(t, &k, &v);
+ * cls_table_insert(t, &k, &v);
  * @endcode
  */
-int table_insert(struct table *t, const void *key, const void *value);
+int cls_table_insert(struct cls_table *t, const void *key, const void *value);
 
 /**
  * @brief Removes a key from the table.
@@ -98,10 +98,10 @@ int table_insert(struct table *t, const void *key, const void *value);
  * ### Example
  * @code
  * float removed;
- * table_remove(&removed, t, &k);
+ * cls_table_remove(&removed, t, &k);
  * @endcode
  */
-int table_remove(void *value, struct table *t, const void *key);
+int cls_table_remove(void *value, struct cls_table *t, const void *key);
 
 /**
  * @brief Finds a value and returns a pointer to it.
@@ -120,11 +120,11 @@ int table_remove(void *value, struct table *t, const void *key);
  * ### Example
  * @code
  * void *v_ptr;
- * table_find(&v_ptr, t, &k);
+ * cls_table_find(&v_ptr, t, &k);
  * float *v = vp_ptr;
  * @endcode
  */
-int table_find(void **value, const struct table *t, const void *key);
+int cls_table_find(void **value, const struct cls_table *t, const void *key);
 
 /**
  * @brief Copies a value associated with a key into user provided memory.
@@ -139,10 +139,10 @@ int table_find(void **value, const struct table *t, const void *key);
  * ### Example
  * @code
  * float value;
- * table_find_cpy(&value, t, &k);
+ * cls_table_find_cpy(&value, t, &k);
  * @endcode
  */
-int table_find_cpy(void *value, const struct table *t, const void *key);
+int cls_table_find_cpy(void *value, const struct cls_table *t, const void *key);
 
 /**
  * @brief Removes all entries from the table without freeing memory.
@@ -154,13 +154,13 @@ int table_find_cpy(void *value, const struct table *t, const void *key);
  * @return CLS_SUCCESS On success.
  * @retval CLS_NULLPTR If 't' is NULL.
  */
-int table_clear(struct table *t);
+int cls_table_clear(struct cls_table *t);
 
 /**
  * @brief Creates an iterator for traversing a table.
  *
  * The iterator starts at the first occupied slot. Must be destroyed using
- * table_iterator_destroy().
+ * cls_table_iterator_destroy().
  *
  * @param[out] it Pointer to receive iterator.
  * @param[in]  t  Table instance.
@@ -171,27 +171,28 @@ int table_clear(struct table *t);
  *
  * ### Example
  * @code
- * struct table_iterator *it;
- * table_iterator_create(&it, t);
+ * struct cls_table_iterator *it;
+ * cls_table_iterator_create(&it, t);
  * bool ok;
- * while (table_iterator_next(&ok, it), ok) {
+ * while (cls_table_iterator_next(&ok, it), ok) {
  *     void *k;
  *     void *v;
- *     table_iterator_key_get(&k, it);
- *     table_iterator_value_get(&v, it);
+ *     cls_table_iterator_key_get(&k, it);
+ *     cls_table_iterator_value_get(&v, it);
  *     // Use k and v
  * }
  * table_iterator_destroy(it);
  * @endcode
  */
-int table_iterator_create(struct table_iterator **it, const struct table *t);
+int cls_table_iterator_create(struct cls_table_iterator **it,
+                              const struct cls_table *t);
 
 /**
  * @brief Destroys table iterator.
  *
  * @param[in] it Iterator instance. NULL allowed.
  */
-void table_iterator_destroy(struct table_iterator *it);
+void cls_table_iterator_destroy(struct cls_table_iterator *it);
 
 /**
  * @brief Advances the iterator to the next occupied slot.
@@ -205,10 +206,10 @@ void table_iterator_destroy(struct table_iterator *it);
  * ### Example
  * @code
  * bool ok;
- * table_iterator_next(&ok, it);
+ * cls_table_iterator_next(&ok, it);
  * @endcode
  */
-int table_iterator_next(bool *exists, struct table_iterator *it);
+int cls_table_iterator_next(bool *exists, struct cls_table_iterator *it);
 
 /**
  * @brief Resets the iterator to the beginning of the table.
@@ -218,7 +219,7 @@ int table_iterator_next(bool *exists, struct table_iterator *it);
  * @return CLS_SUCCESS On success.
  * @retval CLS_NULLPTR If 'it' is NULL.
  */
-int table_iterator_clear(struct table_iterator *it);
+int cls_table_iterator_clear(struct cls_table_iterator *it);
 
 /**
  * @brief Retrieves the key for the current iterator position.
@@ -229,7 +230,7 @@ int table_iterator_clear(struct table_iterator *it);
  * @return CLS_SUCCESS On success.
  * @retval CLS_NULLPTR If 'key' or 'it' is NULL.
  */
-int table_iterator_key_get(void **key, const struct table_iterator *it);
+int cls_table_iterator_key_get(void **key, const struct cls_table_iterator *it);
 
 /**
  * @brief Retrieves the value for the current iterator position.
@@ -240,6 +241,7 @@ int table_iterator_key_get(void **key, const struct table_iterator *it);
  * @return CLS_SUCCESS On success.
  * @retval CLS_NULLPTR If 'value' or 'it' is NULL.
  */
-int table_iterator_value_get(void **value, const struct table_iterator *it);
+int cls_table_iterator_value_get(void **value,
+                                 const struct cls_table_iterator *it);
 
 #endif // CLS_TABLE_H

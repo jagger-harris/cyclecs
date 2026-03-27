@@ -5,7 +5,7 @@
 #include <cls/ecs/component/components.h>
 #include <cls/ecs/ecs.h>
 
-struct preset_ui_image_button {
+struct cls_preset_ui_image_button {
     struct renderable ren;
     struct transform tf;
     struct ui ui;
@@ -13,7 +13,7 @@ struct preset_ui_image_button {
     struct button_group grp;
 };
 
-struct preset_ui_label {
+struct cls_preset_ui_label {
     struct renderable ren;
     struct transform tf;
     struct ui ui;
@@ -21,33 +21,35 @@ struct preset_ui_label {
     struct label_group grp;
 };
 
-struct assets;
-struct ecs_world;
+struct cls_assets;
+struct cls_ecs_world;
 
-int preset_camera_ortho_spawn(entity *camera, struct ecs_world *world, vec3 pos,
-                              float left, float right, float bottom, float top,
-                              float zoom, float near_clip, float far_clip,
-                              bool y_down, bool active);
-int preset_renderable_spawn(entity *ren, struct ecs_world *world,
-                            const char *mesh_id, const char *shader_id,
-                            const char *texture2d_id, vec3 pos, vec3 scale,
-                            float rot_angle, vec2 uv_offset, vec2 uv_scale,
-                            ivec4 tint, bool visible, bool transparent);
-int preset_rect_spawn(entity *rect, struct ecs_world *world,
-                      const char *texture2d_id, vec2 pos, vec2 scale,
-                      float rot_angle, float z_index, ivec4 tint,
-                      vec2 uv_offset, vec2 uv_scale, bool visible);
-int preset_sprite_spawn(entity *sprite, struct ecs_world *world,
-                        const char *texture2d_id, vec2 pos, vec2 scale,
-                        float rot_angle, float z_index, ivec4 tint,
-                        vec2 uv_offset, vec2 uv_scale, bool visible);
-int preset_image_button_spawn(entity *button, struct ecs_world *world,
-                              const char *id, const char *image_id, vec2 pos,
-                              float z_index, vec2 scale, vec2 uv_offset,
-                              vec2 uv_scale, ivec4 image_tint, bool visible);
-int preset_label_spawn(entity *label, struct ecs_world *world,
-                       struct assets *assets, const char *id, vec2 pos,
-                       float z_index, const char *text, int font_size,
-                       const char *font_id, bool visible, ivec4 tint);
+int cls_preset_camera_ortho_spawn(cls_entity *camera,
+                                  struct cls_ecs_world *world, vec3 pos,
+                                  float left, float right, float bottom,
+                                  float top, float zoom, float near_clip,
+                                  float far_clip, bool y_down, bool active);
+int cls_preset_renderable_spawn(cls_entity *ren, struct cls_ecs_world *world,
+                                const char *mesh_id, const char *shader_id,
+                                const char *texture2d_id, vec3 pos, vec3 scale,
+                                float rot_angle, vec2 uv_offset, vec2 uv_scale,
+                                ivec4 tint, bool visible, bool transparent);
+int cls_preset_rect_spawn(cls_entity *rect, struct cls_ecs_world *world,
+                          const char *texture2d_id, vec2 pos, vec2 scale,
+                          float rot_angle, float z_index, ivec4 tint,
+                          vec2 uv_offset, vec2 uv_scale, bool visible);
+int cls_preset_sprite_spawn(cls_entity *sprite, struct cls_ecs_world *world,
+                            const char *texture2d_id, vec2 pos, vec2 scale,
+                            float rot_angle, float z_index, ivec4 tint,
+                            vec2 uv_offset, vec2 uv_scale, bool visible);
+int cls_preset_image_button_spawn(cls_entity *button,
+                                  struct cls_ecs_world *world, const char *id,
+                                  const char *image_id, vec2 pos, float z_index,
+                                  vec2 scale, vec2 uv_offset, vec2 uv_scale,
+                                  ivec4 image_tint, bool visible);
+int cls_preset_label_spawn(cls_entity *label, struct cls_ecs_world *world,
+                           struct cls_assets *assets, const char *id, vec2 pos,
+                           float z_index, const char *text, int font_size,
+                           const char *font_id, bool visible, ivec4 tint);
 
 #endif // CLS_PRESETS_H

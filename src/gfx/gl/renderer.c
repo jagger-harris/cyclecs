@@ -22,14 +22,15 @@ void GLAPIENTRY msg_callback(GLenum source, GLenum type, GLuint id,
 
     if (severity == GL_DEBUG_SEVERITY_MEDIUM ||
         severity == GL_DEBUG_SEVERITY_HIGH) {
-        enum logger_level level =
-            severity == GL_DEBUG_SEVERITY_HIGH ? LOGGER_ERROR : LOGGER_WARN;
-        LOGGER_LOG(level, "GL 0x%x: %s\n", type, message);
+        enum logger_level level = severity == GL_DEBUG_SEVERITY_HIGH
+                                      ? CLS_LOGGER_ERROR
+                                      : CLS_LOGGER_WARN;
+        CLS_LOGGER_LOG(level, "GL 0x%x: %s\n", type, message);
     }
 }
 #endif
 
-int gl_renderer_init(ivec4 bg_color) {
+int cls_gl_renderer_init(ivec4 bg_color) {
     if (!gladLoadGL((GLADloadfunc)glfwGetProcAddress))
         return CLS_GL;
 
@@ -48,7 +49,7 @@ int gl_renderer_init(ivec4 bg_color) {
     return CLS_SUCCESS;
 }
 
-int gl_renderer_swap_buffers(GLFWwindow *win) {
+int cls_gl_renderer_swap_buffers(GLFWwindow *win) {
     if (!win)
         return CLS_NULLPTR;
 
@@ -56,31 +57,32 @@ int gl_renderer_swap_buffers(GLFWwindow *win) {
     return CLS_SUCCESS;
 }
 
-void gl_renderer_on_resize(int width, int height) {
+void cls_gl_renderer_on_resize(int width, int height) {
     glViewport(0, 0, width, height);
 }
 
-static int render_cmd(struct app *app, struct renderer_cmd *cmd) {
-    struct gl_mesh *mesh = NULL;
-    int error = assets_mesh_get(&mesh, app->assets, cmd->ren->mesh_id);
+static int render_cmd(struct cls_app *app, struct cls_renderer_cmd *cmd) {
+    struct cls_gl_mesh *mesh = NULL;
+    int error = cls_assets_mesh_get(&mesh, app->assets, cmd->ren->mesh_id);
     if (error)
         return error;
 
-    struct shader *shader = NULL;
-    error = assets_shader_get(&shader, app->assets, cmd->ren->shader_id);
+    struct cls_shader *shader = NULL;
+    error = cls_assets_shader_get(&shader, app->assets, cmd->ren->shader_id);
     if (error)
         return error;
 
     struct cls_texture2d *texture = NULL;
-    error = assets_texture2d_get(&texture, app->assets, cmd->ren->texture_id);
+    error =
+        cls_assets_texture2d_get(&texture, app->assets, cmd->ren->texture_id);
     if (error)
         return error;
 
-    error = gl_shader_use(shader);
+    error = cls_gl_shader_use(shader);
     if (error)
         return error;
 
-    error = gl_texture2d_use(texture);
+    error = cls_gl_texture2d_use(texture);
     if (error)
         return error;
 
@@ -88,42 +90,43 @@ static int render_cmd(struct app *app, struct renderer_cmd *cmd) {
         (float)cmd->ren->tint[0] / 255.0f, (float)cmd->ren->tint[1] / 255.0f,
         (float)cmd->ren->tint[2] / 255.0f, (float)cmd->ren->tint[3] / 255.0f};
 
-    gl_shader_set_mat4(shader->gl.id, "u_mvp", &cmd->mvp);
-    gl_shader_set_vec4(shader->gl.id, "u_tint", &tint);
-    gl_shader_set_vec2(shader->gl.id, "u_uv_offset", &cmd->ren->uv_offset);
-    gl_shader_set_vec2(shader->gl.id, "u_uv_scale", &cmd->ren->uv_scale);
-    gl_shader_set_bool(shader->gl.id, "u_use_instancing", GL_FALSE);
-    gl_mesh_draw(mesh);
+    cls_gl_shader_set_mat4(shader->gl.id, "u_mvp", &cmd->mvp);
+    cls_gl_shader_set_vec4(shader->gl.id, "u_tint", &tint);
+    cls_gl_shader_set_vec2(shader->gl.id, "u_uv_offset", &cmd->ren->uv_offset);
+    cls_gl_shader_set_vec2(shader->gl.id, "u_uv_scale", &cmd->ren->uv_scale);
+    cls_gl_shader_set_bool(shader->gl.id, "u_use_instancing", GL_FALSE);
+    cls_gl_mesh_draw(mesh);
 
     return CLS_SUCCESS;
 }
 
-static int render_batch(struct app *app, struct renderer_batch *batch) {
-    struct gl_mesh *mesh = NULL;
-    int error = assets_mesh_get(&mesh, app->assets, batch->data.mesh_id);
+static int render_batch(struct cls_app *app, struct cls_renderer_batch *batch) {
+    struct cls_gl_mesh *mesh = NULL;
+    int error = cls_assets_mesh_get(&mesh, app->assets, batch->data.mesh_id);
     if (error)
         return error;
 
-    struct shader *shader = NULL;
-    error = assets_shader_get(&shader, app->assets, batch->data.shader_id);
+    struct cls_shader *shader = NULL;
+    error = cls_assets_shader_get(&shader, app->assets, batch->data.shader_id);
     if (error)
         return error;
 
     struct cls_texture2d *texture = NULL;
-    error = assets_texture2d_get(&texture, app->assets, batch->data.texture_id);
+    error =
+        cls_assets_texture2d_get(&texture, app->assets, batch->data.texture_id);
     if (error)
         return error;
 
-    error = gl_shader_use(shader);
+    error = cls_gl_shader_use(shader);
     if (error)
         return error;
 
-    error = gl_texture2d_use(texture);
+    error = cls_gl_texture2d_use(texture);
     if (error)
         return error;
 
     size_t cmds_length = 0;
-    error = array_length_get(&cmds_length, batch->cmds);
+    error = cls_array_length_get(&cmds_length, batch->cmds);
     if (error)
         return error;
 
@@ -132,24 +135,24 @@ static int render_batch(struct app *app, struct renderer_batch *batch) {
         if (instance_count == 0)
             return CLS_SUCCESS;
 
-        struct gl_mesh_instance_data *instances = NULL;
-        error =
-            allocator_alloc((void **)&instances, app->alloc_frame,
-                            sizeof(struct gl_mesh_instance_data) * cmds_length,
-                            alignof(struct gl_mesh_instance_data));
+        struct cls_gl_mesh_instance_data *instances = NULL;
+        error = cls_allocator_alloc((void **)&instances, app->alloc_frame,
+                                    sizeof(struct cls_gl_mesh_instance_data) *
+                                        cmds_length,
+                                    alignof(struct cls_gl_mesh_instance_data));
         if (error)
             return error;
 
         for (size_t i = 0; i < instance_count; ++i) {
             void *cmd_ptr = NULL;
-            error = array_elem_get(&cmd_ptr, batch->cmds, i);
+            error = cls_array_elem_get(&cmd_ptr, batch->cmds, i);
             if (error)
                 continue;
 
             if (!cmd_ptr)
                 continue;
 
-            struct renderer_cmd *cmd = *(struct renderer_cmd **)cmd_ptr;
+            struct cls_renderer_cmd *cmd = *(struct cls_renderer_cmd **)cmd_ptr;
             if (!cmd)
                 continue;
 
@@ -163,20 +166,20 @@ static int render_batch(struct app *app, struct renderer_batch *batch) {
             glm_vec2_copy(cmd->ren->uv_scale, instances[i].uv_scale);
         }
 
-        gl_shader_set_bool(shader->gl.id, "u_use_instancing", GL_TRUE);
-        gl_mesh_draw_instanced((struct gl_mesh *)mesh, instances,
-                               (GLsizei)instance_count);
+        cls_gl_shader_set_bool(shader->gl.id, "u_use_instancing", GL_TRUE);
+        cls_gl_mesh_draw_instanced((struct cls_gl_mesh *)mesh, instances,
+                                   (GLsizei)instance_count);
     } else {
         for (size_t i = 0; i < cmds_length; ++i) {
             void *cmd_ptr = NULL;
-            error = array_elem_get(&cmd_ptr, batch->cmds, i);
+            error = cls_array_elem_get(&cmd_ptr, batch->cmds, i);
             if (error)
                 continue;
 
             if (!cmd_ptr)
                 continue;
 
-            struct renderer_cmd *cmd = *(struct renderer_cmd **)cmd_ptr;
+            struct cls_renderer_cmd *cmd = *(struct cls_renderer_cmd **)cmd_ptr;
             if (!cmd)
                 continue;
 
@@ -185,51 +188,52 @@ static int render_batch(struct app *app, struct renderer_batch *batch) {
                          (float)cmd->ren->tint[2] / 255.0f,
                          (float)cmd->ren->tint[3] / 255.0f};
 
-            gl_shader_set_mat4(shader->gl.id, "u_mvp", &cmd->mvp);
-            gl_shader_set_vec4(shader->gl.id, "u_tint", &tint);
-            gl_shader_set_vec2(shader->gl.id, "u_uv_offset",
-                               &cmd->ren->uv_offset);
-            gl_shader_set_vec2(shader->gl.id, "u_uv_scale",
-                               &cmd->ren->uv_scale);
-            gl_shader_set_bool(shader->gl.id, "u_use_instancing", GL_FALSE);
-            gl_mesh_draw(mesh);
+            cls_gl_shader_set_mat4(shader->gl.id, "u_mvp", &cmd->mvp);
+            cls_gl_shader_set_vec4(shader->gl.id, "u_tint", &tint);
+            cls_gl_shader_set_vec2(shader->gl.id, "u_uv_offset",
+                                   &cmd->ren->uv_offset);
+            cls_gl_shader_set_vec2(shader->gl.id, "u_uv_scale",
+                                   &cmd->ren->uv_scale);
+            cls_gl_shader_set_bool(shader->gl.id, "u_use_instancing", GL_FALSE);
+            cls_gl_mesh_draw(mesh);
         }
     }
 
     return CLS_SUCCESS;
 }
 
-int gl_renderer_draw_frame(struct app *app, struct array *transparent_cmds,
-                           struct array *batches) {
+int cls_gl_renderer_draw_frame(struct cls_app *app,
+                               struct cls_array *transparent_cmds,
+                               struct cls_array *batches) {
     if (!app || !batches)
         return CLS_NULLPTR;
 
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     size_t batches_length = 0;
-    int error = array_length_get(&batches_length, batches);
+    int error = cls_array_length_get(&batches_length, batches);
     if (error)
         return error;
 
     for (size_t i = 0; i < batches_length; ++i) {
-        struct renderer_batch *batch = NULL;
-        error = array_elem_get((void **)&batch, batches, i);
+        struct cls_renderer_batch *batch = NULL;
+        error = cls_array_elem_get((void **)&batch, batches, i);
         if (error) {
-            LOGGER_LOG_ERROR(LOGGER_ERROR, error, "%s",
-                             "Getting render batch failed");
+            CLS_LOGGER_LOG_ERROR(CLS_LOGGER_ERROR, error, "%s",
+                                 "Getting render batch failed");
             continue;
         }
 
         error = render_batch(app, batch);
         if (error) {
-            LOGGER_LOG_ERROR(LOGGER_ERROR, error, "%s",
-                             "GL rendering render batch failed");
+            CLS_LOGGER_LOG_ERROR(CLS_LOGGER_ERROR, error, "%s",
+                                 "GL rendering render batch failed");
             continue;
         }
     }
 
     size_t transparent_length = 0;
-    error = array_length_get(&transparent_length, transparent_cmds);
+    error = cls_array_length_get(&transparent_length, transparent_cmds);
     if (error)
         return error;
 
@@ -239,21 +243,21 @@ int gl_renderer_draw_frame(struct app *app, struct array *transparent_cmds,
 
         for (size_t i = 0; i < transparent_length; ++i) {
             void *cmd_ptr = NULL;
-            error = array_elem_get(&cmd_ptr, transparent_cmds, i);
+            error = cls_array_elem_get(&cmd_ptr, transparent_cmds, i);
             if (error)
                 continue;
 
             if (!cmd_ptr)
                 continue;
 
-            struct renderer_cmd *cmd = *(struct renderer_cmd **)cmd_ptr;
+            struct cls_renderer_cmd *cmd = *(struct cls_renderer_cmd **)cmd_ptr;
             if (!cmd)
                 continue;
 
             error = render_cmd(app, cmd);
             if (error) {
-                LOGGER_LOG_ERROR(LOGGER_ERROR, error, "%s",
-                                 "GL rendering transparent cmd failed");
+                CLS_LOGGER_LOG_ERROR(CLS_LOGGER_ERROR, error, "%s",
+                                     "GL rendering transparent cmd failed");
                 continue;
             }
         }

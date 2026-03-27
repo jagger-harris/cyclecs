@@ -3,15 +3,15 @@
 
 #include <cls/util/types.h>
 
-struct image {
+struct cls_image {
     int width;
     int height;
     int channels;
     u8 *data;
 };
 
-int image_init(struct image *img, const char *path);
-void image_destroy(struct image *img);
-int image_save(const struct image *img, const char *path);
+int cls_image_init(struct cls_image *img, const char *path);
+void cls_image_destroy(struct cls_image *img);
+int cls_image_save(const struct cls_image *img, const char *path);
 
 #endif // CLS_IMAGE_H

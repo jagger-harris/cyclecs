@@ -3,26 +3,26 @@
 
 #include <cglm/types.h>
 
-struct assets;
-struct ecs;
-struct gfx_api;
-struct allocator;
-struct window;
+struct cls_assets;
+struct cls_ecs;
+struct cls_gfx_api;
+struct cls_allocator;
+struct cls_window;
 
-struct app {
-    struct assets *assets;
-    struct ecs *ecs;
-    struct gfx_api *api;
-    struct arena *arena_perm;
-    struct arena *arena_frame;
-    struct allocator *alloc_perm;
-    struct allocator *alloc_frame;
-    struct window *window;
+struct cls_app {
+    struct cls_assets *assets;
+    struct cls_ecs *ecs;
+    struct cls_gfx_api *api;
+    struct cls_arena *arena_perm;
+    struct cls_arena *arena_frame;
+    struct cls_allocator *alloc_perm;
+    struct cls_allocator *alloc_frame;
+    struct cls_window *window;
 };
 
-int app_init(struct app *app, struct gfx_api *api, ivec2 size,
-             const char *title, ivec4 bg_color);
-void app_destroy(struct app *app);
-int app_run(struct app *app);
+int cls_app_init(struct cls_app *app, struct cls_gfx_api *api, ivec2 size,
+                 const char *title, ivec4 bg_color);
+void cls_app_destroy(struct cls_app *app);
+int cls_app_run(struct cls_app *app);
 
 #endif // CLS_APP_H

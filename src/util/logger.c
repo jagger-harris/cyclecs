@@ -16,7 +16,7 @@
 #define ANSI_WHITE "\x1b[37m"
 #define ANSI_DEFAULT "\x1b[0m"
 
-static void logger_log_all(enum logger_level level, bool has_error,
+static void logger_log_all(enum cls_logger_level level, bool has_error,
                            bool is_debug, int error, const char *file,
                            const char *func, int line, const char *fmt,
                            va_list args) {
@@ -25,7 +25,7 @@ static void logger_log_all(enum logger_level level, bool has_error,
 
     int ret = -1;
     switch (level) {
-    case LOGGER_FATAL:
+    case CLS_LOGGER_FATAL:
         ret = snprintf(level_str, STR_MAX, "FATAL");
         if (ret < 0)
             return;
@@ -35,7 +35,7 @@ static void logger_log_all(enum logger_level level, bool has_error,
             return;
 
         break;
-    case LOGGER_ERROR:
+    case CLS_LOGGER_ERROR:
         ret = snprintf(level_str, STR_MAX, "ERROR");
         if (ret < 0)
             return;
@@ -45,7 +45,7 @@ static void logger_log_all(enum logger_level level, bool has_error,
             return;
 
         break;
-    case LOGGER_WARN:
+    case CLS_LOGGER_WARN:
         ret = snprintf(level_str, STR_MAX, "WARN");
         if (ret < 0)
             return;
@@ -55,7 +55,7 @@ static void logger_log_all(enum logger_level level, bool has_error,
             return;
 
         break;
-    case LOGGER_INFO:
+    case CLS_LOGGER_INFO:
         ret = snprintf(level_str, STR_MAX, "INFO");
         if (ret < 0)
             return;
@@ -65,7 +65,7 @@ static void logger_log_all(enum logger_level level, bool has_error,
             return;
 
         break;
-    case LOGGER_DEBUG:
+    case CLS_LOGGER_DEBUG:
         ret = snprintf(level_str, STR_MAX, "DEBUG");
         if (ret < 0)
             return;
@@ -111,32 +111,32 @@ static void logger_log_all(enum logger_level level, bool has_error,
     printf("%s\n", ANSI_DEFAULT);
 }
 
-void logger_log(enum logger_level level, const char *fmt, ...) {
+void cls_logger_log(enum cls_logger_level level, const char *fmt, ...) {
     va_list args;
     va_start(args, fmt);
     logger_log_all(level, false, false, 0, NULL, NULL, 0, fmt, args);
     va_end(args);
 }
 
-void logger_log_debug(enum logger_level level, const char *file,
-                      const char *func, int line, const char *fmt, ...) {
+void cls_logger_log_debug(enum cls_logger_level level, const char *file,
+                          const char *func, int line, const char *fmt, ...) {
     va_list args;
     va_start(args, fmt);
     logger_log_all(level, false, true, 0, file, func, line, fmt, args);
     va_end(args);
 }
 
-void logger_log_error(enum logger_level level, int error, const char *fmt,
-                      ...) {
+void cls_logger_log_error(enum cls_logger_level level, int error,
+                          const char *fmt, ...) {
     va_list args;
     va_start(args, fmt);
     logger_log_all(level, true, false, error, NULL, NULL, 0, fmt, args);
     va_end(args);
 }
 
-void logger_log_error_debug(enum logger_level level, int error,
-                            const char *file, const char *func, int line,
-                            const char *fmt, ...) {
+void cls_logger_log_error_debug(enum cls_logger_level level, int error,
+                                const char *file, const char *func, int line,
+                                const char *fmt, ...) {
     va_list args;
     va_start(args, fmt);
     logger_log_all(level, true, true, error, file, func, line, fmt, args);
