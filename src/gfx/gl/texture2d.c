@@ -3,7 +3,8 @@
 #include <cls/util/error.h>
 #include <stddef.h>
 
-int gl_texture2d_init(struct texture2d *tex, struct texture2d_info *info) {
+int gl_texture2d_init(struct cls_texture2d *tex,
+                      struct cls_texture2d_info *info) {
     if (!tex || !info)
         return CLS_NULLPTR;
 
@@ -17,10 +18,10 @@ int gl_texture2d_init(struct texture2d *tex, struct texture2d_info *info) {
     if (info->channels == 4)
         format = GL_RGBA;
 
-    if (info->filter == TEXTURE_FILTER_NEAREST)
+    if (info->filter == CLS_TEXTURE_FILTER_NEAREST)
         filter = GL_NEAREST;
 
-    if (info->wrap == TEXTURE_WRAP_REPEAT)
+    if (info->wrap == CLS_TEXTURE_WRAP_REPEAT)
         wrap = GL_REPEAT;
 
     glGenTextures(1, &tex->gl.id);
@@ -40,14 +41,14 @@ int gl_texture2d_init(struct texture2d *tex, struct texture2d_info *info) {
     return CLS_SUCCESS;
 }
 
-void gl_texture2d_destroy(struct texture2d *in) {
+void gl_texture2d_destroy(struct cls_texture2d *in) {
     if (!glIsTexture(in->gl.id))
         return;
 
     glDeleteTextures(1, &in->gl.id);
 }
 
-int gl_texture2d_use(const struct texture2d *in) {
+int gl_texture2d_use(const struct cls_texture2d *in) {
     if (!glIsTexture(in->gl.id))
         return CLS_INVALID_ARG;
 

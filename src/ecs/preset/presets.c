@@ -13,7 +13,7 @@ int preset_camera_ortho_spawn(entity *camera, struct ecs_world *world, vec3 pos,
                               float left, float right, float bottom, float top,
                               float zoom, float near_clip, float far_clip,
                               bool y_down, bool active) {
-    struct camera cam_data = {.type = CAMERA_ORTHO,
+    struct camera cam_comp = {.type = CAMERA_ORTHO,
                               .ortho.left = left,
                               .ortho.right = right,
                               .ortho.bottom = bottom,
@@ -25,24 +25,24 @@ int preset_camera_ortho_spawn(entity *camera, struct ecs_world *world, vec3 pos,
                               .update = true};
     struct transform tf = {.pos = {pos[0], pos[1], pos[2]}};
 
-    glm_mat4_identity(cam_data.view);
-    glm_mat4_identity(cam_data.projection);
+    glm_mat4_identity(cam_comp.view);
+    glm_mat4_identity(cam_comp.projection);
 
     entity root = ENTITY_MAX;
     int error = ecs_world_entity_add(&root, world);
     if (error)
         return error;
 
-    error = ecs_world_component_add(world, root, "camera", &cam_data);
+    error = ecs_world_component_add(world, root, CLS_COMP_CAMERA, &cam_comp);
     if (error)
         goto cleanup;
 
-    error = ecs_world_component_add(world, root, "transform", &tf);
+    error = ecs_world_component_add(world, root, CLS_COMP_TRANSFORM, &tf);
     if (error)
         goto cleanup;
 
     if (active) {
-        error = ecs_world_component_add(world, root, "camera_active",
+        error = ecs_world_component_add(world, root, CLS_COMP_CAMERA_ACTIVE,
                                         &(struct camera_active){0});
         if (error)
             goto cleanup;
@@ -65,7 +65,7 @@ int preset_renderable_spawn(entity *ren, struct ecs_world *world,
                             const char *texture2d_id, vec3 pos, vec3 scale,
                             float rot_angle, vec2 uv_offset, vec2 uv_scale,
                             ivec4 tint, bool visible, bool transparent) {
-    struct renderable ren_data = {.uv_offset = {uv_offset[0], uv_offset[1]},
+    struct renderable ren_comp = {.uv_offset = {uv_offset[0], uv_offset[1]},
                                   .uv_scale = {uv_scale[0], uv_scale[1]},
                                   .opacity = 1.0f,
                                   .visible = visible,
@@ -75,18 +75,18 @@ int preset_renderable_spawn(entity *ren, struct ecs_world *world,
                            .rot_axis = {0.0f, 0.0f, 1.0f},
                            .rot_angle = rot_angle};
 
-    glm_ivec4_copy(tint, ren_data.tint);
+    glm_ivec4_copy(tint, ren_comp.tint);
 
-    int error = xxhash32(&ren_data.mesh_id, mesh_id, strlen(mesh_id), 0);
+    int error = xxhash32(&ren_comp.mesh_id, mesh_id, strlen(mesh_id), 0);
     if (error)
         return error;
 
-    error = xxhash32(&ren_data.shader_id, shader_id, strlen(shader_id), 0);
+    error = xxhash32(&ren_comp.shader_id, shader_id, strlen(shader_id), 0);
     if (error)
         return error;
 
     error =
-        xxhash32(&ren_data.texture_id, texture2d_id, strlen(texture2d_id), 0);
+        xxhash32(&ren_comp.texture_id, texture2d_id, strlen(texture2d_id), 0);
     if (error)
         return error;
 
@@ -95,11 +95,12 @@ int preset_renderable_spawn(entity *ren, struct ecs_world *world,
     if (error)
         return error;
 
-    error = ecs_world_component_add(world, root, "renderable", &ren_data);
+    error =
+        ecs_world_component_add(world, root, CLS_COMP_RENDERABLE, &ren_comp);
     if (error)
         goto cleanup;
 
-    error = ecs_world_component_add(world, root, "transform", &tf);
+    error = ecs_world_component_add(world, root, CLS_COMP_TRANSFORM, &tf);
     if (error)
         goto cleanup;
 
@@ -134,12 +135,12 @@ int preset_sprite_spawn(entity *sprite, struct ecs_world *world,
         rot_angle, uv_offset, uv_scale, tint, visible, true);
 }
 
-int preset_ui_image_button_spawn(entity *button, struct ecs_world *world,
-                                 const char *id, const char *img_id, vec2 pos,
-                                 float z_index, vec2 scale, vec2 uv_offset,
-                                 vec2 uv_scale, ivec4 img_tint, bool visible) {
-    struct ui_base base = {.interactable = true};
-    struct ui_button button_data = {0};
+int preset_image_button_spawn(entity *button, struct ecs_world *world,
+                              const char *id, const char *img_id, vec2 pos,
+                              float z_index, vec2 scale, vec2 uv_offset,
+                              vec2 uv_scale, ivec4 img_tint, bool visible) {
+    struct ui ui = {.interactable = true};
+    struct button button_comp = {0};
 
     u32 id_hash = 0;
     int error = xxhash32(&id_hash, id, strlen(id), 0);
@@ -160,21 +161,21 @@ int preset_ui_image_button_spawn(entity *button, struct ecs_world *world,
         goto cleanup;
 
     error = ecs_world_component_add(
-        world, root, "group",
+        world, root, CLS_COMP_GROUP,
         &(struct group){.grp_id = id_hash, .user_id = root_hash});
     if (error)
         goto cleanup;
 
-    error = ecs_world_component_add(world, root, "button_group",
-                                    &(struct ui_button_group){0});
+    error = ecs_world_component_add(world, root, CLS_COMP_BUTTON_GROUP,
+                                    &(struct button_group){0});
     if (error)
         goto cleanup;
 
-    error = ecs_world_component_add(world, root, "ui_base", &base);
+    error = ecs_world_component_add(world, root, CLS_COMP_UI, &ui);
     if (error)
         goto cleanup;
 
-    error = ecs_world_component_add(world, root, "ui_button", &button_data);
+    error = ecs_world_component_add(world, root, CLS_COMP_BUTTON, &button_comp);
     if (error)
         goto cleanup;
 
@@ -192,13 +193,13 @@ int preset_ui_image_button_spawn(entity *button, struct ecs_world *world,
         goto cleanup;
 
     error = ecs_world_component_add(
-        world, sprite, "group",
+        world, sprite, CLS_COMP_GROUP,
         &(struct group){.grp_id = id_hash, .user_id = sprite_hash});
     if (error)
         goto cleanup;
 
-    error = ecs_world_component_add(world, sprite, "button_group",
-                                    &(struct ui_button_group){0});
+    error = ecs_world_component_add(world, sprite, CLS_COMP_BUTTON_GROUP,
+                                    &(struct button_group){0});
     if (error)
         goto cleanup;
 
@@ -211,17 +212,17 @@ cleanup:
     return error;
 }
 
-int preset_ui_label_spawn(entity *label, struct ecs_world *world,
-                          struct assets *assets, const char *id, vec2 pos,
-                          float z_index, const char *text, int font_size,
-                          const char *font_id, bool visible, ivec4 tint) {
-    struct ui_base base = {.interactable = false};
-    struct ui_label label_data = {.font_size = font_size};
+int preset_label_spawn(entity *label, struct ecs_world *world,
+                       struct assets *assets, const char *id, vec2 pos,
+                       float z_index, const char *text, int font_size,
+                       const char *font_id, bool visible, ivec4 tint) {
+    struct ui ui = {.interactable = false};
+    struct label label_comp = {.font_size = font_size};
     struct transform tf = {.pos = {pos[0], pos[1], z_index},
                            .rot_axis = {0.0f, 0.0f, 1.0f},
                            .rot_angle = 0.0f};
 
-    int ret = snprintf(label_data.text, sizeof(label_data.text), "%s", text);
+    int ret = snprintf(label_comp.text, sizeof(label_comp.text), "%s", text);
     if (ret < 0)
         return CLS_FAILURE;
 
@@ -230,12 +231,12 @@ int preset_ui_label_spawn(entity *label, struct ecs_world *world,
     if (error)
         return error;
 
-    error = xxhash32(&label_data.font_id, font_id, strlen(font_id), 0);
+    error = xxhash32(&label_comp.font_id, font_id, strlen(font_id), 0);
     if (error)
         return error;
 
     const struct font *f = NULL;
-    error = assets_font_get(&f, assets, label_data.font_id);
+    error = assets_font_get(&f, assets, label_comp.font_id);
     if (error)
         return error;
 
@@ -249,31 +250,31 @@ int preset_ui_label_spawn(entity *label, struct ecs_world *world,
     if (error)
         return error;
 
-    error = ecs_world_component_add(world, root, "group",
+    error = ecs_world_component_add(world, root, CLS_COMP_GROUP,
                                     &(struct group){.grp_id = id_hash});
     if (error)
         goto cleanup;
 
-    error = ecs_world_component_add(world, root, "label_group",
-                                    &(struct ui_label_group){0});
+    error = ecs_world_component_add(world, root, CLS_COMP_LABEL_GROUP,
+                                    &(struct label_group){0});
     if (error)
         goto cleanup;
 
-    error = ecs_world_component_add(world, root, "ui_base", &base);
+    error = ecs_world_component_add(world, root, CLS_COMP_UI, &ui);
     if (error)
         return error;
 
-    error = ecs_world_component_add(world, root, "ui_label", &label_data);
+    error = ecs_world_component_add(world, root, CLS_COMP_LABEL, &label_comp);
     if (error)
         return error;
 
-    float scale = (float)label_data.font_size / (float)f->pixel_size;
+    float scale = (float)label_comp.font_size / (float)f->pixel_size;
     float cursor_x = tf.pos[0];
     float cursor_y = tf.pos[1];
-    size_t text_length = strlen(label_data.text);
+    size_t text_length = strlen(label_comp.text);
 
     for (size_t i = 0; i < text_length; ++i) {
-        u8 c = (u8)label_data.text[i];
+        u8 c = (u8)label_comp.text[i];
         if (c < FONT_CHAR_START || c > FONT_CHAR_END)
             continue;
 
@@ -304,13 +305,13 @@ int preset_ui_label_spawn(entity *label, struct ecs_world *world,
         if (error)
             goto cleanup;
 
-        error = ecs_world_component_add(world, glyph, "group",
+        error = ecs_world_component_add(world, glyph, CLS_COMP_GROUP,
                                         &(struct group){.grp_id = id_hash});
         if (error)
             goto cleanup;
 
-        error = ecs_world_component_add(world, glyph, "label_group",
-                                        &(struct ui_label_group){0});
+        error = ecs_world_component_add(world, glyph, CLS_COMP_LABEL_GROUP,
+                                        &(struct label_group){0});
         if (error)
             goto cleanup;
 

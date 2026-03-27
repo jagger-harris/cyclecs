@@ -6,7 +6,19 @@
 #include <stdbool.h>
 #include <stdio.h>
 
-#define ECS_COMPONENT_UI_TEXT_MAX 128
+#define CLS_UI_TEXT_MAX 128
+
+#define CLS_COMP_CAMERA "camera"
+#define CLS_COMP_CAMERA_ACTIVE "camera_active"
+#define CLS_COMP_GROUP "group"
+#define CLS_COMP_RENDERABLE "renderable"
+#define CLS_COMP_TRANSFORM "transform"
+#define CLS_COMP_UI "ui"
+#define CLS_COMP_BUTTON "button"
+#define CLS_COMP_BUTTON_GROUP "button_group"
+#define CLS_COMP_LABEL "label"
+#define CLS_COMP_LABEL_GROUP "label_group"
+#define CLS_COMP_PROGRESS_BAR "progress_bar"
 
 struct group {
     u32 grp_id;
@@ -33,34 +45,34 @@ struct transform {
     float rot_angle;
 };
 
-struct ui_base {
+struct ui {
     bool dirty;
     bool interactable;
 };
 
-struct ui_button {
+struct button {
     bool hovering;
     bool pressed;
     bool released;
     bool down;
 };
 
-struct ui_button_group {
+struct button_group {
     u8 _;
 };
 
-struct ui_label {
-    char text[ECS_COMPONENT_UI_TEXT_MAX];
+struct label {
+    char text[CLS_UI_TEXT_MAX];
     int font_size;
     u32 font_id;
     bool font;
 };
 
-struct ui_label_group {
+struct label_group {
     u8 _;
 };
 
-struct ui_progress_bar {
+struct progress_bar {
     float value;
     float max_value;
 };

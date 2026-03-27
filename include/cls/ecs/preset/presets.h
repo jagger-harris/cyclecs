@@ -6,19 +6,19 @@
 #include <cls/ecs/ecs.h>
 
 struct preset_ui_image_button {
-    struct ui_button_group grp;
     struct renderable ren;
     struct transform tf;
-    struct ui_base base;
-    struct ui_button button;
+    struct ui ui;
+    struct button button;
+    struct button_group grp;
 };
 
 struct preset_ui_label {
-    struct ui_label_group grp;
     struct renderable ren;
     struct transform tf;
-    struct ui_base base;
-    struct ui_label label;
+    struct ui ui;
+    struct label label;
+    struct label_group grp;
 };
 
 struct assets;
@@ -41,13 +41,13 @@ int preset_sprite_spawn(entity *sprite, struct ecs_world *world,
                         const char *texture2d_id, vec2 pos, vec2 scale,
                         float rot_angle, float z_index, ivec4 tint,
                         vec2 uv_offset, vec2 uv_scale, bool visible);
-int preset_ui_image_button_spawn(entity *button, struct ecs_world *world,
-                                 const char *id, const char *image_id, vec2 pos,
-                                 float z_index, vec2 scale, vec2 uv_offset,
-                                 vec2 uv_scale, ivec4 image_tint, bool visible);
-int preset_ui_label_spawn(entity *label, struct ecs_world *world,
-                          struct assets *assets, const char *id, vec2 pos,
-                          float z_index, const char *text, int font_size,
-                          const char *font_id, bool visible, ivec4 tint);
+int preset_image_button_spawn(entity *button, struct ecs_world *world,
+                              const char *id, const char *image_id, vec2 pos,
+                              float z_index, vec2 scale, vec2 uv_offset,
+                              vec2 uv_scale, ivec4 image_tint, bool visible);
+int preset_label_spawn(entity *label, struct ecs_world *world,
+                       struct assets *assets, const char *id, vec2 pos,
+                       float z_index, const char *text, int font_size,
+                       const char *font_id, bool visible, ivec4 tint);
 
 #endif // CLS_PRESETS_H

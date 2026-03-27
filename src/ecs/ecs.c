@@ -129,53 +129,57 @@ static void ecs_world_destroy(struct ecs_world *world) {
 }
 
 static int add_default_component_types(struct ecs_world *world) {
-    int error =
-        ecs_world_component_type_add(world, "group", sizeof(struct group));
+    int error = ecs_world_component_type_add(world, CLS_COMP_CAMERA,
+                                             sizeof(struct camera));
     if (error)
         return error;
 
-    error = ecs_world_component_type_add(world, "transform",
-                                         sizeof(struct transform));
-    if (error)
-        return error;
-
-    error = ecs_world_component_type_add(world, "renderable",
-                                         sizeof(struct renderable));
-    if (error)
-        return error;
-
-    error =
-        ecs_world_component_type_add(world, "camera", sizeof(struct camera));
-    if (error)
-        return error;
-
-    error = ecs_world_component_type_add(world, "camera_active",
+    error = ecs_world_component_type_add(world, CLS_COMP_CAMERA_ACTIVE,
                                          sizeof(struct camera_active));
     if (error)
         return error;
 
-    error =
-        ecs_world_component_type_add(world, "ui_base", sizeof(struct ui_base));
+    error = ecs_world_component_type_add(world, CLS_COMP_GROUP,
+                                         sizeof(struct group));
     if (error)
         return error;
 
-    error = ecs_world_component_type_add(world, "ui_button",
-                                         sizeof(struct ui_button));
+    error = ecs_world_component_type_add(world, CLS_COMP_TRANSFORM,
+                                         sizeof(struct transform));
     if (error)
         return error;
 
-    error = ecs_world_component_type_add(world, "button_group",
-                                         sizeof(struct ui_button_group));
+    error = ecs_world_component_type_add(world, CLS_COMP_RENDERABLE,
+                                         sizeof(struct renderable));
     if (error)
         return error;
 
-    error = ecs_world_component_type_add(world, "ui_label",
-                                         sizeof(struct ui_label));
+    error = ecs_world_component_type_add(world, CLS_COMP_UI, sizeof(struct ui));
     if (error)
         return error;
 
-    error = ecs_world_component_type_add(world, "label_group",
-                                         sizeof(struct ui_label_group));
+    error = ecs_world_component_type_add(world, CLS_COMP_BUTTON,
+                                         sizeof(struct button));
+    if (error)
+        return error;
+
+    error = ecs_world_component_type_add(world, CLS_COMP_BUTTON_GROUP,
+                                         sizeof(struct button_group));
+    if (error)
+        return error;
+
+    error = ecs_world_component_type_add(world, CLS_COMP_LABEL,
+                                         sizeof(struct label));
+    if (error)
+        return error;
+
+    error = ecs_world_component_type_add(world, CLS_COMP_LABEL_GROUP,
+                                         sizeof(struct label_group));
+    if (error)
+        return error;
+
+    error = ecs_world_component_type_add(world, CLS_COMP_PROGRESS_BAR,
+                                         sizeof(struct progress_bar));
     if (error)
         return error;
 
@@ -541,8 +545,10 @@ static int ecs_world_query_create_from_va_list(struct ecs_world_query *query,
         if (error)
             continue;
 
-        if (dense_length < min_dense_length)
+        if (dense_length < min_dense_length) {
             query->min_set = current_set;
+            min_dense_length = dense_length;
+        }
     }
 
     return CLS_SUCCESS;

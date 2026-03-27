@@ -71,7 +71,7 @@ static int render_cmd(struct app *app, struct renderer_cmd *cmd) {
     if (error)
         return error;
 
-    struct texture2d *texture = NULL;
+    struct cls_texture2d *texture = NULL;
     error = assets_texture2d_get(&texture, app->assets, cmd->ren->texture_id);
     if (error)
         return error;
@@ -109,7 +109,7 @@ static int render_batch(struct app *app, struct renderer_batch *batch) {
     if (error)
         return error;
 
-    struct texture2d *texture = NULL;
+    struct cls_texture2d *texture = NULL;
     error = assets_texture2d_get(&texture, app->assets, batch->data.texture_id);
     if (error)
         return error;

@@ -9,12 +9,12 @@
 #include <cls/util/logger.h>
 #include <stdio.h>
 
-int ui_button_system(struct ecs_world_query *query, struct app *app,
-                     void *user_data) {
+int button_system(struct ecs_world_query *query, struct app *app,
+                  void *user_data) {
+    (void)user_data;
+
     if (!query || !app)
         return CLS_NULLPTR;
-
-    (void)user_data;
 
     struct camera *cam_data = NULL;
     entity cam = ENTITY_MAX;
@@ -24,16 +24,16 @@ int ui_button_system(struct ecs_world_query *query, struct app *app,
         return error;
 
     struct ecs_world_query *cam_query = NULL;
-    error =
-        ecs_world_query_create(&cam_query, world, 2, "camera", "camera_active");
+    error = ecs_world_query_create(&cam_query, world, 2, CLS_COMP_CAMERA,
+                                   CLS_COMP_CAMERA_ACTIVE);
     if (error)
         return error;
 
     while (ecs_world_query_next(&cam, cam_query) == CLS_SUCCESS &&
            cam != ENTITY_MAX) {
         void *cam_ptr = NULL;
-        error =
-            ecs_world_query_component_get(&cam_ptr, cam_query, "camera", cam);
+        error = ecs_world_query_component_get(&cam_ptr, cam_query,
+                                              CLS_COMP_CAMERA, cam);
         if (error)
             continue;
 
@@ -52,22 +52,22 @@ int ui_button_system(struct ecs_world_query *query, struct app *app,
            button != U32_MAX) {
         void *button_comp_ptr = NULL;
         error = ecs_world_query_component_get(&button_comp_ptr, query,
-                                              "ui_button", button);
+                                              CLS_COMP_BUTTON, button);
         if (error)
             continue;
 
-        struct ui_button *button_comp = button_comp_ptr;
-        if (!button)
+        struct button *button_comp = button_comp_ptr;
+        if (!button_comp)
             continue;
 
         void *tf_ptr = NULL;
-        error =
-            ecs_world_query_component_get(&tf_ptr, query, "transform", button);
+        error = ecs_world_query_component_get(&tf_ptr, query,
+                                              CLS_COMP_TRANSFORM, button);
         if (error)
             continue;
 
         struct transform *tf = tf_ptr;
-        if (!button)
+        if (!tf)
             continue;
 
         float half_width = tf->scale[0] * 0.5f;
@@ -94,12 +94,15 @@ int ui_button_system(struct ecs_world_query *query, struct app *app,
                       cursor_world[1] >= min_y && cursor_world[1] <= max_y;
 
         button_comp->hovering = inside;
-        window_input_mouse_pressed(&button_comp->pressed, app->window,
-                                   GLFW_MOUSE_BUTTON_LEFT);
-        window_input_mouse_released(&button_comp->released, app->window,
+
+        if (inside) {
+            window_input_mouse_pressed(&button_comp->pressed, app->window,
+                                       GLFW_MOUSE_BUTTON_LEFT);
+            window_input_mouse_released(&button_comp->released, app->window,
+                                        GLFW_MOUSE_BUTTON_LEFT);
+            window_input_mouse_down(&button_comp->down, app->window,
                                     GLFW_MOUSE_BUTTON_LEFT);
-        window_input_mouse_down(&button_comp->down, app->window,
-                                GLFW_MOUSE_BUTTON_LEFT);
+        }
     }
 
     return CLS_SUCCESS;

@@ -3,7 +3,7 @@
 #include <cls/app/window.h>
 #include <cls/ecs/ecs.h>
 #include <cls/ecs/preset/presets.h>
-#include <cls/ecs/system/ui_button.h>
+#include <cls/ecs/system/button.h>
 #include <cls/gfx/api.h>
 #include <cls/gfx/gl/renderer.h>
 #include <cls/gfx/gl/shader.h>
@@ -24,6 +24,7 @@ enum player { PLAYER_NONE = 1, PLAYER_X, PLAYER_O };
 
 struct board {
     enum player state[9];
+    enum player turn;
 };
 
 struct board_group {
@@ -40,8 +41,9 @@ struct state {
 };
 
 static int preset_board_spawn(entity *board, struct ecs_world *world,
-                              const char *id, vec2 pos, enum player state[9]) {
-    int rows = 3;
+                              const char *id, vec2 pos, enum player state[9],
+                              enum player turn) {
+    int rows = 1;
     float button_size = 200.0f;
     float gap = 6.0f;
     float spacing = button_size + gap;
@@ -76,7 +78,7 @@ static int preset_board_spawn(entity *board, struct ecs_world *world,
         goto cleanup;
 
     error = ecs_world_component_add(
-        world, root, "group",
+        world, root, CLS_COMP_GROUP,
         &(struct group){.grp_id = id_hash, .user_id = root_hash});
     if (error)
         goto cleanup;
@@ -86,10 +88,10 @@ static int preset_board_spawn(entity *board, struct ecs_world *world,
     if (error)
         goto cleanup;
 
-    struct board board_comp = {0};
+    struct board board_comp = {.turn = turn};
     memcpy(board_comp.state, state, sizeof(board_comp.state));
 
-    error = ecs_world_component_add(world, root, "board", &board);
+    error = ecs_world_component_add(world, root, "board", &board_comp);
     if (error)
         goto cleanup;
 
@@ -111,7 +113,7 @@ static int preset_board_spawn(entity *board, struct ecs_world *world,
         goto cleanup;
 
     error = ecs_world_component_add(
-        world, bg, "group",
+        world, bg, CLS_COMP_GROUP,
         &(struct group){.grp_id = id_hash, .user_id = bg_hash});
     if (error)
         goto cleanup;
@@ -139,7 +141,7 @@ static int preset_board_spawn(entity *board, struct ecs_world *world,
         }
 
         entity button = ENTITY_MAX;
-        error = preset_ui_image_button_spawn(
+        error = preset_image_button_spawn(
             &button, world, "board_button", "xo.png", (vec2){x, y}, 0.5f,
             (vec2){button_size, button_size}, uv_offset, (vec2){0.5f, 0.5f},
             image_tint, true);
@@ -149,17 +151,6 @@ static int preset_board_spawn(entity *board, struct ecs_world *world,
         char buffer[8];
         int len = snprintf(buffer, sizeof(buffer), "%i", i);
         const char *button_id = buffer;
-
-        u32 button_hash = 0;
-        error = xxhash32(&button_hash, button_id, len, 0);
-        if (error)
-            goto cleanup;
-
-        error = ecs_world_component_add(
-            world, button, "group",
-            &(struct group){.grp_id = id_hash, .user_id = button_hash});
-        if (error)
-            goto cleanup;
 
         error = ecs_world_component_add(world, button, "board_group",
                                         &(struct board_group){0});
@@ -216,8 +207,8 @@ static enum player check_winner(enum player state[9]) {
 }
 
 static int board_button_system(struct ecs_world_query *query, struct app *app,
-                               void *user_comp) {
-    (void)user_comp;
+                               void *user_data) {
+    (void)user_data;
 
     if (!query || !app)
         return CLS_NULLPTR;
@@ -227,31 +218,102 @@ static int board_button_system(struct ecs_world_query *query, struct app *app,
     if (error)
         return error;
 
-    entity button = ENTITY_MAX;
-    while (ecs_world_query_next(&button, query) == CLS_SUCCESS &&
-           button != U32_MAX) {
-        void *button_comp_ptr = NULL;
-        int error = ecs_world_query_component_get(&button_comp_ptr, query,
-                                                  "ui_button", button);
+    struct ecs_world_query *board_query = NULL;
+    error = ecs_world_query_create(&board_query, world, 1, "board");
+    if (error)
+        return error;
 
-        struct ui_button *button_comp = button_comp_ptr;
-        if (!button)
+    entity board_e = ENTITY_MAX;
+    error = ecs_world_query_next(&board_e, board_query);
+    if (error)
+        return error;
+
+    void *board_ptr = NULL;
+    error = ecs_world_query_component_get(&board_ptr, board_query, "board",
+                                          board_e);
+    if (error)
+        return error;
+
+    struct board *board_comp = board_ptr;
+    ecs_world_query_destroy(board_query);
+
+    const char *root_id = "root";
+    u32 root_hash = 0;
+    error = xxhash32(&root_hash, root_id, strlen(root_id), 0);
+    if (error)
+        return error;
+
+    const char *sprite_id = "sprite";
+    u32 sprite_hash = 0;
+    error = xxhash32(&sprite_hash, sprite_id, strlen(sprite_id), 0);
+    if (error)
+        return error;
+
+    struct button *button_comp = NULL;
+
+    entity e = ENTITY_MAX;
+    while (ecs_world_query_next(&e, query) == CLS_SUCCESS && e != U32_MAX) {
+        void *grp_ptr = NULL;
+        ecs_world_query_component_get(&grp_ptr, query, CLS_COMP_GROUP, e);
+        struct group *grp = grp_ptr;
+        if (!grp)
             continue;
 
-        void *bg_ren_comp_ptr = NULL;
-        error = ecs_world_query_component_get(&bg_ren_comp_ptr, query,
-                                              "renderable", button);
-        if (!bg_ren_comp_ptr)
-            continue;
+        if (grp->user_id == root_hash) {
+            void *button_comp_ptr = NULL;
+            ecs_world_component_get(&button_comp_ptr, world, e,
+                                    CLS_COMP_BUTTON);
 
-        struct renderable *bg_ren_comp = bg_ren_comp_ptr;
-        if (!bg_ren_comp)
-            continue;
+            button_comp = button_comp_ptr;
+            if (!button_comp)
+                continue;
 
-        if (button_comp->hovering) {
-            glm_ivec4_copy((ivec4){100, 100, 100, 255}, bg_ren_comp->tint);
-        } else {
-            glm_ivec4_copy((ivec4){0, 0, 0, 255}, bg_ren_comp->tint);
+            void *ren_comp_ptr = NULL;
+            ecs_world_component_get(&ren_comp_ptr, world, e,
+                                    CLS_COMP_RENDERABLE);
+
+            struct renderable *ren_comp = ren_comp_ptr;
+            if (!ren_comp)
+                continue;
+
+            if (button_comp->hovering) {
+                glm_ivec4_copy((ivec4){100, 100, 100, 255}, ren_comp->tint);
+            } else {
+                glm_ivec4_copy((ivec4){0, 0, 0, 255}, ren_comp->tint);
+            }
+
+            continue;
+        }
+
+        if (grp->user_id == sprite_hash) {
+            if (!button_comp)
+                continue;
+
+            void *ren_comp_ptr = NULL;
+            ecs_world_component_get(&ren_comp_ptr, world, e,
+                                    CLS_COMP_RENDERABLE);
+
+            struct renderable *ren_comp = ren_comp_ptr;
+            if (!ren_comp || !board_comp)
+                continue;
+
+            if (button_comp->released) {
+                switch (board_comp->turn) {
+                case PLAYER_X:
+                    glm_ivec4_copy((ivec4){255, 100, 100, 255}, ren_comp->tint);
+                    glm_vec2_copy((vec2){0.0f, 0.0f}, ren_comp->uv_offset);
+                    board_comp->turn = PLAYER_O;
+                    break;
+                case PLAYER_O:
+                    glm_ivec4_copy((ivec4){100, 100, 255, 255}, ren_comp->tint);
+                    glm_vec2_copy((vec2){0.5f, 0.0f}, ren_comp->uv_offset);
+                    board_comp->turn = PLAYER_X;
+                    break;
+                case PLAYER_NONE:
+                default:
+                    break;
+                }
+            }
         }
     }
 
@@ -294,10 +356,10 @@ static int game_init(struct state *state, struct app *app) {
     state->winner = PLAYER_NONE;
 
     // Assets
-    assets_texture2d_add(assets, "xo.png", TEXTURE_FILTER_LINEAR,
-                         TEXTURE_WRAP_CLAMP);
+    assets_texture2d_add(assets, "xo.png", CLS_TEXTURE_FILTER_LINEAR,
+                         CLS_TEXTURE_WRAP_CLAMP);
 
-    // Components
+    // Worlds
     int error = ecs_world_add(ecs, "main", 0.0f, 0, true);
     if (error)
         return error;
@@ -327,14 +389,15 @@ static int game_init(struct state *state, struct app *app) {
         return error;
 
     // Systems
-    error = ecs_world_system_add(main_world, "ui_button", ui_button_system,
-                                 NULL, 3, "ui_base", "ui_button", "transform");
+    error =
+        ecs_world_system_add(main_world, "button", button_system, NULL, 3,
+                             CLS_COMP_UI, CLS_COMP_BUTTON, CLS_COMP_TRANSFORM);
     if (error)
         return error;
 
     error =
         ecs_world_system_add(main_world, "board_button", board_button_system,
-                             NULL, 2, "renderable", "ui_button");
+                             NULL, 2, CLS_COMP_GROUP, CLS_COMP_BUTTON_GROUP);
     if (error)
         return error;
 
@@ -365,7 +428,7 @@ static int game_init(struct state *state, struct app *app) {
     enum player board_state[9] = {PLAYER_NONE};
     for (int i = 0; i < 1; ++i) {
         error = preset_board_spawn(NULL, main_world, "board",
-                                   (vec2){0.0f, 0.0f}, board_state);
+                                   (vec2){0.0f, 0.0f}, board_state, PLAYER_X);
         if (error)
             return error;
     }
@@ -376,7 +439,7 @@ static int game_init(struct state *state, struct app *app) {
     if (error)
         return error;
 
-    error = preset_ui_label_spawn(
+    error = preset_label_spawn(
         NULL, ui_world, assets, "winner", (vec2){100.0f, 500.0f}, 1.0f,
         "this is some test text", 150, "human_sans-regular.otf", true,
         (ivec4){255, 255, 255, 255});

@@ -34,13 +34,13 @@ static int load_missing_texture(struct assets *assets) {
     static u8 missingno[16] = {
         255, 0, 255, 255, 0, 0, 0, 255, 0, 0, 0, 255, 255, 0, 255, 255,
     };
-    struct texture2d_info info = {.data = missingno,
-                                  .width = 2,
-                                  .height = 2,
-                                  .channels = 4,
-                                  .filter = TEXTURE_FILTER_NEAREST,
-                                  .wrap = TEXTURE_WRAP_REPEAT};
-    struct texture2d texture = {0};
+    struct cls_texture2d_info info = {.data = missingno,
+                                      .width = 2,
+                                      .height = 2,
+                                      .channels = 4,
+                                      .filter = CLS_TEXTURE_FILTER_NEAREST,
+                                      .wrap = CLS_TEXTURE_WRAP_REPEAT};
+    struct cls_texture2d texture = {0};
     int error = assets->api->texture2d_init(&texture, &info);
     if (error)
         return error;
@@ -60,13 +60,13 @@ static int load_missing_texture(struct assets *assets) {
 
 static int load_blank_texture(struct assets *assets) {
     static u8 blank[4] = {255, 255, 255, 0};
-    struct texture2d_info info = {.data = blank,
-                                  .width = 1,
-                                  .height = 1,
-                                  .channels = 4,
-                                  .filter = TEXTURE_FILTER_NEAREST,
-                                  .wrap = TEXTURE_WRAP_CLAMP};
-    struct texture2d texture = {0};
+    struct cls_texture2d_info info = {.data = blank,
+                                      .width = 1,
+                                      .height = 1,
+                                      .channels = 4,
+                                      .filter = CLS_TEXTURE_FILTER_NEAREST,
+                                      .wrap = CLS_TEXTURE_WRAP_CLAMP};
+    struct cls_texture2d texture = {0};
     int error = assets->api->texture2d_init(&texture, &info);
     if (error)
         return error;
@@ -138,7 +138,7 @@ int assets_create(struct assets **assets, struct allocator *alloc,
         goto cleanup;
 
     error = table_create(&instance->texture2ds, sizeof(u32), sizeof(u32),
-                         sizeof(struct texture2d));
+                         sizeof(struct cls_texture2d));
     if (error)
         goto cleanup;
 
@@ -223,13 +223,13 @@ void assets_font_add(struct assets *assets, const char *font_path,
         return;
     }
 
-    struct texture2d_info info = {.data = font.atlas,
-                                  .width = (int)font.atlas_width,
-                                  .height = (int)font.atlas_height,
-                                  .channels = 1,
-                                  .filter = TEXTURE_FILTER_LINEAR,
-                                  .wrap = TEXTURE_WRAP_CLAMP};
-    struct texture2d texture = {0};
+    struct cls_texture2d_info info = {.data = font.atlas,
+                                      .width = (int)font.atlas_width,
+                                      .height = (int)font.atlas_height,
+                                      .channels = 1,
+                                      .filter = CLS_TEXTURE_FILTER_LINEAR,
+                                      .wrap = CLS_TEXTURE_WRAP_CLAMP};
+    struct cls_texture2d texture = {0};
 
     error = assets->api->texture2d_init(&texture, &info);
     if (error)
@@ -354,8 +354,8 @@ int assets_shader_get(struct shader **shader, const struct assets *assets,
 }
 
 void assets_texture2d_add(struct assets *assets, const char *texture2d_path,
-                          enum texture2d_filter filter,
-                          enum texture2d_wrap wrap) {
+                          enum cls_texture2d_filter filter,
+                          enum cls_texture2d_wrap wrap) {
 
     if (!assets || !texture2d_path)
         return;
@@ -395,13 +395,13 @@ void assets_texture2d_add(struct assets *assets, const char *texture2d_path,
         goto cleanup;
     }
 
-    struct texture2d_info info = {.data = img.data,
-                                  .width = img.width,
-                                  .height = img.height,
-                                  .channels = img.channels,
-                                  .filter = filter,
-                                  .wrap = wrap};
-    struct texture2d texture = {0};
+    struct cls_texture2d_info info = {.data = img.data,
+                                      .width = img.width,
+                                      .height = img.height,
+                                      .channels = img.channels,
+                                      .filter = filter,
+                                      .wrap = wrap};
+    struct cls_texture2d texture = {0};
     error = assets->api->texture2d_init(&texture, &info);
     if (error) {
         LOGGER_LOG(LOGGER_ERROR, "Init api texture2d failed (%s)", img_path);
@@ -421,7 +421,7 @@ cleanup:
     image_destroy(&img);
 }
 
-int assets_texture2d_get(struct texture2d **texture,
+int assets_texture2d_get(struct cls_texture2d **texture,
                          const struct assets *assets, u32 texture2d_id) {
     if (!texture || !assets || !texture2d_id)
         return CLS_NULLPTR;
