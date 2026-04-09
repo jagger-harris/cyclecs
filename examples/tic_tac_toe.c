@@ -24,20 +24,21 @@
 #define COMP_CELL_STATE "cell_state"
 #define COMP_BOARD_GROUP "board_group"
 
-enum player { PLAYER_EMPTY = 0, PLAYER_NONE, PLAYER_X, PLAYER_O };
+enum player { PLAYER_NONE = 0, PLAYER_X, PLAYER_O };
+enum winner { WINNER_NONE = 0, WINNER_X, WINNER_O, WINNER_DRAW };
 
 struct board_group {
     u8 _;
 };
 
 struct cell_state {
-    int id;
+    int index;
     enum player owner;
 };
 
 struct game_state {
     enum player turn;
-    enum player winner;
+    enum winner winner;
 };
 
 struct winner_label_data {
@@ -58,7 +59,7 @@ static int preset_game_state_spawn(cls_entity *state,
 
     error = cls_ecs_world_component_add(
         world, root, COMP_GAME_STATE,
-        &(struct game_state){.turn = turn, .winner = PLAYER_EMPTY});
+        &(struct game_state){.turn = turn, .winner = WINNER_NONE});
     if (error)
         goto cleanup;
 
@@ -178,7 +179,7 @@ static int preset_board_spawn(cls_entity *board, struct cls_ecs_world *world,
 
         error = cls_ecs_world_component_add(
             world, button, COMP_CELL_STATE,
-            &(struct cell_state){.id = i, .owner = 0});
+            &(struct cell_state){.index = i, .owner = 0});
         if (error)
             goto cleanup;
     }
@@ -309,7 +310,7 @@ static int move_system(struct cls_ecs_world_query *query, struct cls_app *app,
             continue;
 
         bool allow_click = !state->winner && ctx->button->released &&
-                           ctx->cell->owner == PLAYER_EMPTY;
+                           ctx->cell->owner == PLAYER_NONE;
 
         // Clicking
         if (!allow_click)
@@ -336,7 +337,7 @@ static int move_system(struct cls_ecs_world_query *query, struct cls_app *app,
     return CLS_SUCCESS;
 }
 
-static enum player check_winner(enum player state[9]) {
+static enum winner check_winner(enum player state[9]) {
     static const int wins[8][3] = {
         {0, 1, 2}, {3, 4, 5}, {6, 7, 8}, // Rows
         {0, 3, 6}, {1, 4, 7}, {2, 5, 8}, // Cols
@@ -344,28 +345,17 @@ static enum player check_winner(enum player state[9]) {
     };
 
     for (int i = 0; i < 8; ++i) {
-        int a = wins[i][0];
-        int b = wins[i][1];
-        int c = wins[i][2];
-
+        int a = wins[i][0], b = wins[i][1], c = wins[i][2];
         if (state[a] != PLAYER_NONE && state[a] == state[b] &&
-            state[a] == state[c]) {
-            return state[a];
-        }
+            state[a] == state[c])
+            return state[a] == PLAYER_X ? WINNER_X : WINNER_O;
     }
 
-    bool all_filled = true;
-    for (int i = 0; i < 9; ++i) {
-        if (state[i] == PLAYER_NONE) {
-            all_filled = false;
-            break;
-        }
-    }
+    for (int i = 0; i < 9; ++i)
+        if (state[i] == PLAYER_NONE)
+            return WINNER_NONE;
 
-    if (all_filled)
-        return PLAYER_NONE;
-
-    return 0;
+    return WINNER_DRAW;
 }
 
 static int winner_system(struct cls_ecs_world_query *query, struct cls_app *app,
@@ -388,29 +378,30 @@ static int winner_system(struct cls_ecs_world_query *query, struct cls_app *app,
     if (!state)
         return CLS_NULLPTR;
 
+    if (state->winner)
+        return CLS_SUCCESS;
+
     enum player board[9] = {0};
     int cell_count = 0;
 
     cls_entity e = CLS_ENTITY_MAX;
-    while (cls_ecs_world_query_next(&e, query) == CLS_SUCCESS && e != U32_MAX) {
-        struct cell_state *cell = NULL;
-        error = cls_ecs_world_component_get((void **)&cell, world, e,
-                                            COMP_CELL_STATE);
-        if (error)
+    while (cls_ecs_world_query_next(&e, query) == CLS_SUCCESS &&
+           e != CLS_ENTITY_MAX) {
+        void *cell_ptr = NULL;
+        error =
+            cls_ecs_world_component_get(&cell_ptr, world, e, COMP_CELL_STATE);
+        if (error || !cell_ptr)
             continue;
 
+        struct cell_state *cell = cell_ptr;
         if (!cell)
             continue;
 
-        if (cell_count < 9)
-            board[cell_count++] = cell->owner;
+        board[cell->index] = cell->owner;
     }
 
-    if (cell_count != 9)
-        return CLS_SUCCESS; // Board not full, skip
-
-    enum player winner = check_winner(board);
-    if (winner != 0)
+    enum winner winner = check_winner(board);
+    if (winner != WINNER_NONE)
         state->winner = winner;
 
     return CLS_SUCCESS;
@@ -459,7 +450,7 @@ static int winner_label_system(struct cls_ecs_world_query *query,
             break;
     }
 
-    if (state->winner != PLAYER_EMPTY) {
+    if (state->winner != WINNER_NONE) {
         cls_preset_group_despawn(e, world);
 
         error = cls_preset_label_spawn(
