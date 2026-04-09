@@ -521,35 +521,70 @@ static int debug_labels_system(struct cls_ecs_world_query *query,
             entities_e = e;
     }
 
-    if (fps_e != CLS_ENTITY_MAX) {
-        cls_preset_group_despawn(fps_e, world);
+    if (fps_e == CLS_ENTITY_MAX || entities_e == CLS_ENTITY_MAX)
+        return CLS_FAILURE;
 
-        float fps = 0.0f;
-        error = cls_window_timing_fps_avg_get(&fps, app->window);
-        if (error)
-            return error;
+    error = cls_preset_group_despawn(fps_e, world);
+    if (error)
+        return error;
 
-        char fps_text[32];
-        snprintf(fps_text, sizeof(fps_text), "FPS: %.0f", fps);
+    float fps = 0.0f;
+    error = cls_window_timing_fps_avg_get(&fps, app->window);
+    if (error)
+        return error;
 
-        error = cls_preset_label_spawn(NULL, world, app->assets, "fps",
-                                       (vec2){10.0f, 30.0f}, 1.0f, fps_text, 20,
-                                       "human_sans-regular.otf", true,
-                                       (ivec4){255, 255, 255, 255});
-        if (error)
-            return error;
-    }
+    char fps_text[32];
+    snprintf(fps_text, sizeof(fps_text), "FPS: %.0f", fps);
 
-    if (entities_e != CLS_ENTITY_MAX) {
-        cls_preset_group_despawn(entities_e, world);
+    error = cls_preset_label_spawn(
+        NULL, world, app->assets, "fps", (vec2){10.0f, 30.0f}, 1.0f, fps_text,
+        20, "human_sans-regular.otf", true, (ivec4){255, 255, 255, 255});
+    if (error)
+        return error;
 
-        error = cls_preset_label_spawn(
-            NULL, world, app->assets, "entities", (vec2){10.0f, 50.0f}, 1.0f,
-            "Entities: 0", 20, "human_sans-regular.otf", true,
-            (ivec4){255, 255, 255, 255});
-        if (error)
-            return error;
-    }
+    error = cls_preset_group_despawn(entities_e, world);
+    if (error)
+        return error;
+
+    size_t main_world_entities_total = 0;
+    error = cls_ecs_world_entities_length_get(&main_world_entities_total,
+                                              winner_label_data->main_world);
+    if (error)
+        return error;
+
+    size_t main_world_entities_free = 0;
+    error = cls_ecs_world_free_entities_length_get(
+        &main_world_entities_free, winner_label_data->main_world);
+    if (error)
+        return error;
+
+    size_t main_world_entities_active =
+        main_world_entities_total - main_world_entities_free;
+
+    size_t ui_world_entities_total = 0;
+    error = cls_ecs_world_entities_length_get(&ui_world_entities_total, world);
+    if (error)
+        return error;
+
+    size_t ui_world_entities_free = 0;
+    error =
+        cls_ecs_world_free_entities_length_get(&ui_world_entities_free, world);
+    if (error)
+        return error;
+
+    size_t ui_world_entities_active =
+        ui_world_entities_total - ui_world_entities_free;
+
+    char entities_text[32];
+    snprintf(entities_text, sizeof(entities_text), "Entities: %.0zu",
+             main_world_entities_active + ui_world_entities_active);
+
+    error = cls_preset_label_spawn(NULL, world, app->assets, "entities",
+                                   (vec2){10.0f, 50.0f}, 1.0f, entities_text,
+                                   20, "human_sans-regular.otf", true,
+                                   (ivec4){255, 255, 255, 255});
+    if (error)
+        return error;
 
     return CLS_SUCCESS;
 }
