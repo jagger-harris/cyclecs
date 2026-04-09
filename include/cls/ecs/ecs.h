@@ -73,5 +73,7 @@ int cls_ecs_world_system_remove(struct cls_ecs_world *world, const char *id);
 int cls_ecs_world_update(struct cls_ecs_world *world, struct cls_app *app);
 int cls_ecs_world_entities_length_get(size_t *len,
                                       const struct cls_ecs_world *world);
+int cls_ecs_world_free_entities_length_get(size_t *len,
+                                           const struct cls_ecs_world *world);
 
 #endif // CLS_ECS_H

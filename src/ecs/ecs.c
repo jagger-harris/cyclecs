@@ -1308,18 +1308,16 @@ int cls_ecs_world_entity_add(cls_entity *e, struct cls_ecs_world *world) {
                                        free_entities_length - 1);
         if (error)
             return error;
-
         error = cls_array_pop(NULL, world->free_entities);
         if (error)
             return error;
     } else {
         instance = world->next_entity_id;
         world->next_entity_id++;
+        error = cls_array_push(&world->entities, &instance);
+        if (error)
+            return error;
     }
-
-    error = cls_array_push(&world->entities, &instance);
-    if (error)
-        return error;
 
     *e = instance;
     return CLS_SUCCESS;
@@ -1790,4 +1788,12 @@ int cls_ecs_world_entities_length_get(size_t *len,
         return CLS_NULLPTR;
 
     return cls_array_length_get(len, world->entities);
+}
+
+int cls_ecs_world_free_entities_length_get(size_t *len,
+                                           const struct cls_ecs_world *world) {
+    if (!len || !world)
+        return CLS_NULLPTR;
+
+    return cls_array_length_get(len, world->free_entities);
 }
