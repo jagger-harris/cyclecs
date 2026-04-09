@@ -24,16 +24,20 @@ struct cls_preset_ui_label {
 struct cls_assets;
 struct cls_ecs_world;
 
+int cls_preset_group_despawn(cls_entity e, struct cls_ecs_world *world);
 int cls_preset_camera_ortho_spawn(cls_entity *camera,
                                   struct cls_ecs_world *world, vec3 pos,
                                   float left, float right, float bottom,
                                   float top, float zoom, float near_clip,
-                                  float far_clip, bool y_down, bool active);
+                                  float far_clip, bool y_down, int layer,
+                                  bool active);
 int cls_preset_renderable_spawn(cls_entity *ren, struct cls_ecs_world *world,
                                 const char *mesh_id, const char *shader_id,
                                 const char *texture2d_id, vec3 pos, vec3 scale,
                                 float rot_angle, vec2 uv_offset, vec2 uv_scale,
-                                ivec4 tint, bool visible, bool transparent);
+                                ivec4 tint, bool visible, bool depth_test,
+                                bool depth_write, bool blending, int blend_src,
+                                int blend_dest);
 int cls_preset_rect_spawn(cls_entity *rect, struct cls_ecs_world *world,
                           const char *texture2d_id, vec2 pos, vec2 scale,
                           float rot_angle, float z_index, ivec4 tint,

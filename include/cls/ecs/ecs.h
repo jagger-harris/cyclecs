@@ -4,7 +4,7 @@
 #include <cls/util/table.h>
 #include <cls/util/types.h>
 
-#define CLS_ENTITY_MAX UINT32_MAX
+#define CLS_ENTITY_MAX U32_MAX
 typedef u32 cls_entity;
 
 struct cls_allocator;
@@ -15,9 +15,10 @@ struct cls_ecs_scene;
 struct cls_ecs_world;
 struct cls_ecs_world_query;
 
-typedef int (*cls_ecs_world_iter_fn)(struct cls_ecs_world *world, void *data);
+typedef int (*cls_ecs_world_iter_fn)(struct cls_ecs_world *world,
+                                     void *user_data);
 typedef int (*cls_ecs_world_system_fn)(struct cls_ecs_world_query *query,
-                                       struct cls_app *app, void *data);
+                                       struct cls_app *app, void *user_data);
 
 int cls_ecs_create(struct cls_ecs **ecs, struct cls_allocator *alloc);
 void cls_ecs_destroy(struct cls_ecs *ecs);
@@ -43,7 +44,7 @@ int cls_ecs_world_get(struct cls_ecs_world **world, const struct cls_ecs *ecs,
 int cls_ecs_world_get_all(struct cls_table **worlds, const struct cls_ecs *ecs);
 int cls_ecs_world_update_all(struct cls_ecs *ecs, struct cls_app *app);
 int cls_ecs_world_iter_all(struct cls_ecs *ecs, cls_ecs_world_iter_fn fn,
-                           void *data);
+                           void *user_data);
 int cls_ecs_world_entity_add(cls_entity *e, struct cls_ecs_world *world);
 int cls_ecs_world_entity_remove(struct cls_ecs_world *world, cls_entity e);
 int cls_ecs_world_component_type_add(struct cls_ecs_world *world,
@@ -64,10 +65,10 @@ int cls_ecs_world_query_world_get(struct cls_ecs_world **world,
 int cls_ecs_world_query_next(cls_entity *e, struct cls_ecs_world_query *query);
 int cls_ecs_world_query_component_get(void **comp,
                                       const struct cls_ecs_world_query *query,
-                                      const char *id, cls_entity e);
+                                      cls_entity e, const char *id);
 int cls_ecs_world_system_add(struct cls_ecs_world *world, const char *id,
-                             cls_ecs_world_system_fn system, void *data,
-                             size_t query_count, ...);
+                             cls_ecs_world_system_fn system, void *user_data,
+                             size_t user_data_size, size_t query_count, ...);
 int cls_ecs_world_system_remove(struct cls_ecs_world *world, const char *id);
 int cls_ecs_world_update(struct cls_ecs_world *world, struct cls_app *app);
 int cls_ecs_world_entities_length_get(size_t *len,

@@ -16,8 +16,8 @@ struct cls_gfx_api {
     int (*init)(ivec4 bg_color);
     int (*swap_buffers)(GLFWwindow *win);
     void (*on_resize)(int width, int height);
-    int (*draw_frame)(struct cls_app *app, struct cls_array *transparent_cmds,
-                      struct cls_array *batches);
+    void (*begin_frame)(void);
+    int (*draw_frame)(struct cls_app *app, struct cls_array *batches);
     int (*shader_init)(struct cls_shader *s,
                        const struct cls_shader_info *info);
     void (*shader_destroy)(struct cls_shader *s);

@@ -50,8 +50,8 @@ struct cls_ecs_world_query {
 };
 
 struct cls_ecs_world_system {
-    struct cls_ecs_world_query query;
     cls_ecs_world_system_fn system;
+    struct cls_ecs_world_query *query;
     void *user_data;
 };
 
@@ -116,8 +116,12 @@ static void cls_ecs_world_destroy(struct cls_ecs_world *world) {
             continue;
 
         struct cls_ecs_world_system *system = system_ptr;
-        if (system)
-            cls_ecs_world_query_destroy(&system->query);
+        if (system) {
+            if (system->user_data)
+                free(system->user_data);
+
+            cls_ecs_world_query_destroy(system->query);
+        }
     }
 
     cls_table_iterator_destroy(sys_iter);
@@ -473,22 +477,27 @@ cls_ecs_world_entity_remove_component_by_id(struct cls_ecs_world *world,
 }
 
 static int
-cls_ecs_world_query_create_from_va_list(struct cls_ecs_world_query *query,
+cls_ecs_world_query_create_from_va_list(struct cls_ecs_world_query **query,
                                         struct cls_ecs_world *world,
                                         size_t arg_count, va_list args) {
     if (!query || !world || arg_count == 0)
         return CLS_INVALID_ARG;
 
-    query->world = world;
-    query->arg_count = arg_count;
-    query->min_set = NULL;
-    query->current_index = 0;
+    struct cls_ecs_world_query *instance =
+        malloc(sizeof(struct cls_ecs_world_query));
+    if (!instance)
+        return CLS_OUT_OF_MEMORY;
 
-    int error = cls_array_create(&query->comp_ids, arg_count, sizeof(u32));
+    instance->world = world;
+    instance->arg_count = arg_count;
+    instance->min_set = NULL;
+    instance->current_index = 0;
+
+    int error = cls_array_create(&instance->comp_ids, arg_count, sizeof(u32));
     if (error)
         goto cleanup;
 
-    error = cls_array_create(&query->sets, arg_count,
+    error = cls_array_create(&instance->sets, arg_count,
                              sizeof(struct cls_ecs_world_sparse_set *));
     if (error)
         goto cleanup;
@@ -500,7 +509,7 @@ cls_ecs_world_query_create_from_va_list(struct cls_ecs_world_query *query,
         if (error)
             return error;
 
-        error = cls_array_push(&query->comp_ids, &hash);
+        error = cls_array_push(&instance->comp_ids, &hash);
         if (error)
             continue;
 
@@ -512,13 +521,13 @@ cls_ecs_world_query_create_from_va_list(struct cls_ecs_world_query *query,
         if (!set_ptr)
             continue;
 
-        error = cls_array_push(&query->sets, (const void *)&set_ptr);
+        error = cls_array_push(&instance->sets, (const void *)&set_ptr);
         if (error)
             continue;
     }
 
     void *set_ptr = NULL;
-    error = cls_array_elem_get(&set_ptr, query->sets, 0);
+    error = cls_array_elem_get(&set_ptr, instance->sets, 0);
     if (error)
         goto cleanup;
 
@@ -529,21 +538,21 @@ cls_ecs_world_query_create_from_va_list(struct cls_ecs_world_query *query,
         goto cleanup;
     }
 
-    query->min_set = first_set;
+    instance->min_set = first_set;
 
     size_t min_dense_length = 0;
-    error = cls_array_length_get(&min_dense_length, query->min_set->dense);
+    error = cls_array_length_get(&min_dense_length, instance->min_set->dense);
     if (error)
         goto cleanup;
 
     size_t set_count = 0;
-    error = cls_array_length_get(&set_count, query->sets);
+    error = cls_array_length_get(&set_count, instance->sets);
     if (error)
         goto cleanup;
 
     for (size_t i = 1; i < arg_count; ++i) {
         struct cls_ecs_world_sparse_set *current_set = NULL;
-        error = cls_array_elem_get_cpy((void *)&current_set, query->sets, i);
+        error = cls_array_elem_get_cpy((void *)&current_set, instance->sets, i);
         if (error)
             continue;
 
@@ -553,15 +562,16 @@ cls_ecs_world_query_create_from_va_list(struct cls_ecs_world_query *query,
             continue;
 
         if (dense_length < min_dense_length) {
-            query->min_set = current_set;
+            instance->min_set = current_set;
             min_dense_length = dense_length;
         }
     }
 
+    *query = instance;
     return CLS_SUCCESS;
 
 cleanup:
-    cls_ecs_world_query_destroy(query);
+    cls_ecs_world_query_destroy(instance);
     return error;
 }
 
@@ -584,9 +594,9 @@ static int cls_ecs_world_run_systems(struct cls_ecs_world *world,
         if (!system || !system->system)
             continue;
 
-        system->query.current_index = 0;
+        system->query->current_index = 0;
 
-        error = system->system(&system->query, app, system->user_data);
+        error = system->system(system->query, app, system->user_data);
         if (error)
             return error;
     }
@@ -1505,25 +1515,15 @@ int cls_ecs_world_query_create(struct cls_ecs_world_query **query,
     if (!query || !world)
         return CLS_NULLPTR;
 
-    // TODO: Use arena allocator
-    struct cls_ecs_world_query *instance =
-        malloc(sizeof(struct cls_ecs_world_query));
-    if (!query)
-        return CLS_OUT_OF_MEMORY;
-
     va_list args;
     va_start(args, count);
     int error =
-        cls_ecs_world_query_create_from_va_list(instance, world, count, args);
+        cls_ecs_world_query_create_from_va_list(query, world, count, args);
     va_end(args);
     if (error)
-        goto cleanup;
+        return error;
 
-    *query = instance;
     return CLS_SUCCESS;
-cleanup:
-    free(instance);
-    return error;
 }
 
 void cls_ecs_world_query_destroy(struct cls_ecs_world_query *query) {
@@ -1532,6 +1532,7 @@ void cls_ecs_world_query_destroy(struct cls_ecs_world_query *query) {
 
     cls_array_destroy(query->comp_ids);
     cls_array_destroy(query->sets);
+    free(query);
 }
 
 int cls_ecs_world_query_world_get(struct cls_ecs_world **world,
@@ -1615,7 +1616,7 @@ int cls_ecs_world_query_next(cls_entity *e, struct cls_ecs_world_query *query) {
 
 int cls_ecs_world_query_component_get(void **comp,
                                       const struct cls_ecs_world_query *query,
-                                      const char *id, cls_entity e) {
+                                      cls_entity e, const char *id) {
     if (!comp || !query)
         return CLS_NULLPTR;
 
@@ -1670,39 +1671,53 @@ int cls_ecs_world_query_component_get(void **comp,
 
 int cls_ecs_world_system_add(struct cls_ecs_world *world, const char *id,
                              cls_ecs_world_system_fn system, void *user_data,
-                             size_t query_count, ...) {
+                             size_t user_data_size, size_t query_count, ...) {
     if (!world)
         return CLS_NULLPTR;
 
     struct cls_ecs_world_system new_system = {.system = system,
-                                              .user_data = user_data};
+                                              .user_data = NULL};
+    if (user_data && user_data_size > 0) {
+        new_system.user_data = malloc(user_data_size);
+        if (!new_system.user_data)
+            return CLS_OUT_OF_MEMORY;
 
-    if (query_count > 0) {
-        va_list args;
-        va_start(args, query_count);
-        int error = cls_ecs_world_query_create_from_va_list(
-            &new_system.query, world, query_count, args);
-        va_end(args);
-
-        if (error)
-            return error;
-    } else {
-        new_system.query = (struct cls_ecs_world_query){0};
+        memcpy(new_system.user_data, user_data, user_data_size);
     }
 
     u32 hash = 0;
     int error = cls_xxhash32(&hash, id, strlen(id), 0);
     if (error)
-        return error;
+        goto cleanup;
+
+    if (query_count > 0) {
+        va_list args;
+        va_start(args, query_count);
+        error = cls_ecs_world_query_create_from_va_list(
+            &new_system.query, world, query_count, args);
+        va_end(args);
+
+        if (error)
+            goto cleanup;
+    } else {
+        new_system.query = NULL;
+    }
 
     error = cls_table_insert(world->systems, &hash, &new_system);
     if (error) {
-        if (query_count > 0)
-            cls_ecs_world_query_destroy(&new_system.query);
-        return error;
+        if (new_system.query)
+            cls_ecs_world_query_destroy(new_system.query);
+
+        goto cleanup;
     }
 
     return CLS_SUCCESS;
+
+cleanup:
+    if (new_system.user_data)
+        free(new_system.user_data);
+
+    return error;
 }
 
 int cls_ecs_world_system_remove(struct cls_ecs_world *world, const char *id) {
@@ -1723,7 +1738,8 @@ int cls_ecs_world_system_remove(struct cls_ecs_world *world, const char *id) {
     if (!system)
         return CLS_NULLPTR;
 
-    cls_ecs_world_query_destroy(&system->query);
+    free(system->user_data);
+    cls_ecs_world_query_destroy(system->query);
     return cls_table_remove(NULL, world->systems, &hash);
 }
 

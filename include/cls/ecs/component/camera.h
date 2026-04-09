@@ -36,6 +36,7 @@ struct camera {
     float near_clip;
     float far_clip;
     float rot_angle;
+    int layer;
     bool update;
 };
 

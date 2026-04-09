@@ -32,8 +32,8 @@ int button_system(struct cls_ecs_world_query *query, struct cls_app *app,
     while (cls_ecs_world_query_next(&cam, cam_query) == CLS_SUCCESS &&
            cam != CLS_ENTITY_MAX) {
         void *cam_ptr = NULL;
-        error = cls_ecs_world_query_component_get(&cam_ptr, cam_query,
-                                                  CLS_COMP_CAMERA, cam);
+        error = cls_ecs_world_query_component_get(&cam_ptr, cam_query, cam,
+                                                  CLS_COMP_CAMERA);
         if (error)
             continue;
 
@@ -52,7 +52,7 @@ int button_system(struct cls_ecs_world_query *query, struct cls_app *app,
            button != U32_MAX) {
         void *button_comp_ptr = NULL;
         error = cls_ecs_world_query_component_get(&button_comp_ptr, query,
-                                                  CLS_COMP_BUTTON, button);
+                                                  button, CLS_COMP_BUTTON);
         if (error)
             continue;
 
@@ -61,8 +61,8 @@ int button_system(struct cls_ecs_world_query *query, struct cls_app *app,
             continue;
 
         void *tf_ptr = NULL;
-        error = cls_ecs_world_query_component_get(&tf_ptr, query,
-                                                  CLS_COMP_TRANSFORM, button);
+        error = cls_ecs_world_query_component_get(&tf_ptr, query, button,
+                                                  CLS_COMP_TRANSFORM);
         if (error)
             continue;
 

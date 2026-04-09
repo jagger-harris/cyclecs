@@ -2,6 +2,7 @@
 #define CLS_GL_MESH_H
 
 #include <cglm/cglm.h>
+#include <cls/ecs/component/components.h>
 #include <glad/gl.h>
 
 struct cls_vertex {

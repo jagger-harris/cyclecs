@@ -25,7 +25,16 @@ struct group {
     u32 user_id;
 };
 
+struct render_state {
+    bool depth_test;
+    bool depth_write;
+    bool blending;
+    int blend_src;
+    int blend_dest;
+};
+
 struct renderable {
+    struct render_state state;
     vec2 uv_offset;
     vec2 uv_scale;
     ivec4 tint;
@@ -34,7 +43,6 @@ struct renderable {
     u32 texture_id;
     float opacity;
     bool visible;
-    bool transparent;
 };
 
 struct transform {

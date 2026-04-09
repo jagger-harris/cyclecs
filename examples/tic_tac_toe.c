@@ -20,30 +20,63 @@
 #define SCREEN_TITLE "Tic-Tac-Toe"
 #define SCREEN_COLOR (ivec4){5, 10, 20, 255}
 
-enum player { PLAYER_NONE = 1, PLAYER_X, PLAYER_O };
+#define COMP_GAME_STATE "game_state"
+#define COMP_CELL_STATE "cell_state"
+#define COMP_BOARD_GROUP "board_group"
 
-struct board {
-    enum player state[9];
-    enum player turn;
-};
+enum player { PLAYER_EMPTY = 0, PLAYER_NONE, PLAYER_X, PLAYER_O };
 
 struct board_group {
     u8 _;
 };
 
-struct board_button {
-    enum player turn;
+struct cell_state {
+    int id;
+    enum player owner;
 };
 
-struct state {
+struct game_state {
     enum player turn;
     enum player winner;
 };
 
+struct winner_label_data {
+    struct cls_ecs_world *main_world;
+    cls_entity state_e;
+};
+
+static int preset_game_state_spawn(cls_entity *state,
+                                   struct cls_ecs_world *world,
+                                   enum player turn) {
+    if (!world)
+        return CLS_NULLPTR;
+
+    cls_entity root = CLS_ENTITY_MAX;
+    int error = cls_ecs_world_entity_add(&root, world);
+    if (error)
+        return error;
+
+    error = cls_ecs_world_component_add(
+        world, root, COMP_GAME_STATE,
+        &(struct game_state){.turn = turn, .winner = PLAYER_EMPTY});
+    if (error)
+        goto cleanup;
+
+    if (state)
+        *state = root;
+
+    return CLS_SUCCESS;
+
+cleanup:
+    if (root != CLS_ENTITY_MAX)
+        cls_ecs_world_entity_remove(world, root);
+
+    return error;
+}
+
 static int preset_board_spawn(cls_entity *board, struct cls_ecs_world *world,
-                              const char *id, vec2 pos, enum player state[9],
-                              enum player turn) {
-    int rows = 1;
+                              const char *id, vec2 pos, enum player turn) {
+    int rows = 3;
     float button_size = 200.0f;
     float gap = 6.0f;
     float spacing = button_size + gap;
@@ -83,15 +116,8 @@ static int preset_board_spawn(cls_entity *board, struct cls_ecs_world *world,
     if (error)
         goto cleanup;
 
-    error = cls_ecs_world_component_add(world, root, "board_group",
+    error = cls_ecs_world_component_add(world, root, COMP_BOARD_GROUP,
                                         &(struct board_group){0});
-    if (error)
-        goto cleanup;
-
-    struct board board_comp = {.turn = turn};
-    memcpy(board_comp.state, state, sizeof(board_comp.state));
-
-    error = cls_ecs_world_component_add(world, root, "board", &board_comp);
     if (error)
         goto cleanup;
 
@@ -118,7 +144,7 @@ static int preset_board_spawn(cls_entity *board, struct cls_ecs_world *world,
     if (error)
         goto cleanup;
 
-    error = cls_ecs_world_component_add(world, bg, "board_group",
+    error = cls_ecs_world_component_add(world, bg, COMP_BOARD_GROUP,
                                         &(struct board_group){0});
     if (error)
         goto cleanup;
@@ -133,33 +159,26 @@ static int preset_board_spawn(cls_entity *board, struct cls_ecs_world *world,
         vec2 uv_offset = {0};
         ivec4 image_tint = {0};
 
-        if (board_comp.state[i] == PLAYER_X) {
-            glm_ivec4_copy((ivec4){255, 100, 100, 255}, image_tint);
-        } else if (board_comp.state[i] == PLAYER_O) {
-            glm_vec2_copy((vec2){0.5f, 0.0f}, uv_offset);
-            glm_ivec4_copy((ivec4){100, 100, 255, 255}, image_tint);
-        }
+        char buffer[8] = {0};
+        int len = snprintf(buffer, sizeof(buffer), "%i", i);
+        const char *button_id = buffer;
 
         cls_entity button = CLS_ENTITY_MAX;
         error = cls_preset_image_button_spawn(
-            &button, world, "board_button", "xo.png", (vec2){x, y}, 0.5f,
+            &button, world, button_id, "xo.png", (vec2){x, y}, 0.5f,
             (vec2){button_size, button_size}, uv_offset, (vec2){0.5f, 0.5f},
             image_tint, true);
         if (error)
             goto cleanup;
 
-        char buffer[8];
-        int len = snprintf(buffer, sizeof(buffer), "%i", i);
-        const char *button_id = buffer;
-
-        error = cls_ecs_world_component_add(world, button, "board_group",
+        error = cls_ecs_world_component_add(world, button, COMP_BOARD_GROUP,
                                             &(struct board_group){0});
         if (error)
             goto cleanup;
 
         error = cls_ecs_world_component_add(
-            world, button, "board_button",
-            &(struct board_button){.turn = board_comp.state[i]});
+            world, button, COMP_CELL_STATE,
+            &(struct cell_state){.id = i, .owner = 0});
         if (error)
             goto cleanup;
     }
@@ -172,6 +191,149 @@ static int preset_board_spawn(cls_entity *board, struct cls_ecs_world *world,
 cleanup:
     // TODO: Cleanup
     return error;
+}
+
+static int move_system(struct cls_ecs_world_query *query, struct cls_app *app,
+                       void *user_data) {
+    if (!query || !app || !user_data)
+        return CLS_NULLPTR;
+
+    struct cls_ecs_world *world = NULL;
+    int error = cls_ecs_world_query_world_get(&world, query);
+    if (error)
+        return error;
+
+    cls_entity state_e = *(cls_entity *)user_data;
+    struct game_state *state = NULL;
+
+    error = cls_ecs_world_component_get((void **)&state, world, state_e,
+                                        COMP_GAME_STATE);
+    if (error)
+        return error;
+
+    if (!state)
+        return CLS_NULLPTR;
+
+    u32 root_hash = 0;
+    const char *root_id = "root";
+    error = cls_xxhash32(&root_hash, root_id, strlen(root_id), 0);
+    if (error)
+        return error;
+
+    u32 sprite_hash = 0;
+    const char *sprite_id = "sprite";
+    error = cls_xxhash32(&sprite_hash, sprite_id, strlen(sprite_id), 0);
+    if (error)
+        return error;
+
+    struct cell_ctx {
+        u32 grp_id;
+        struct button *button;
+        struct cell_state *cell;
+        struct renderable *ren;
+    };
+
+    struct cell_ctx roots[9] = {0};
+    int root_count = 0;
+
+    cls_entity sprite_entities[9];
+    int sprite_count = 0;
+
+    cls_entity e = CLS_ENTITY_MAX;
+    while (cls_ecs_world_query_next(&e, query) == CLS_SUCCESS && e != U32_MAX) {
+        void *grp_ptr = NULL;
+        cls_ecs_world_query_component_get(&grp_ptr, query, e, CLS_COMP_GROUP);
+        struct group *grp = grp_ptr;
+        if (!grp)
+            continue;
+
+        if (grp->user_id == root_hash) {
+            struct cell_ctx ctx = {0};
+            ctx.grp_id = grp->grp_id;
+            error = cls_ecs_world_component_get((void **)&ctx.button, world, e,
+                                                CLS_COMP_BUTTON);
+            if (error)
+                continue;
+
+            error = cls_ecs_world_component_get((void **)&ctx.cell, world, e,
+                                                COMP_CELL_STATE);
+            if (error)
+                continue;
+
+            error = cls_ecs_world_component_get((void **)&ctx.ren, world, e,
+                                                CLS_COMP_RENDERABLE);
+            if (error)
+                continue;
+
+            if (!ctx.button || !ctx.cell || !ctx.ren)
+                continue;
+
+            roots[root_count++] = ctx;
+
+        } else if (grp->user_id == sprite_hash) {
+            sprite_entities[sprite_count++] = e;
+        }
+    }
+
+    for (int i = 0; i < sprite_count; ++i) {
+        e = sprite_entities[i];
+
+        void *grp_ptr = NULL;
+        cls_ecs_world_query_component_get(&grp_ptr, query, e, CLS_COMP_GROUP);
+        struct group *grp = grp_ptr;
+        if (!grp)
+            continue;
+
+        struct cell_ctx *ctx = NULL;
+        for (int j = 0; j < root_count; j++) {
+            if (roots[j].grp_id == grp->grp_id) {
+                ctx = &roots[j];
+                break;
+            }
+        }
+
+        if (!ctx)
+            continue;
+
+        // Hover tint
+        if (ctx->button->hovering) {
+            glm_ivec4_copy((ivec4){100, 100, 100, 255}, ctx->ren->tint);
+        } else {
+            glm_ivec4_copy((ivec4){0, 0, 0, 255}, ctx->ren->tint);
+        }
+
+        struct renderable *sprite_ren = NULL;
+        cls_ecs_world_component_get((void **)&sprite_ren, world, e,
+                                    CLS_COMP_RENDERABLE);
+        if (!sprite_ren)
+            continue;
+
+        bool allow_click = !state->winner && ctx->button->released &&
+                           ctx->cell->owner == PLAYER_EMPTY;
+
+        // Clicking
+        if (!allow_click)
+            continue;
+
+        switch (state->turn) {
+        case PLAYER_X:
+            ctx->cell->owner = PLAYER_X;
+            glm_ivec4_copy((ivec4){255, 100, 100, 255}, sprite_ren->tint);
+            glm_vec2_copy((vec2){0.0f, 0.0f}, sprite_ren->uv_offset);
+            state->turn = PLAYER_O;
+            break;
+        case PLAYER_O:
+            ctx->cell->owner = PLAYER_O;
+            glm_ivec4_copy((ivec4){100, 100, 255, 255}, sprite_ren->tint);
+            glm_vec2_copy((vec2){0.5f, 0.0f}, sprite_ren->uv_offset);
+            state->turn = PLAYER_X;
+            break;
+        default:
+            break;
+        }
+    }
+
+    return CLS_SUCCESS;
 }
 
 static enum player check_winner(enum player state[9]) {
@@ -206,11 +368,9 @@ static enum player check_winner(enum player state[9]) {
     return 0;
 }
 
-static int board_button_system(struct cls_ecs_world_query *query,
-                               struct cls_app *app, void *user_data) {
-    (void)user_data;
-
-    if (!query || !app)
+static int winner_system(struct cls_ecs_world_query *query, struct cls_app *app,
+                         void *user_data) {
+    if (!query || !app || !user_data)
         return CLS_NULLPTR;
 
     struct cls_ecs_world *world = NULL;
@@ -218,142 +378,194 @@ static int board_button_system(struct cls_ecs_world_query *query,
     if (error)
         return error;
 
-    struct cls_ecs_world_query *board_query = NULL;
-    error = cls_ecs_world_query_create(&board_query, world, 1, "board");
+    cls_entity state_e = *(cls_entity *)user_data;
+    struct game_state *state = NULL;
+    error = cls_ecs_world_component_get((void **)&state, world, state_e,
+                                        COMP_GAME_STATE);
     if (error)
         return error;
 
-    cls_entity board_e = CLS_ENTITY_MAX;
-    error = cls_ecs_world_query_next(&board_e, board_query);
-    if (error)
-        return error;
+    if (!state)
+        return CLS_NULLPTR;
 
-    void *board_ptr = NULL;
-    error = cls_ecs_world_query_component_get(&board_ptr, board_query, "board",
-                                              board_e);
-    if (error)
-        return error;
-
-    struct board *board_comp = board_ptr;
-    cls_ecs_world_query_destroy(board_query);
-
-    const char *root_id = "root";
-    u32 root_hash = 0;
-    error = cls_xxhash32(&root_hash, root_id, strlen(root_id), 0);
-    if (error)
-        return error;
-
-    const char *sprite_id = "sprite";
-    u32 sprite_hash = 0;
-    error = cls_xxhash32(&sprite_hash, sprite_id, strlen(sprite_id), 0);
-    if (error)
-        return error;
-
-    struct button *button_comp = NULL;
+    enum player board[9] = {0};
+    int cell_count = 0;
 
     cls_entity e = CLS_ENTITY_MAX;
     while (cls_ecs_world_query_next(&e, query) == CLS_SUCCESS && e != U32_MAX) {
-        void *grp_ptr = NULL;
-        cls_ecs_world_query_component_get(&grp_ptr, query, CLS_COMP_GROUP, e);
-        struct group *grp = grp_ptr;
-        if (!grp)
-            continue;
-
-        if (grp->user_id == root_hash) {
-            void *button_comp_ptr = NULL;
-            cls_ecs_world_component_get(&button_comp_ptr, world, e,
-                                        CLS_COMP_BUTTON);
-
-            button_comp = button_comp_ptr;
-            if (!button_comp)
-                continue;
-
-            void *ren_comp_ptr = NULL;
-            cls_ecs_world_component_get(&ren_comp_ptr, world, e,
-                                        CLS_COMP_RENDERABLE);
-
-            struct renderable *ren_comp = ren_comp_ptr;
-            if (!ren_comp)
-                continue;
-
-            if (button_comp->hovering) {
-                glm_ivec4_copy((ivec4){100, 100, 100, 255}, ren_comp->tint);
-            } else {
-                glm_ivec4_copy((ivec4){0, 0, 0, 255}, ren_comp->tint);
-            }
-
-            continue;
-        }
-
-        if (grp->user_id == sprite_hash) {
-            if (!button_comp)
-                continue;
-
-            void *ren_comp_ptr = NULL;
-            cls_ecs_world_component_get(&ren_comp_ptr, world, e,
-                                        CLS_COMP_RENDERABLE);
-
-            struct renderable *ren_comp = ren_comp_ptr;
-            if (!ren_comp || !board_comp)
-                continue;
-
-            if (button_comp->released) {
-                switch (board_comp->turn) {
-                case PLAYER_X:
-                    glm_ivec4_copy((ivec4){255, 100, 100, 255}, ren_comp->tint);
-                    glm_vec2_copy((vec2){0.0f, 0.0f}, ren_comp->uv_offset);
-                    board_comp->turn = PLAYER_O;
-                    break;
-                case PLAYER_O:
-                    glm_ivec4_copy((ivec4){100, 100, 255, 255}, ren_comp->tint);
-                    glm_vec2_copy((vec2){0.5f, 0.0f}, ren_comp->uv_offset);
-                    board_comp->turn = PLAYER_X;
-                    break;
-                case PLAYER_NONE:
-                default:
-                    break;
-                }
-            }
-        }
-    }
-
-    return CLS_SUCCESS;
-}
-
-static int winner_system(struct cls_ecs_world_query *query, struct cls_app *app,
-                         void *user_data) {
-    if (!query || !app)
-        return CLS_NULLPTR;
-
-    struct state *state = user_data;
-    cls_entity board = CLS_ENTITY_MAX;
-    while (cls_ecs_world_query_next(&board, query) == CLS_SUCCESS &&
-           board != U32_MAX) {
-        void *board_comp_ptr = NULL;
-        int error = cls_ecs_world_query_component_get(&board_comp_ptr, query,
-                                                      "board", board);
+        struct cell_state *cell = NULL;
+        error = cls_ecs_world_component_get((void **)&cell, world, e,
+                                            COMP_CELL_STATE);
         if (error)
             continue;
 
-        struct board *board_comp = board_comp_ptr;
-        if (!board_comp_ptr)
+        if (!cell)
             continue;
 
-        enum player winner = check_winner(board_comp->state);
-        if (winner != 0) {
-            state->winner = winner;
+        if (cell_count < 9)
+            board[cell_count++] = cell->owner;
+    }
+
+    if (cell_count != 9)
+        return CLS_SUCCESS; // Board not full, skip
+
+    enum player winner = check_winner(board);
+    if (winner != 0)
+        state->winner = winner;
+
+    return CLS_SUCCESS;
+}
+
+static int winner_label_system(struct cls_ecs_world_query *query,
+                               struct cls_app *app, void *user_data) {
+    if (!query || !app || !user_data)
+        return CLS_NULLPTR;
+
+    struct cls_ecs_world *world = NULL;
+    int error = cls_ecs_world_query_world_get(&world, query);
+    if (error)
+        return error;
+
+    struct winner_label_data *winner_label_data = user_data;
+    struct game_state *state = NULL;
+    error = cls_ecs_world_component_get(
+        (void **)&state, winner_label_data->main_world,
+        winner_label_data->state_e, COMP_GAME_STATE);
+    if (error)
+        return error;
+
+    if (!state)
+        return CLS_NULLPTR;
+
+    const char *winner_id = "winner";
+    u32 winner_hash = 0;
+    error = cls_xxhash32(&winner_hash, winner_id, strlen(winner_id), 0);
+    if (error)
+        return error;
+
+    cls_entity e = CLS_ENTITY_MAX;
+    while (cls_ecs_world_query_next(&e, query) == CLS_SUCCESS && e != U32_MAX) {
+        struct group *grp = NULL;
+        error = cls_ecs_world_query_component_get((void **)&grp, query, e,
+                                                  CLS_COMP_GROUP);
+        if (error)
+            continue;
+
+        if (!grp)
+            continue;
+
+        u32 id = grp->grp_id;
+        if (grp->grp_id == winner_hash)
             break;
-        }
+    }
+
+    if (state->winner != PLAYER_EMPTY) {
+        cls_preset_group_despawn(e, world);
+
+        error = cls_preset_label_spawn(
+            NULL, world, app->assets, "winner", (vec2){100.0f, 500.0f}, 1.0f,
+            "Someone won!", 150, "human_sans-regular.otf", true,
+            (ivec4){255, 255, 255, 255});
+        if (error)
+            return error;
     }
 
     return CLS_SUCCESS;
 }
 
-static int game_init(struct state *state, struct cls_app *app) {
+static int debug_labels_system(struct cls_ecs_world_query *query,
+                               struct cls_app *app, void *user_data) {
+    if (!query || !app || !user_data)
+        return CLS_NULLPTR;
+
+    struct cls_ecs_world *world = NULL;
+    int error = cls_ecs_world_query_world_get(&world, query);
+    if (error)
+        return error;
+
+    struct winner_label_data *winner_label_data = user_data;
+    struct game_state *state = NULL;
+    error = cls_ecs_world_component_get(
+        (void **)&state, winner_label_data->main_world,
+        winner_label_data->state_e, COMP_GAME_STATE);
+    if (error)
+        return error;
+
+    if (!state)
+        return CLS_NULLPTR;
+
+    const char *fps_id = "fps";
+    u32 fps_hash = 0;
+    error = cls_xxhash32(&fps_hash, fps_id, strlen(fps_id), 0);
+    if (error)
+        return error;
+
+    const char *entities_id = "entities";
+    u32 entities_hash = 0;
+    error = cls_xxhash32(&entities_hash, entities_id, strlen(entities_id), 0);
+    if (error)
+        return error;
+
+    cls_entity fps_e = CLS_ENTITY_MAX;
+    cls_entity entities_e = CLS_ENTITY_MAX;
+    cls_entity e = CLS_ENTITY_MAX;
+    while (cls_ecs_world_query_next(&e, query) == CLS_SUCCESS && e != U32_MAX) {
+        struct group *grp = NULL;
+        error = cls_ecs_world_query_component_get((void **)&grp, query, e,
+                                                  CLS_COMP_GROUP);
+        if (error)
+            continue;
+
+        if (!grp)
+            continue;
+
+        if (fps_e != CLS_ENTITY_MAX && entities_e != CLS_ENTITY_MAX)
+            break;
+
+        u32 id = grp->grp_id;
+        if (grp->grp_id == fps_hash)
+            fps_e = e;
+
+        if (grp->grp_id == entities_hash)
+            entities_e = e;
+    }
+
+    if (fps_e != CLS_ENTITY_MAX) {
+        cls_preset_group_despawn(fps_e, world);
+
+        float fps = 0.0f;
+        error = cls_window_timing_fps_avg_get(&fps, app->window);
+        if (error)
+            return error;
+
+        char fps_text[32];
+        snprintf(fps_text, sizeof(fps_text), "FPS: %.0f", fps);
+
+        error = cls_preset_label_spawn(NULL, world, app->assets, "fps",
+                                       (vec2){10.0f, 30.0f}, 1.0f, fps_text, 20,
+                                       "human_sans-regular.otf", true,
+                                       (ivec4){255, 255, 255, 255});
+        if (error)
+            return error;
+    }
+
+    if (entities_e != CLS_ENTITY_MAX) {
+        cls_preset_group_despawn(entities_e, world);
+
+        error = cls_preset_label_spawn(
+            NULL, world, app->assets, "entities", (vec2){10.0f, 50.0f}, 1.0f,
+            "Entities: 0", 20, "human_sans-regular.otf", true,
+            (ivec4){255, 255, 255, 255});
+        if (error)
+            return error;
+    }
+
+    return CLS_SUCCESS;
+}
+
+static int game_init(struct cls_app *app) {
     struct cls_assets *assets = app->assets;
     struct cls_ecs *ecs = app->ecs;
-    state->turn = PLAYER_X;
-    state->winner = PLAYER_NONE;
 
     // Assets
     cls_assets_texture2d_add(assets, "xo.png", CLS_TEXTURE_FILTER_LINEAR,
@@ -373,41 +585,62 @@ static int game_init(struct state *state, struct cls_app *app) {
     if (error)
         return error;
 
-    error = cls_ecs_world_component_type_add(main_world, "board_group",
+    error = cls_ecs_world_component_type_add(main_world, COMP_GAME_STATE,
+                                             sizeof(struct game_state));
+    if (error)
+        return error;
+
+    error = cls_ecs_world_component_type_add(main_world, COMP_BOARD_GROUP,
                                              sizeof(struct board_group));
     if (error)
         return error;
 
-    error = cls_ecs_world_component_type_add(main_world, "board",
-                                             sizeof(struct board));
+    error = cls_ecs_world_component_type_add(main_world, COMP_CELL_STATE,
+                                             sizeof(struct cell_state));
     if (error)
         return error;
 
-    error = cls_ecs_world_component_type_add(main_world, "board_button",
-                                             sizeof(struct board_button));
+    // Singletons
+    cls_entity state = CLS_ENTITY_MAX;
+    error = preset_game_state_spawn(&state, main_world, PLAYER_X);
     if (error)
         return error;
 
     // Systems
     error = cls_ecs_world_system_add(main_world, "button", button_system, NULL,
-                                     3, CLS_COMP_UI, CLS_COMP_BUTTON,
+                                     0, 3, CLS_COMP_UI, CLS_COMP_BUTTON,
                                      CLS_COMP_TRANSFORM);
     if (error)
         return error;
 
-    error = cls_ecs_world_system_add(main_world, "board_button",
-                                     board_button_system, NULL, 2,
-                                     CLS_COMP_GROUP, CLS_COMP_BUTTON_GROUP);
+    error = cls_ecs_world_system_add(main_world, "move", move_system, &state,
+                                     sizeof(state), 2, CLS_COMP_GROUP,
+                                     CLS_COMP_BUTTON_GROUP);
     if (error)
         return error;
 
-    error = cls_ecs_world_system_add(main_world, "winner", winner_system, state,
-                                     1, "board");
+    error = cls_ecs_world_system_add(main_world, "winner", winner_system,
+                                     &state, sizeof(state), 1, COMP_CELL_STATE);
     if (error)
         return error;
 
     struct cls_ecs_world *ui_world = NULL;
     error = cls_ecs_world_get(&ui_world, ecs, "ui");
+    if (error)
+        return error;
+
+    struct winner_label_data winner_label_data = {.main_world = main_world,
+                                                  .state_e = state};
+
+    error = cls_ecs_world_system_add(
+        ui_world, "winner_label", winner_label_system, &winner_label_data,
+        sizeof(winner_label_data), 1, CLS_COMP_GROUP, CLS_COMP_LABEL_GROUP);
+    if (error)
+        return error;
+
+    error = cls_ecs_world_system_add(
+        ui_world, "debug_labels", debug_labels_system, &winner_label_data,
+        sizeof(winner_label_data), 1, CLS_COMP_GROUP, CLS_COMP_LABEL_GROUP);
     if (error)
         return error;
 
@@ -421,28 +654,34 @@ static int game_init(struct state *state, struct cls_app *app) {
                              -(float)fb_size[1] * 0.5f, 0.0f};
     error = cls_preset_camera_ortho_spawn(
         NULL, main_world, camera_start_pos, 0.0f, (float)fb_size[0],
-        (float)fb_size[1], 0.0f, 1.0f, -1.0f, 1.0f, true, true);
+        (float)fb_size[1], 0.0f, 1.0f, -1.0f, 1.0f, true, 0, true);
     if (error)
         return error;
 
-    enum player board_state[9] = {PLAYER_NONE};
     for (int i = 0; i < 1; ++i) {
         error = preset_board_spawn(NULL, main_world, "board",
-                                   (vec2){0.0f, 0.0f}, board_state, PLAYER_X);
+                                   (vec2){0.0f, 0.0f}, PLAYER_X);
         if (error)
             return error;
     }
 
     error = cls_preset_camera_ortho_spawn(
         NULL, ui_world, (vec3){0.0f, 0.0f, 0.0f}, 0.0f, (float)fb_size[0],
-        (float)fb_size[1], 0.0f, 1.0f, -1.0f, 1.0f, true, true);
+        (float)fb_size[1], 0.0f, 1.0f, -1.0f, 1.0f, true, 1, true);
     if (error)
         return error;
 
-    error = cls_preset_label_spawn(
-        NULL, ui_world, assets, "winner", (vec2){100.0f, 500.0f}, 1.0f,
-        "this is some test text", 150, "human_sans-regular.otf", true,
-        (ivec4){255, 255, 255, 255});
+    error = cls_preset_label_spawn(NULL, ui_world, app->assets, "fps",
+                                   (vec2){10.0f, 30.0f}, 1.0f, "FPS: 100", 20,
+                                   "human_sans-regular.otf", true,
+                                   (ivec4){255, 255, 255, 255});
+    if (error)
+        return error;
+
+    error = cls_preset_label_spawn(NULL, ui_world, app->assets, "entities",
+                                   (vec2){10.0f, 50.0f}, 1.0f, "Entities: 100",
+                                   20, "human_sans-regular.otf", true,
+                                   (ivec4){255, 255, 255, 255});
     if (error)
         return error;
 
@@ -454,6 +693,7 @@ int main(void) {
         (struct cls_gfx_api){.init = cls_gl_renderer_init,
                              .swap_buffers = cls_gl_renderer_swap_buffers,
                              .on_resize = cls_gl_renderer_on_resize,
+                             .begin_frame = cls_gl_renderer_begin_frame,
                              .draw_frame = cls_gl_renderer_draw_frame,
                              .shader_init = cls_gl_shader_init,
                              .shader_destroy = cls_gl_shader_destroy,
@@ -461,7 +701,6 @@ int main(void) {
                              .texture2d_init = cls_gl_texture2d_init,
                              .texture2d_destroy = cls_gl_texture2d_destroy,
                              .texture2d_use = cls_gl_texture2d_use};
-    struct state state = {0};
     struct cls_app app = {0};
     int error = cls_app_init(&app, &api, (ivec2){SCREEN_WIDTH, SCREEN_HEIGHT},
                              SCREEN_TITLE, SCREEN_COLOR);
@@ -470,7 +709,7 @@ int main(void) {
         goto cleanup;
     }
 
-    error = game_init(&state, &app);
+    error = game_init(&app);
     if (error) {
         CLS_LOGGER_LOG_ERROR(CLS_LOGGER_ERROR, error, "%s", "Init game failed");
         goto cleanup;
