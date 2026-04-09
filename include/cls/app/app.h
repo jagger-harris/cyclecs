@@ -6,7 +6,7 @@
 struct cls_assets;
 struct cls_ecs;
 struct cls_gfx_api;
-struct cls_allocator;
+struct cls_mem;
 struct cls_window;
 
 struct cls_app {
@@ -15,8 +15,8 @@ struct cls_app {
     struct cls_gfx_api *api;
     struct cls_arena *arena_perm;
     struct cls_arena *arena_frame;
-    struct cls_allocator *alloc_perm;
-    struct cls_allocator *alloc_frame;
+    struct cls_mem *mem_perm;
+    struct cls_mem *mem_frame;
     struct cls_window *window;
 };
 

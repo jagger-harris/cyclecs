@@ -1,17 +1,49 @@
 #ifndef CLS_PROFILER_H
 #define CLS_PROFILER_H
 
+#include <cls/util/error.h>
 #include <stdio.h>
+#include <string.h>
 #include <time.h>
 
-#ifdef ENABLE_PROFILER
+static inline int cls_profiler_mem_usage_get(size_t *mb) {
+    FILE *f = fopen("/proc/self/status", "r");
+    if (!f)
+        return CLS_FILE_NOT_FOUND;
 
-#include <sys/time.h>
+    char buffer[128];
+    while (fgets(buffer, sizeof(buffer), f)) {
+        if (strncmp(buffer, "VmRSS:", 6) == 0) {
+            fclose(f);
+            size_t kb = 0;
+            sscanf(buffer, "VmRSS: %zu kB", &kb);
+            *mb = kb / 1024;
+            return CLS_SUCCESS;
+        }
+    }
+
+    fclose(f);
+    *mb = 0;
+    return CLS_SUCCESS;
+}
+
 static inline double cls_profiler_get_time(void) {
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
     return (double)ts.tv_sec + (double)ts.tv_nsec / 1000000000.0;
 }
+
+#define CLS_PROFILER_TIME_NOW(time)                                            \
+    struct timespec time;                                                      \
+    clock_gettime(CLOCK_MONOTONIC, &time)
+
+#define CLS_PROFILER_TIME_DIFF_MS(start, end)                                  \
+    (((end.tv_sec - start.tv_sec) * 1000.0) +                                  \
+     ((end.tv_nsec - start.tv_nsec) / 1e6))
+
+#ifdef ENABLE_PROFILER
+
+#include <sys/time.h>
 
 #define CLS_PROFILER_START(name)                                               \
     double _profiler_start_##name = cls_profiler_get_time()

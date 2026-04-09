@@ -4,15 +4,15 @@
 #include <cls/gfx/texture2d.h>
 #include <stddef.h>
 
-struct cls_allocator;
 struct cls_assets;
 struct cls_font;
 struct cls_gfx_api;
 struct cls_gl_mesh;
+struct cls_mem;
 struct cls_shader;
 struct cls_vertex;
 
-int cls_assets_create(struct cls_assets **assets, struct cls_allocator *alloc,
+int cls_assets_create(struct cls_assets **assets, struct cls_mem *mem,
                       struct cls_gfx_api *api);
 void cls_assets_destroy(struct cls_assets *assets);
 void cls_assets_font_add(struct cls_assets *assets, const char *font_path,

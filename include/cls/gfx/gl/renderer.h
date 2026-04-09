@@ -12,7 +12,7 @@ int cls_gl_renderer_init(ivec4 bg_color);
 int cls_gl_renderer_swap_buffers(GLFWwindow *win);
 void cls_gl_renderer_on_resize(int width, int height);
 void cls_gl_renderer_begin_frame(void);
-int cls_gl_renderer_draw_frame(struct cls_app *app,
-                               struct cls_array *draw_cmds);
+int cls_gl_renderer_draw_batches(struct cls_app *app, struct cls_array *batches,
+                                 struct cls_array *transparent_batches);
 
 #endif // CLS_GL_RENDERER_H

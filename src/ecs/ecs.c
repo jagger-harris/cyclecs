@@ -3,11 +3,11 @@
 #include <cls/ecs/component/camera.h>
 #include <cls/ecs/component/components.h>
 #include <cls/ecs/ecs.h>
-#include <cls/util/allocator.h>
 #include <cls/util/array.h>
 #include <cls/util/error.h>
 #include <cls/util/globals.h>
 #include <cls/util/logger.h>
+#include <cls/util/mem.h>
 #include <cls/util/table.h>
 #include <cls/util/xxhash32.h>
 #include <stdarg.h>
@@ -705,13 +705,13 @@ static int cls_ecs_world_delete_entities(struct cls_ecs_world *world) {
     return CLS_SUCCESS;
 }
 
-int cls_ecs_create(struct cls_ecs **ecs, struct cls_allocator *alloc) {
-    if (!ecs)
+int cls_ecs_create(struct cls_ecs **ecs, struct cls_mem *mem) {
+    if (!ecs || !mem)
         return CLS_NULLPTR;
 
     void *instance_ptr = NULL;
-    int error = cls_allocator_alloc(
-        &instance_ptr, alloc, sizeof(struct cls_ecs), alignof(struct cls_ecs));
+    int error = cls_mem_alloc(&instance_ptr, mem, sizeof(struct cls_ecs),
+                              alignof(struct cls_ecs));
     if (error)
         return error;
 

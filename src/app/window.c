@@ -3,9 +3,9 @@
 #include <cglm/vec2.h>
 #include <cls/app/window.h>
 #include <cls/gfx/renderer.h>
-#include <cls/util/allocator.h>
 #include <cls/util/error.h>
 #include <cls/util/logger.h>
+#include <cls/util/mem.h>
 #include <string.h>
 
 struct cls_input {
@@ -134,14 +134,13 @@ static void cursor_pos_callback(GLFWwindow *glfw_window, double pos_x,
     cls_window_input_cursor_pos_set(window, (vec2){(float)pos_x, (float)pos_y});
 }
 
-static int input_create(struct cls_input **in, struct cls_allocator *alloc) {
+static int input_create(struct cls_input **in, struct cls_mem *alloc) {
     if (!in || !alloc)
         return CLS_NULLPTR;
 
     void *instance_ptr = NULL;
-    int error =
-        cls_allocator_alloc(&instance_ptr, alloc, sizeof(struct cls_input),
-                            alignof(struct cls_input));
+    int error = cls_mem_alloc(&instance_ptr, alloc, sizeof(struct cls_input),
+                              alignof(struct cls_input));
     if (error)
         return error;
 
@@ -150,14 +149,13 @@ static int input_create(struct cls_input **in, struct cls_allocator *alloc) {
     return CLS_SUCCESS;
 }
 
-static int timing_create(struct cls_timing **t, struct cls_allocator *alloc) {
+static int timing_create(struct cls_timing **t, struct cls_mem *alloc) {
     if (!t || !alloc)
         return CLS_NULLPTR;
 
     void *instance_ptr = NULL;
-    int error =
-        cls_allocator_alloc(&instance_ptr, alloc, sizeof(struct cls_timing),
-                            alignof(struct cls_timing));
+    int error = cls_mem_alloc(&instance_ptr, alloc, sizeof(struct cls_timing),
+                              alignof(struct cls_timing));
     if (error)
         return error;
 
@@ -168,12 +166,11 @@ static int timing_create(struct cls_timing **t, struct cls_allocator *alloc) {
     return CLS_SUCCESS;
 }
 
-int cls_window_create(struct cls_window **win,
-                      struct cls_allocator *allocator_persistant,
-                      struct cls_allocator *allocator_frame,
-                      struct cls_gfx_api *api, ivec2 size, const char *title,
-                      bool vsync, ivec4 bg_color) {
-    if (!win || !allocator_persistant || !allocator_frame || !title)
+int cls_window_create(struct cls_window **win, struct cls_mem *mem_persistant,
+                      struct cls_mem *mem_frame, struct cls_gfx_api *api,
+                      ivec2 size, const char *title, bool vsync,
+                      ivec4 bg_color) {
+    if (!win || !mem_persistant || !mem_frame || !title)
         return CLS_NULLPTR;
 
     glfwSetErrorCallback(error_callback);
@@ -190,9 +187,9 @@ int cls_window_create(struct cls_window **win,
     glfwWindowHint(GLFW_MAXIMIZED, GLFW_TRUE);
 
     struct cls_window *instance = NULL;
-    int error = cls_allocator_alloc((void **)&instance, allocator_persistant,
-                                    sizeof(struct cls_window),
-                                    alignof(struct cls_window));
+    int error =
+        cls_mem_alloc((void **)&instance, mem_persistant,
+                      sizeof(struct cls_window), alignof(struct cls_window));
     if (error)
         return error;
 
@@ -217,22 +214,22 @@ int cls_window_create(struct cls_window **win,
     glfwSetScrollCallback(instance->glfw_window, scroll_callback);
     glfwSwapInterval(vsync);
 
-    error = input_create(&instance->input, allocator_persistant);
+    error = input_create(&instance->input, mem_persistant);
     if (error) {
         CLS_LOGGER_LOG_ERROR(CLS_LOGGER_ERROR, error, "%s",
                              "Creating window input failed");
         goto cleanup;
     }
 
-    error = cls_renderer_create(&instance->renderer, allocator_persistant,
-                                allocator_frame, api, bg_color);
+    error = cls_renderer_create(&instance->renderer, mem_persistant, mem_frame,
+                                api, bg_color);
     if (error) {
         CLS_LOGGER_LOG_ERROR(CLS_LOGGER_ERROR, error, "%s",
                              "Creating window renderer failed");
         goto cleanup;
     }
 
-    error = timing_create(&instance->timing, allocator_persistant);
+    error = timing_create(&instance->timing, mem_persistant);
     if (error) {
         CLS_LOGGER_LOG_ERROR(CLS_LOGGER_ERROR, error, "%s",
                              "Creating window timing failed");

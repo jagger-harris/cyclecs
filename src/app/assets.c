@@ -5,10 +5,10 @@
 #include <cls/io/ascii.h>
 #include <cls/io/font.h>
 #include <cls/io/image.h>
-#include <cls/util/allocator.h>
 #include <cls/util/error.h>
 #include <cls/util/globals.h>
 #include <cls/util/logger.h>
+#include <cls/util/mem.h>
 #include <cls/util/table.h>
 #include <cls/util/types.h>
 #include <cls/util/xxhash32.h>
@@ -103,15 +103,14 @@ static int assets_load_defaults(struct cls_assets *assets) {
     return CLS_SUCCESS;
 }
 
-int cls_assets_create(struct cls_assets **assets, struct cls_allocator *alloc,
+int cls_assets_create(struct cls_assets **assets, struct cls_mem *mem,
                       struct cls_gfx_api *api) {
-    if (!assets || !alloc || !api)
+    if (!assets || !mem || !api)
         return CLS_NULLPTR;
 
     void *instance_ptr = NULL;
-    int error =
-        cls_allocator_alloc(&instance_ptr, alloc, sizeof(struct cls_assets),
-                            alignof(struct cls_assets));
+    int error = cls_mem_alloc(&instance_ptr, mem, sizeof(struct cls_assets),
+                              alignof(struct cls_assets));
     if (error)
         return error;
 

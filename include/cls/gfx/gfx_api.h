@@ -17,7 +17,8 @@ struct cls_gfx_api {
     int (*swap_buffers)(GLFWwindow *win);
     void (*on_resize)(int width, int height);
     void (*begin_frame)(void);
-    int (*draw_frame)(struct cls_app *app, struct cls_array *batches);
+    int (*draw_batches)(struct cls_app *app, struct cls_array *batches,
+                        struct cls_array *transparent_batches);
     int (*shader_init)(struct cls_shader *s,
                        const struct cls_shader_info *info);
     void (*shader_destroy)(struct cls_shader *s);

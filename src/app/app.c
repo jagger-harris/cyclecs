@@ -6,10 +6,10 @@
 #include <cls/gfx/gl/renderer.h>
 #include <cls/gfx/gl/shader.h>
 #include <cls/gfx/renderer.h>
-#include <cls/util/allocator.h>
 #include <cls/util/arena.h>
 #include <cls/util/error.h>
 #include <cls/util/logger.h>
+#include <cls/util/mem.h>
 
 #define APP_PERM_SIZE (1024L * 1024L)
 #define APP_FRAME_SIZE (1024L * 1024L * 50L)
@@ -37,19 +37,19 @@ int cls_app_init(struct cls_app *app, struct cls_gfx_api *api,
     if (error)
         goto cleanup;
 
-    error = cls_allocator_create(&app->alloc_perm, allocator_arena_alloc, NULL,
-                                 app->arena_perm);
+    error = cls_mem_create(&app->mem_perm, allocator_arena_alloc, NULL,
+                           app->arena_perm);
     if (error)
         goto cleanup;
 
-    error = cls_allocator_create(&app->alloc_frame, allocator_arena_alloc, NULL,
-                                 app->arena_frame);
+    error = cls_mem_create(&app->mem_frame, allocator_arena_alloc, NULL,
+                           app->arena_frame);
     if (error)
         goto cleanup;
 
     // TODO: Add checking vsync via an options file
     bool vsync = false;
-    error = cls_window_create(&app->window, app->alloc_perm, app->alloc_frame,
+    error = cls_window_create(&app->window, app->mem_perm, app->mem_frame,
                               app->api, window_size, title, vsync, bg_color);
     if (error) {
         CLS_LOGGER_LOG_ERROR(CLS_LOGGER_ERROR, error, "%s",
@@ -57,14 +57,14 @@ int cls_app_init(struct cls_app *app, struct cls_gfx_api *api,
         goto cleanup;
     }
 
-    error = cls_assets_create(&app->assets, app->alloc_perm, app->api);
+    error = cls_assets_create(&app->assets, app->mem_perm, app->api);
     if (error) {
         CLS_LOGGER_LOG_ERROR(CLS_LOGGER_ERROR, error, "%s",
                              "Creating app assets failed");
         goto cleanup;
     }
 
-    error = cls_ecs_create(&app->ecs, app->alloc_perm);
+    error = cls_ecs_create(&app->ecs, app->mem_perm);
     if (error) {
         CLS_LOGGER_LOG_ERROR(CLS_LOGGER_ERROR, error, "%s",
                              "Creating app ecs failed");
@@ -87,8 +87,8 @@ void cls_app_destroy(struct cls_app *app) {
     cls_window_destroy(app->window);
     cls_arena_destroy(app->arena_perm);
     cls_arena_destroy(app->arena_frame);
-    cls_allocator_destroy(app->alloc_perm);
-    cls_allocator_destroy(app->alloc_frame);
+    cls_mem_destroy(app->mem_perm);
+    cls_mem_destroy(app->mem_frame);
 }
 
 int cls_app_run(struct cls_app *app) {

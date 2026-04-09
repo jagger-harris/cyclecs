@@ -8,10 +8,10 @@
 #include <cls/gfx/cmd.h>
 #include <cls/gfx/gl/mesh.h>
 #include <cls/gfx/shader.h>
-#include <cls/util/allocator.h>
 #include <cls/util/array.h>
 #include <cls/util/error.h>
 #include <cls/util/logger.h>
+#include <cls/util/mem.h>
 
 #if DEBUG
 void GLAPIENTRY msg_callback(GLenum source, GLenum type, GLuint id,
@@ -115,10 +115,10 @@ static int render_batch(struct cls_app *app, struct cls_renderer_batch *batch) {
             return CLS_SUCCESS;
 
         struct cls_gl_mesh_instance_data *instances = NULL;
-        error = cls_allocator_alloc((void **)&instances, app->alloc_frame,
-                                    sizeof(struct cls_gl_mesh_instance_data) *
-                                        cmds_length,
-                                    alignof(struct cls_gl_mesh_instance_data));
+        error = cls_mem_alloc((void **)&instances, app->mem_frame,
+                              sizeof(struct cls_gl_mesh_instance_data) *
+                                  cmds_length,
+                              alignof(struct cls_gl_mesh_instance_data));
         if (error)
             return error;
 
@@ -181,7 +181,7 @@ static int render_batch(struct cls_app *app, struct cls_renderer_batch *batch) {
     return CLS_SUCCESS;
 }
 
-int batch_depth_compare(const void *a, const void *b) {
+static int batch_depth_compare(const void *a, const void *b) {
     const struct cls_renderer_batch *ba =
         *(const struct cls_renderer_batch **)a;
     const struct cls_renderer_batch *bb =
@@ -204,7 +204,8 @@ void cls_gl_renderer_begin_frame(void) {
     glDisable(GL_BLEND);
 }
 
-int cls_gl_renderer_draw_frame(struct cls_app *app, struct cls_array *batches) {
+int cls_gl_renderer_draw_batches(struct cls_app *app, struct cls_array *batches,
+                                 struct cls_array *transparent_batches) {
     if (!app || !batches)
         return CLS_NULLPTR;
 
@@ -233,27 +234,47 @@ int cls_gl_renderer_draw_frame(struct cls_app *app, struct cls_array *batches) {
             continue;
     }
 
-    struct cls_renderer_batch *transparent_batches[512];
-    size_t transparent_batch_count = 0;
+    cls_array_clear(transparent_batches);
 
     for (size_t i = 0; i < batches_len; ++i) {
         void *batch_ptr = NULL;
         error = cls_array_elem_get(&batch_ptr, batches, i);
         if (error)
             continue;
+
         struct cls_renderer_batch *batch = batch_ptr;
         if (!batch || !batch->data.state.blending)
             continue;
 
-        transparent_batches[transparent_batch_count++] = batch;
+        error = cls_array_push(&transparent_batches, (const void *)&batch_ptr);
+        if (error)
+            continue;
     }
 
-    qsort((void *)transparent_batches, transparent_batch_count,
+    size_t transparent_batch_len = 0;
+    error = cls_array_length_get(&transparent_batch_len, transparent_batches);
+    if (error)
+        return error;
+
+    void *transparent_data = NULL;
+    error = cls_array_data_get(&transparent_data, transparent_batches);
+    if (error)
+        return error;
+
+    qsort(transparent_data, transparent_batch_len,
           sizeof(struct cls_renderer_batch *), batch_depth_compare);
 
-    for (size_t i = 0; i < transparent_batch_count; ++i) {
-        apply_render_state(&transparent_batches[i]->data.state);
-        error = render_batch(app, transparent_batches[i]);
+    for (size_t i = 0; i < transparent_batch_len; ++i) {
+        void *batch_ptr = NULL;
+        error = cls_array_elem_get(&batch_ptr, transparent_batches, i);
+        if (error)
+            continue;
+
+        struct cls_renderer_batch *batch =
+            *(struct cls_renderer_batch **)batch_ptr;
+
+        apply_render_state(&batch->data.state);
+        error = render_batch(app, batch);
         if (error)
             continue;
     }

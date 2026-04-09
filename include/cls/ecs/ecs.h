@@ -7,20 +7,20 @@
 #define CLS_ENTITY_MAX U32_MAX
 typedef u32 cls_entity;
 
-struct cls_allocator;
 struct cls_array;
 struct cls_app;
 struct cls_ecs;
 struct cls_ecs_scene;
 struct cls_ecs_world;
 struct cls_ecs_world_query;
+struct cls_mem;
 
 typedef int (*cls_ecs_world_iter_fn)(struct cls_ecs_world *world,
                                      void *user_data);
 typedef int (*cls_ecs_world_system_fn)(struct cls_ecs_world_query *query,
                                        struct cls_app *app, void *user_data);
 
-int cls_ecs_create(struct cls_ecs **ecs, struct cls_allocator *alloc);
+int cls_ecs_create(struct cls_ecs **ecs, struct cls_mem *mem);
 void cls_ecs_destroy(struct cls_ecs *ecs);
 
 int cls_ecs_scene_create_from_world(struct cls_ecs_scene **scene,

@@ -7,19 +7,19 @@
 #define WINDOW_INPUT_KEYS_SIZE (GLFW_KEY_LAST + 1)
 #define WINDOW_INPUT_MOUSE_BUTTONS_SIZE (GLFW_MOUSE_BUTTON_LAST + 1)
 
-struct cls_allocator;
 struct cls_app;
 struct cls_gfx_api;
 struct cls_input;
+struct cls_mem;
 struct cls_renderer;
 struct cls_timing;
 struct cls_window;
 typedef struct GLFWwindow GLFWwindow;
 
-int cls_window_create(struct cls_window **win, struct cls_allocator *alloc_perm,
-                      struct cls_allocator *alloc_frame,
-                      struct cls_gfx_api *api, ivec2 size, const char *title,
-                      bool vsync, ivec4 bg_color);
+int cls_window_create(struct cls_window **win, struct cls_mem *alloc_perm,
+                      struct cls_mem *alloc_frame, struct cls_gfx_api *api,
+                      ivec2 size, const char *title, bool vsync,
+                      ivec4 bg_color);
 void cls_window_destroy(struct cls_window *win);
 int cls_window_update(bool *should_close, struct cls_window *win);
 int cls_window_renderer_update(struct cls_window *win, struct cls_app *app);
