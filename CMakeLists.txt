@@ -1,6 +1,6 @@
 # Project definitions
 cmake_minimum_required(VERSION 3.21)
-project(cls C)
+project(cyclecs C)
 
 # Project options
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -54,31 +54,31 @@ target_include_directories(stb SYSTEM INTERFACE ${STB_DIR})
 # Cyclecs
 file(GLOB_RECURSE CLS_SOURCES CONFIGURE_DEPENDS src/*.c)
 
-add_library(cls STATIC ${CLS_SOURCES})
+add_library(cyclecs STATIC ${CLS_SOURCES})
 
-target_include_directories(cls
+target_include_directories(cyclecs
     PUBLIC  ${CMAKE_CURRENT_SOURCE_DIR}/include
     PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
-target_link_libraries(cls PUBLIC cglm freetype glfw glad stb)
-target_compile_definitions(cls PUBLIC GLFW_INCLUDE_NONE)
+target_link_libraries(cyclecs PUBLIC cglm freetype glfw glad stb)
+target_compile_definitions(cyclecs PUBLIC GLFW_INCLUDE_NONE)
 
 if (MSVC)
-    target_compile_options(cls PRIVATE
+    target_compile_options(cyclecs PRIVATE
         $<$<CONFIG:Debug>:/W4 /WX>
     )
 else()
-    target_compile_options(cls PRIVATE
+    target_compile_options(cyclecs PRIVATE
         $<$<CONFIG:Debug>:-g3 -O0 -Wall -Wextra -Wpedantic -Wmisleading-indentation -Wunused -Wuninitialized -Wshadow -Wconversion -Wdeprecated -Wpointer-arith -Wstrict-aliasing -Werror -fsanitize=address,leak,undefined>
         $<$<CONFIG:Release>:-O3 -DNDEBUG -DENABLE_PROFILER>
     )
-    target_link_options(cls PRIVATE
+    target_link_options(cyclecs PRIVATE
         $<$<CONFIG:Debug>:-fsanitize=address,leak,undefined>
     )
 endif()
 
-set_target_properties(cls PROPERTIES
+set_target_properties(cyclecs PROPERTIES
     C_CLANG_TIDY "$<$<CONFIG:Debug>:clang-tidy;--use-color>"
 )
 
@@ -112,7 +112,7 @@ if (CLS_BUILD_EXAMPLES)
     foreach(EXAMPLE_SOURCE ${EXAMPLE_SOURCES})
         get_filename_component(EXAMPLE_NAME ${EXAMPLE_SOURCE} NAME_WE)
         add_executable(${EXAMPLE_NAME} ${EXAMPLE_SOURCE})
-        target_link_libraries(${EXAMPLE_NAME} PRIVATE cls)
+        target_link_libraries(${EXAMPLE_NAME} PRIVATE cyclecs)
         add_dependencies(${EXAMPLE_NAME} assets)
         if (NOT MSVC)
             target_link_options(${EXAMPLE_NAME} PRIVATE
