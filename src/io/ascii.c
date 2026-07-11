@@ -20,8 +20,8 @@ int cls_ascii_init(const char **ascii, const char *path) {
         goto cleanup;
     }
 
-    long length = ftell(file);
-    if (length < 0) {
+    long len = ftell(file);
+    if (len < 0) {
         error = CLS_ACCESS_DENIED;
         goto cleanup;
     }
@@ -31,7 +31,7 @@ int cls_ascii_init(const char **ascii, const char *path) {
         goto cleanup;
     }
 
-    size_t buffer_size = (size_t)length + 1;
+    size_t buffer_size = (size_t)len + 1;
     file_buffer = malloc(buffer_size);
     if (!file_buffer) {
         error = CLS_OUT_OF_MEMORY;
@@ -39,7 +39,7 @@ int cls_ascii_init(const char **ascii, const char *path) {
     }
 
     size_t read_size = fread(file_buffer, 1, buffer_size, file);
-    if (read_size != (size_t)length) {
+    if (read_size != (size_t)len) {
         error = CLS_ACCESS_DENIED;
         goto cleanup;
     }

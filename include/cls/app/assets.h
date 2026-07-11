@@ -17,8 +17,8 @@ int cls_assets_create(struct cls_assets **assets, struct cls_mem *mem,
 void cls_assets_destroy(struct cls_assets *assets);
 void cls_assets_font_add(struct cls_assets *assets, const char *font_path,
                          int pixel_size);
-int cls_assets_font_get(const struct cls_font **f,
-                        const struct cls_assets *assets, u32 font_id);
+int cls_assets_font_get(struct cls_font **f, const struct cls_assets *assets,
+                        const char *id);
 void cls_assets_shader_add(struct cls_assets *assets, const char *shader_path);
 int cls_assets_shader_get(struct cls_shader **shader,
                           const struct cls_assets *assets, u32 shader_id);

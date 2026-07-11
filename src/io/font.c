@@ -13,10 +13,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define FONT_MIN_ATLAS_SIZE 128
-#define FONT_MAX_ATLAS_SIZE 2048
-#define FONT_GLYPH_PADDING 2 // Prevents texture bleeding
-#define FONT_SDF_SPREAD 8 // SDF spread in pixels
+static const unsigned int FONT_MIN_ATLAS_SIZE = 128;
+static const unsigned int FONT_MAX_ATLAS_SIZE = 2048;
+static const unsigned int FONT_GLYPH_PADDING = 2; // Prevents texture bleeding
+static const u8 FONT_SDF_SPREAD = 8; // SDF spread in pixels
 
 struct cls_font_meta {
     unsigned int atlas_width;
@@ -79,15 +79,15 @@ static int font_save(const struct cls_font *f, const char *path) {
                                  .atlas_height = f->atlas_height,
                                  .pixel_size = f->pixel_size,
                                  .sdf_spread = FONT_SDF_SPREAD};
-    unsigned long length = fwrite(&meta, sizeof(meta), 1, file);
-    if (length < 1) {
+    unsigned long len = fwrite(&meta, sizeof(meta), 1, file);
+    if (len < 1) {
         error = CLS_ACCESS_DENIED;
         goto cleanup;
     }
 
-    length =
+    len =
         fwrite(f->glyphs, sizeof(struct cls_glyph), CLS_FONT_CHAR_LENGTH, file);
-    if (length < CLS_FONT_CHAR_LENGTH) {
+    if (len < CLS_FONT_CHAR_LENGTH) {
         error = CLS_ACCESS_DENIED;
         goto cleanup;
     }
@@ -201,7 +201,7 @@ int cls_font_init(struct cls_font *f, FT_Library ft, const char *path,
     unsigned int total_area = 0;
     unsigned int max_width = 0;
     unsigned int max_height = 0;
-    for (u8 c = CLS_FONT_CHAR_START; c <= CLS_FONT_CHAR_END; ++c) {
+    for (u8 c = CLS_FONT_CHAR_START; c <= (u8)CLS_FONT_CHAR_END; ++c) {
         // Load with SDF render mode
         if (FT_Load_Char(f->face, c, FT_LOAD_DEFAULT))
             continue;
@@ -236,7 +236,7 @@ int cls_font_init(struct cls_font *f, FT_Library ft, const char *path,
         unsigned int test_shelf_height = 0;
         packing_success = true;
 
-        for (u8 c = CLS_FONT_CHAR_START; c <= CLS_FONT_CHAR_END; ++c) {
+        for (u8 c = CLS_FONT_CHAR_START; c <= (u8)CLS_FONT_CHAR_END; ++c) {
             if (FT_Load_Char(f->face, c, FT_LOAD_DEFAULT))
                 continue;
 
@@ -277,7 +277,7 @@ int cls_font_init(struct cls_font *f, FT_Library ft, const char *path,
     unsigned int shelf_y = 0;
     unsigned int shelf_height = 0;
 
-    for (u8 c = CLS_FONT_CHAR_START; c <= CLS_FONT_CHAR_END; ++c) {
+    for (u8 c = CLS_FONT_CHAR_START; c <= (u8)CLS_FONT_CHAR_END; ++c) {
         if (FT_Load_Char(f->face, c, FT_LOAD_DEFAULT))
             continue;
 

@@ -14,57 +14,42 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#define CLS_ECS_WORLD_START_CAPACITY 4
-#define CLS_ECS_WORLD_ENTITY_START_CAPACITY 32
-#define CLS_ECS_SCENE_FILE_SIG 0xE7EFD7A7 // çï×§ (cyclecs scene)
-#define CLS_ECS_SCENE_FILE_VER 1
+static const size_t CLS_ECS_WORLD_START_CAPACITY = 4;
+static const size_t CLS_ECS_WORLD_ENTITY_START_CAPACITY = 32;
 
 struct cls_ecs {
     struct cls_table *worlds;
 };
 
-struct cls_ecs_scene {
-    const char *id;
-    struct cls_array *entities;
-};
-
-struct cls_ecs_scene_entity {
-    struct cls_array *components; // cls_entity can have more than one component
-};
-
-// TODO: Naive approach. Would be better to make a specific data structure for
-// more efficient serialization
-struct cls_ecs_comp_serialized {
-    u32 id;
-    size_t size;
-    void *comp;
-};
-
 struct cls_ecs_world_query {
     struct cls_array *sets;
     struct cls_array *comp_ids;
-    struct cls_ecs_world_sparse_set *min_set;
+    struct cls_ecs_world_sparse_set *smallest_set;
     struct cls_ecs_world *world;
-    size_t arg_count;
-    size_t current_index;
+    size_t current_idx;
 };
 
 struct cls_ecs_world_system {
     cls_ecs_world_system_fn system;
     struct cls_ecs_world_query *query;
-    void *user_data;
+    float tick_rate;
+    float tick_amount;
+};
+
+struct cls_ecs_singleton {
+    void *data;
+    size_t size;
 };
 
 struct cls_ecs_world {
     struct cls_array *entities;
     struct cls_array *free_entities;
     struct cls_array *pending_deletions;
+    struct cls_array *queries;
     struct cls_table *components;
     struct cls_table *systems;
+    struct cls_table *singletons;
     u32 next_entity_id;
-    int priority;
-    float tick_rate;
-    float tick_amount;
     bool should_update;
 };
 
@@ -75,7 +60,7 @@ struct cls_ecs_world_sparse_set {
     size_t component_size;
 };
 
-static void cls_ecs_world_destroy(struct cls_ecs_world *world) {
+static void world_destroy(struct cls_ecs_world *world) {
     if (!world)
         return;
 
@@ -84,20 +69,20 @@ static void cls_ecs_world_destroy(struct cls_ecs_world *world) {
     if (error)
         return;
 
-    bool comp_iter_next = false;
-    while (cls_table_iterator_next(&comp_iter_next, comp_iter) == CLS_SUCCESS &&
-           comp_iter_next) {
+    bool next = false;
+    while (cls_table_iterator_next(&next, comp_iter) == CLS_SUCCESS && next) {
         void *set_ptr = NULL;
         error = cls_table_iterator_value_get(&set_ptr, comp_iter);
         if (error)
             continue;
 
         struct cls_ecs_world_sparse_set *set = set_ptr;
-        if (set) {
-            cls_array_destroy(set->sparse);
-            cls_array_destroy(set->dense);
-            cls_array_destroy(set->data);
-        }
+        if (!set)
+            continue;
+
+        cls_array_destroy(set->sparse);
+        cls_array_destroy(set->dense);
+        cls_array_destroy(set->data);
     }
 
     cls_table_iterator_destroy(comp_iter);
@@ -107,29 +92,46 @@ static void cls_ecs_world_destroy(struct cls_ecs_world *world) {
     if (error)
         return;
 
-    bool sys_iter_next = false;
-    while (cls_table_iterator_next(&sys_iter_next, sys_iter) == CLS_SUCCESS &&
-           sys_iter_next) {
+    next = false;
+    while (cls_table_iterator_next(&next, sys_iter) == CLS_SUCCESS && next) {
         void *system_ptr = NULL;
         error = cls_table_iterator_value_get(&system_ptr, sys_iter);
         if (error)
             continue;
 
         struct cls_ecs_world_system *system = system_ptr;
-        if (system) {
-            if (system->user_data)
-                free(system->user_data);
-
+        if (system)
             cls_ecs_world_query_destroy(system->query);
-        }
     }
 
     cls_table_iterator_destroy(sys_iter);
+
+    struct cls_table_iterator *singleton_iter = NULL;
+    error = cls_table_iterator_create(&singleton_iter, world->singletons);
+    if (error)
+        return;
+
+    next = false;
+    while (cls_table_iterator_next(&next, singleton_iter) == CLS_SUCCESS &&
+           next) {
+        void *slot = NULL;
+        error = cls_table_iterator_value_get(&slot, singleton_iter);
+        if (error)
+            continue;
+
+        if (slot)
+            free(((struct cls_ecs_singleton *)slot)->data);
+    }
+
+    cls_table_iterator_destroy(singleton_iter);
+
     cls_array_destroy(world->entities);
     cls_array_destroy(world->free_entities);
     cls_array_destroy(world->pending_deletions);
+    cls_array_destroy(world->queries);
     cls_table_destroy(world->components);
     cls_table_destroy(world->systems);
+    cls_table_destroy(world->singletons);
 }
 
 static int add_default_component_types(struct cls_ecs_world *world) {
@@ -178,11 +180,6 @@ static int add_default_component_types(struct cls_ecs_world *world) {
     if (error)
         return error;
 
-    error = cls_ecs_world_component_type_add(world, CLS_COMP_LABEL_GROUP,
-                                             sizeof(struct label_group));
-    if (error)
-        return error;
-
     error = cls_ecs_world_component_type_add(world, CLS_COMP_PROGRESS_BAR,
                                              sizeof(struct progress_bar));
     if (error)
@@ -191,14 +188,11 @@ static int add_default_component_types(struct cls_ecs_world *world) {
     return CLS_SUCCESS;
 }
 
-static int cls_ecs_world_init(struct cls_ecs_world *world, float tick_rate,
-                              int priority, bool should_update) {
+static int world_init(struct cls_ecs_world *world, bool should_update) {
     if (!world)
         return CLS_NULLPTR;
 
     *world = (struct cls_ecs_world){.next_entity_id = 0,
-                                    .tick_rate = tick_rate,
-                                    .priority = priority,
                                     .should_update = should_update};
 
     int error = cls_array_create(&world->entities, CLS_ECS_WORLD_START_CAPACITY,
@@ -216,6 +210,11 @@ static int cls_ecs_world_init(struct cls_ecs_world *world, float tick_rate,
     if (error)
         goto cleanup;
 
+    error = cls_array_create(&world->queries, CLS_ECS_WORLD_START_CAPACITY,
+                             sizeof(struct cls_ecs_world_query));
+    if (error)
+        goto cleanup;
+
     error =
         cls_table_create(&world->components, CLS_ECS_WORLD_START_CAPACITY,
                          sizeof(u32), sizeof(struct cls_ecs_world_sparse_set));
@@ -227,6 +226,11 @@ static int cls_ecs_world_init(struct cls_ecs_world *world, float tick_rate,
     if (error)
         goto cleanup;
 
+    error = cls_table_create(&world->singletons, CLS_ECS_WORLD_START_CAPACITY,
+                             sizeof(u32), sizeof(struct cls_ecs_singleton));
+    if (error)
+        goto cleanup;
+
     error = add_default_component_types(world);
     if (error)
         goto cleanup;
@@ -234,127 +238,24 @@ static int cls_ecs_world_init(struct cls_ecs_world *world, float tick_rate,
     return CLS_SUCCESS;
 
 cleanup:
-    cls_ecs_world_destroy(world);
+    world_destroy(world);
     return error;
 }
 
-static void cls_ecs_scene_entity_destroy(struct cls_ecs_scene_entity *e) {
-    if (!e || !e->components)
-        return;
-
-    size_t comp_length = 0;
-    cls_array_length_get(&comp_length, e->components);
-
-    for (size_t i = 0; i < comp_length; ++i) {
-        void *comp_ptr = NULL;
-        cls_array_elem_get(&comp_ptr, e->components, i);
-        struct cls_ecs_comp_serialized *comp = comp_ptr;
-        if (comp && comp->comp)
-            free(comp->comp);
-    }
-
-    cls_array_destroy(e->components);
-}
-
-static int cls_ecs_scene_entity_create(struct cls_ecs_scene_entity *scene_e,
-                                       const struct cls_ecs_world *world,
-                                       cls_entity e) {
-    if (!scene_e || !world)
-        return CLS_NULLPTR;
-
-    int error = cls_array_create(&scene_e->components, 8,
-                                 sizeof(struct cls_ecs_comp_serialized));
-    if (error)
-        return error;
-
-    struct cls_table_iterator *iter = NULL;
-    error = cls_table_iterator_create(&iter, world->components);
-    if (error)
-        goto cleanup;
-
-    bool iter_next = false;
-    while (cls_table_iterator_next(&iter_next, iter) == CLS_SUCCESS &&
-           iter_next) {
-        void *id_ptr = NULL;
-        error = cls_table_iterator_key_get(&id_ptr, iter);
-        if (error)
-            continue;
-
-        u32 *id = id_ptr;
-
-        void *set_ptr = NULL;
-        error = cls_table_iterator_value_get(&set_ptr, iter);
-        if (error)
-            continue;
-
-        const struct cls_ecs_world_sparse_set *set = set_ptr;
-        if (!set)
-            continue;
-
-        size_t sparse_length = 0;
-        error = cls_array_length_get(&sparse_length, set->sparse);
-        if (error)
-            continue;
-
-        u32 dense_index = 0;
-        error = cls_array_elem_get_cpy(&dense_index, set->sparse, e);
-        if (error)
-            continue;
-
-        size_t dense_length = 0;
-        error = cls_array_length_get(&dense_length, set->dense);
-        if (error || dense_index >= dense_length)
-            continue;
-
-        cls_entity check_entity = 0;
-        error = cls_array_elem_get_cpy(&check_entity, set->dense, dense_index);
-        if (error || check_entity != e)
-            continue;
-
-        void *comp = NULL;
-        error = cls_array_elem_get(&comp, set->data, dense_index);
-        if (error)
-            continue;
-
-        // TODO: Use arena alloc
-        void *comp_cpy = malloc(set->component_size);
-        if (!comp_cpy)
-            goto cleanup;
-
-        memcpy(comp_cpy, comp, set->component_size);
-
-        struct cls_ecs_comp_serialized saved = {
-            .id = *id, .size = set->component_size, .comp = comp_cpy};
-
-        error = cls_array_push(&scene_e->components, &saved);
-        if (error)
-            goto cleanup;
-    }
-
-    cls_table_iterator_destroy(iter);
-    return CLS_SUCCESS;
-
-cleanup:
-    cls_ecs_scene_entity_destroy(scene_e);
-    cls_table_iterator_destroy(iter);
-    return error;
-}
-
-static int cls_ecs_world_component_add_by_id(struct cls_ecs_world *world,
-                                             cls_entity e, u32 id,
-                                             const void *comp) {
+static int world_component_add_by_id(struct cls_ecs_world *world, cls_entity e,
+                                     u32 id, const void *comp) {
     if (!world || !comp)
         return CLS_NULLPTR;
 
     if (e == CLS_ENTITY_MAX)
         return CLS_INVALID_ARG;
 
-    size_t entities_length = 0;
-    int error = cls_array_length_get(&entities_length, world->entities);
+    size_t entities_len = 0;
+    int error = cls_array_length_get(&entities_len, world->entities);
     if (error)
         return error;
 
-    if (e >= entities_length)
+    if (e >= entities_len)
         return CLS_INVALID_ARG;
 
     void *set_ptr = NULL;
@@ -366,28 +267,28 @@ static int cls_ecs_world_component_add_by_id(struct cls_ecs_world *world,
     if (!set)
         return CLS_INVALID_ARG;
 
-    size_t sparse_length = 0;
-    error = cls_array_length_get(&sparse_length, set->sparse);
+    size_t sparse_len = 0;
+    error = cls_array_length_get(&sparse_len, set->sparse);
     if (error)
         return error;
 
-    while (sparse_length <= e) {
+    while (sparse_len <= e) {
         cls_entity invalid_e = CLS_ENTITY_MAX;
         error = cls_array_push(&set->sparse, &invalid_e);
         if (error)
             return error;
 
-        error = cls_array_length_get(&sparse_length, set->sparse);
+        error = cls_array_length_get(&sparse_len, set->sparse);
         if (error)
             return error;
     }
 
-    size_t dense_length = 0;
-    error = cls_array_length_get(&dense_length, set->dense);
+    size_t dense_len = 0;
+    error = cls_array_length_get(&dense_len, set->dense);
     if (error)
         return error;
 
-    error = cls_array_elem_set(set->sparse, (size_t)e, &dense_length);
+    error = cls_array_elem_set(set->sparse, (size_t)e, &dense_len);
     if (error)
         return error;
 
@@ -398,10 +299,9 @@ static int cls_ecs_world_component_add_by_id(struct cls_ecs_world *world,
     return cls_array_push(&set->data, comp);
 }
 
-static int
-cls_ecs_world_entity_remove_component_by_id(struct cls_ecs_world *world,
-                                            cls_entity e, u32 id) {
-    if (!world || !id)
+static int world_entity_remove_component_by_id(struct cls_ecs_world *world,
+                                               cls_entity e, u32 id) {
+    if (!world)
         return CLS_NULLPTR;
 
     void *set_ptr = NULL;
@@ -411,55 +311,55 @@ cls_ecs_world_entity_remove_component_by_id(struct cls_ecs_world *world,
 
     const struct cls_ecs_world_sparse_set *set = set_ptr;
 
-    size_t dense_length = 0;
-    error = cls_array_length_get(&dense_length, set->dense);
+    size_t dense_len = 0;
+    error = cls_array_length_get(&dense_len, set->dense);
     if (error)
         return error;
 
-    if (dense_length == 0)
+    if (dense_len == 0)
         return CLS_SUCCESS;
 
-    u32 dense_index = 0;
-    error = cls_array_elem_get_cpy(&dense_index, set->sparse, e);
+    u32 dense_idx = 0;
+    error = cls_array_elem_get_cpy(&dense_idx, set->sparse, e);
     if (error)
         return error;
 
-    if (dense_index >= dense_length)
+    if (dense_idx >= dense_len)
         return CLS_INVALID_ARG;
 
     u32 check_entity = CLS_ENTITY_MAX;
-    error = cls_array_elem_get_cpy(&check_entity, set->dense, dense_index);
+    error = cls_array_elem_get_cpy(&check_entity, set->dense, dense_idx);
     if (error)
         return error;
 
     if (check_entity != e)
         return CLS_INVALID_ARG;
 
-    size_t last_index = dense_length - 1;
-    if (dense_index != last_index) {
+    size_t last_idx = dense_len - 1;
+    if (dense_idx != last_idx) {
         cls_entity last_entity = 0;
 
-        error = cls_array_elem_get_cpy(&last_entity, set->dense, last_index);
+        error = cls_array_elem_get_cpy(&last_entity, set->dense, last_idx);
         if (error)
             return error;
 
         void *last_data = NULL;
-        error = cls_array_elem_get(&last_data, set->data, last_index);
+        error = cls_array_elem_get(&last_data, set->data, last_idx);
         if (error)
             return error;
 
         void *current_data = NULL;
-        error = cls_array_elem_get(&current_data, set->data, dense_index);
+        error = cls_array_elem_get(&current_data, set->data, dense_idx);
         if (error)
             return error;
 
-        error = cls_array_elem_set(set->dense, dense_index, &last_entity);
+        error = cls_array_elem_set(set->dense, dense_idx, &last_entity);
         if (error)
             return error;
 
         memcpy(current_data, last_data, set->component_size);
 
-        error = cls_array_elem_set(set->sparse, last_entity, &dense_index);
+        error = cls_array_elem_set(set->sparse, last_entity, &dense_idx);
         if (error)
             return error;
     }
@@ -476,109 +376,14 @@ cls_ecs_world_entity_remove_component_by_id(struct cls_ecs_world *world,
     return cls_array_elem_set(set->sparse, e, &invalid_e);
 }
 
-static int
-cls_ecs_world_query_create_from_va_list(struct cls_ecs_world_query **query,
-                                        struct cls_ecs_world *world,
-                                        size_t arg_count, va_list args) {
-    if (!query || !world || arg_count == 0)
-        return CLS_INVALID_ARG;
-
-    struct cls_ecs_world_query *instance =
-        malloc(sizeof(struct cls_ecs_world_query));
-    if (!instance)
-        return CLS_OUT_OF_MEMORY;
-
-    instance->world = world;
-    instance->arg_count = arg_count;
-    instance->min_set = NULL;
-    instance->current_index = 0;
-
-    int error = cls_array_create(&instance->comp_ids, arg_count, sizeof(u32));
-    if (error)
-        goto cleanup;
-
-    error = cls_array_create(&instance->sets, arg_count,
-                             sizeof(struct cls_ecs_world_sparse_set *));
-    if (error)
-        goto cleanup;
-
-    for (size_t i = 0; i < arg_count; ++i) {
-        const char *id = va_arg(args, const char *);
-        u32 hash = 0;
-        error = cls_xxhash32(&hash, id, strlen(id), 0);
-        if (error)
-            return error;
-
-        error = cls_array_push(&instance->comp_ids, &hash);
-        if (error)
-            continue;
-
-        void *set_ptr = NULL;
-        error = cls_table_find(&set_ptr, world->components, &hash);
-        if (error)
-            continue;
-
-        if (!set_ptr)
-            continue;
-
-        error = cls_array_push(&instance->sets, (const void *)&set_ptr);
-        if (error)
-            continue;
-    }
-
-    void *set_ptr = NULL;
-    error = cls_array_elem_get(&set_ptr, instance->sets, 0);
-    if (error)
-        goto cleanup;
-
-    struct cls_ecs_world_sparse_set *first_set =
-        *(struct cls_ecs_world_sparse_set **)set_ptr;
-    if (!first_set) {
-        error = CLS_INVALID_ARG;
-        goto cleanup;
-    }
-
-    instance->min_set = first_set;
-
-    size_t min_dense_length = 0;
-    error = cls_array_length_get(&min_dense_length, instance->min_set->dense);
-    if (error)
-        goto cleanup;
-
-    size_t set_count = 0;
-    error = cls_array_length_get(&set_count, instance->sets);
-    if (error)
-        goto cleanup;
-
-    for (size_t i = 1; i < arg_count; ++i) {
-        struct cls_ecs_world_sparse_set *current_set = NULL;
-        error = cls_array_elem_get_cpy((void *)&current_set, instance->sets, i);
-        if (error)
-            continue;
-
-        size_t dense_length = 0;
-        error = cls_array_length_get(&dense_length, current_set->dense);
-        if (error)
-            continue;
-
-        if (dense_length < min_dense_length) {
-            instance->min_set = current_set;
-            min_dense_length = dense_length;
-        }
-    }
-
-    *query = instance;
-    return CLS_SUCCESS;
-
-cleanup:
-    cls_ecs_world_query_destroy(instance);
-    return error;
-}
-
-static int cls_ecs_world_run_systems(struct cls_ecs_world *world,
-                                     struct cls_app *app) {
+static int world_run_systems(struct cls_ecs_world *world, struct cls_app *app) {
     struct cls_table_iterator *iter = NULL;
     int error = cls_table_iterator_create(&iter, world->systems);
+    if (error)
+        return error;
+
+    float dt = 0;
+    error = cls_window_timing_dt_get(&dt, app->window);
     if (error)
         return error;
 
@@ -594,31 +399,49 @@ static int cls_ecs_world_run_systems(struct cls_ecs_world *world,
         if (!system || !system->system)
             continue;
 
-        system->query->current_index = 0;
+        // Fix spiral of death
+        if (system->tick_rate > 0.0f) {
+            system->tick_amount += dt;
 
-        error = system->system(system->query, app, system->user_data);
-        if (error)
-            return error;
+            if (system->tick_amount > 0.25f)
+                system->tick_amount = 0.25f;
+
+            float tick_interval = 1.0f / system->tick_rate;
+            if (system->tick_amount < tick_interval)
+                continue;
+
+            while (system->tick_amount >= tick_interval) {
+                system->tick_amount -= tick_interval;
+                system->query->current_idx = 0;
+                error = system->system(system->query, app);
+                if (error)
+                    return error;
+            }
+        } else {
+            system->query->current_idx = 0;
+            error = system->system(system->query, app);
+            if (error)
+                return error;
+        }
     }
 
     cls_table_iterator_destroy(iter);
     return CLS_SUCCESS;
 }
 
-static int cls_ecs_world_entity_remove_now(struct cls_ecs_world *world,
-                                           cls_entity e) {
+static int world_entity_remove(struct cls_ecs_world *world, cls_entity e) {
     if (!world)
         return CLS_NULLPTR;
 
     if (e == CLS_ENTITY_MAX)
         return CLS_INVALID_ARG;
 
-    size_t entities_length = 0;
-    int error = cls_array_length_get(&entities_length, world->entities);
+    size_t entities_len = 0;
+    int error = cls_array_length_get(&entities_len, world->entities);
     if (error)
         return error;
 
-    if (e >= entities_length)
+    if (e >= entities_len)
         return CLS_INVALID_ARG;
 
     struct cls_table_iterator *iter = NULL;
@@ -638,29 +461,29 @@ static int cls_ecs_world_entity_remove_now(struct cls_ecs_world *world,
         if (!set)
             continue;
 
-        size_t sparse_length = 0;
-        error = cls_array_length_get(&sparse_length, set->sparse);
+        size_t sparse_len = 0;
+        error = cls_array_length_get(&sparse_len, set->sparse);
         if (error)
             return error;
 
-        if (e >= sparse_length)
+        if (e >= sparse_len)
             continue;
 
-        u32 dense_index = 0;
-        error = cls_array_elem_get_cpy(&dense_index, set->sparse, e);
+        u32 dense_idx = 0;
+        error = cls_array_elem_get_cpy(&dense_idx, set->sparse, e);
         if (error)
             continue;
 
-        size_t dense_length = 0;
-        error = cls_array_length_get(&dense_length, set->dense);
+        size_t dense_len = 0;
+        error = cls_array_length_get(&dense_len, set->dense);
         if (error)
             return error;
 
-        if (dense_index >= dense_length)
+        if (dense_idx >= dense_len)
             continue;
 
         cls_entity check_entity = CLS_ENTITY_MAX;
-        error = cls_array_elem_get_cpy(&check_entity, set->dense, dense_index);
+        error = cls_array_elem_get_cpy(&check_entity, set->dense, dense_idx);
         if (error || check_entity != e)
             continue;
 
@@ -670,7 +493,7 @@ static int cls_ecs_world_entity_remove_now(struct cls_ecs_world *world,
             continue;
 
         u32 *key = key_ptr;
-        error = cls_ecs_world_entity_remove_component_by_id(world, e, *key);
+        error = world_entity_remove_component_by_id(world, e, *key);
         if (error)
             return error;
     }
@@ -678,33 +501,6 @@ static int cls_ecs_world_entity_remove_now(struct cls_ecs_world *world,
     cls_table_iterator_destroy(iter);
     return cls_array_push(&world->free_entities, &e);
 }
-
-static int cls_ecs_world_delete_entities(struct cls_ecs_world *world) {
-    if (!world)
-        return CLS_NULLPTR;
-
-    size_t pending_deletions_length = 0;
-    int error = cls_array_length_get(&pending_deletions_length,
-                                     world->pending_deletions);
-    if (error)
-        return error;
-
-    for (size_t i = 0; i < pending_deletions_length; ++i) {
-        cls_entity e = CLS_ENTITY_MAX;
-        error = cls_array_elem_get_cpy(&e, world->pending_deletions, i);
-        if (error)
-            continue;
-
-        error = cls_ecs_world_entity_remove_now(world, e);
-        if (error)
-            CLS_LOGGER_LOG(CLS_LOGGER_ERROR, "Failed to delete cls_entity %u",
-                           e);
-    }
-
-    cls_array_clear(world->pending_deletions);
-    return CLS_SUCCESS;
-}
-
 int cls_ecs_create(struct cls_ecs **ecs, struct cls_mem *mem) {
     if (!ecs || !mem)
         return CLS_NULLPTR;
@@ -750,420 +546,20 @@ void cls_ecs_destroy(struct cls_ecs *ecs) {
             continue;
 
         struct cls_ecs_world *world = world_ptr;
-        cls_ecs_world_destroy(world);
+        world_destroy(world);
     }
 
     cls_table_iterator_destroy(iter);
     cls_table_destroy(ecs->worlds);
 }
 
-int cls_ecs_scene_create_from_world(struct cls_ecs_scene **scene,
-                                    const struct cls_ecs_world *world,
-                                    const char *scene_id) {
-    if (!scene || !world || !scene_id)
-        return CLS_NULLPTR;
-
-    struct cls_ecs_scene *instance = malloc(sizeof(struct cls_ecs_scene));
-    if (!scene)
-        return CLS_OUT_OF_MEMORY;
-
-    instance->id = scene_id;
-
-    int error = cls_array_create(&instance->entities, 32,
-                                 sizeof(struct cls_ecs_scene_entity));
-    if (error)
-        goto cleanup;
-
-    size_t e_length = 0;
-    error = cls_ecs_world_entities_length_get(&e_length, world);
-    if (error)
-        goto cleanup;
-
-    for (size_t i = 0; i < e_length; ++i) {
-        cls_entity e = 0;
-        error = cls_array_elem_get_cpy(&e, world->entities, i);
-        if (error)
-            continue;
-
-        struct cls_ecs_scene_entity scene_entity = {0};
-        error = cls_ecs_scene_entity_create(&scene_entity, world, e);
-        if (error) {
-            CLS_LOGGER_LOG(
-                CLS_LOGGER_WARN,
-                "Saving cls_entity (%u) to scene (%s) from world failed", e,
-                scene_id);
-            continue;
-        }
-
-        error = cls_array_push(&instance->entities, &scene_entity);
-        if (error) {
-            cls_ecs_scene_entity_destroy(&scene_entity);
-            continue;
-        }
-    }
-
-    *scene = instance;
-    return CLS_SUCCESS;
-
-cleanup:
-    cls_array_destroy(instance->entities);
-
-    if (instance)
-        free(instance);
-
-    return error;
-}
-
-int cls_ecs_scene_create_from_query(struct cls_ecs_scene **scene,
-                                    struct cls_ecs_world_query *query,
-                                    const char *scene_id) {
-    if (!scene || !query || !scene_id)
-        return CLS_NULLPTR;
-
-    struct cls_ecs_scene *instance = malloc(sizeof(struct cls_ecs_scene));
-    if (!scene)
-        return CLS_OUT_OF_MEMORY;
-
-    instance->id = scene_id;
-
-    int error = cls_array_create(&instance->entities, 32,
-                                 sizeof(struct cls_ecs_scene_entity));
-    if (error)
-        goto cleanup;
-
-    query->current_index = 0;
-
-    cls_entity e = CLS_ENTITY_MAX;
-    while (cls_ecs_world_query_next(&e, query) == CLS_SUCCESS &&
-           e != CLS_ENTITY_MAX) {
-        struct cls_ecs_scene_entity scene_entity = {0};
-        error = cls_ecs_scene_entity_create(&scene_entity, query->world, e);
-        if (error) {
-            CLS_LOGGER_LOG(
-                CLS_LOGGER_WARN,
-                "Saving cls_entity (%u) to scene (%s) from query failed", e,
-                scene_id);
-            continue;
-        }
-
-        error = cls_array_push(&instance->entities, &scene_entity);
-        if (error) {
-            cls_ecs_scene_entity_destroy(&scene_entity);
-            continue;
-        }
-    }
-
-    *scene = instance;
-    return CLS_SUCCESS;
-
-cleanup:
-    cls_array_destroy(instance->entities);
-
-    if (instance)
-        free(instance);
-
-    return error;
-}
-
-void cls_ecs_scene_destroy(struct cls_ecs_scene *scene) {
-    if (!scene)
-        return;
-
-    if (scene->entities) {
-        size_t entity_count = 0;
-        cls_array_length_get(&entity_count, scene->entities);
-
-        for (size_t i = 0; i < entity_count; ++i) {
-            void *e_ptr = NULL;
-            cls_array_elem_get(&e_ptr, scene->entities, i);
-            struct cls_ecs_scene_entity *e = e_ptr;
-            if (!e || !e->components)
-                continue;
-
-            cls_ecs_scene_entity_destroy(e);
-        }
-
-        cls_array_destroy(scene->entities);
-    }
-
-    free(scene);
-}
-
-int cls_ecs_scene_spawn(const struct cls_ecs_scene *scene,
-                        struct cls_ecs_world *world) {
-    if (!scene || !world)
-        return CLS_NULLPTR;
-
-    size_t entities_length = 0;
-    int error = cls_array_length_get(&entities_length, scene->entities);
-    if (error)
-        return error;
-
-    for (size_t e_index = 0; e_index < entities_length; ++e_index) {
-        void *entity_ptr = NULL;
-        error = cls_array_elem_get(&entity_ptr, scene->entities, e_index);
-        if (error)
-            continue;
-
-        const struct cls_ecs_scene_entity *scene_entity = entity_ptr;
-        if (!scene_entity || !scene_entity->components)
-            continue;
-
-        cls_entity e = 0;
-        error = cls_ecs_world_entity_add(&e, world);
-        if (error) {
-            CLS_LOGGER_LOG_ERROR(
-                CLS_LOGGER_ERROR, error,
-                "Creating cls_entity while spawning scene failed", "%s");
-            continue;
-        }
-
-        size_t comp_length = 0;
-        error = cls_array_length_get(&comp_length, scene_entity->components);
-        if (error)
-            continue;
-
-        for (size_t comp_index = 0; comp_index < comp_length; ++comp_index) {
-            void *comp_ptr = NULL;
-            error = cls_array_elem_get(&comp_ptr, scene_entity->components,
-                                       comp_index);
-            if (error)
-                continue;
-
-            const struct cls_ecs_comp_serialized *comp = comp_ptr;
-            if (!comp || !comp->comp)
-                continue;
-
-            error = cls_ecs_world_component_add_by_id(world, e, comp->id,
-                                                      comp->comp);
-            if (error) {
-                CLS_LOGGER_LOG_ERROR(
-                    CLS_LOGGER_ERROR, error,
-                    "Adding component (%u) to cls_entity (%u) failed", comp->id,
-                    e);
-            }
-        }
-    }
-
-    return CLS_SUCCESS;
-}
-
-int cls_ecs_scene_save(const struct cls_ecs_scene *scene, const char *path) {
-    if (!scene || !path)
-        return CLS_NULLPTR;
-
-    FILE *file = fopen(path, "wb");
-    if (!file) {
-        CLS_LOGGER_LOG_ERROR(CLS_LOGGER_ERROR, CLS_FILE_NOT_FOUND,
-                             "Opening scene file for writing failed: %s", path);
-        return CLS_FILE_NOT_FOUND;
-    }
-
-    const u32 sig = CLS_ECS_SCENE_FILE_SIG;
-    const u32 ver = CLS_ECS_SCENE_FILE_VER;
-    (void)fwrite(&sig, sizeof(u32), 1, file);
-    (void)fwrite(&ver, sizeof(u32), 1, file);
-
-    size_t e_length = 0;
-    int error = cls_array_length_get(&e_length, scene->entities);
-    if (error)
-        goto cleanup;
-
-    u32 write_e_length = (u32)e_length;
-    (void)fwrite(&write_e_length, sizeof(u32), 1, file);
-
-    for (size_t e_index = 0; e_index < e_length; ++e_index) {
-        void *e_ptr = NULL;
-        error = cls_array_elem_get(&e_ptr, scene->entities, e_index);
-        if (error)
-            continue;
-
-        const struct cls_ecs_scene_entity *e = e_ptr;
-        if (!e || !e->components)
-            continue;
-
-        size_t comp_length = 0;
-        error = cls_array_length_get(&comp_length, e->components);
-        if (error)
-            continue;
-
-        u32 write_comp_length = (u32)comp_length;
-        (void)fwrite(&write_comp_length, sizeof(u32), 1, file);
-
-        for (size_t comp_index = 0; comp_index < comp_length; ++comp_index) {
-            void *comp_ptr = NULL;
-            error = cls_array_elem_get(&comp_ptr, e->components, comp_index);
-            if (error)
-                continue;
-
-            const struct cls_ecs_comp_serialized *comp = comp_ptr;
-            if (!comp || !comp->comp)
-                continue;
-
-            (void)fwrite(&comp->id, sizeof(u32), 1, file);
-            u32 write_size = (u32)comp->size;
-            (void)fwrite(&write_size, sizeof(u32), 1, file);
-            (void)fwrite(comp->comp, comp->size, 1, file);
-        }
-    }
-
-    (void)fclose(file);
-    return CLS_SUCCESS;
-
-cleanup:
-    if (file)
-        (void)fclose(file);
-
-    return error;
-}
-
-int cls_ecs_scene_load(struct cls_ecs_scene **scene, const char *scene_id,
-                       const char *path) {
-    if (!scene || !scene_id || !path)
-        return CLS_NULLPTR;
-
-    int error = CLS_SUCCESS;
-    struct cls_ecs_scene *instance = calloc(1, sizeof(struct cls_ecs_scene));
-    FILE *file = fopen(path, "rb");
-
-    if (!scene) {
-        error = CLS_OUT_OF_MEMORY;
-        goto cleanup;
-    }
-
-    instance->id = scene_id;
-
-    if (!file) {
-        CLS_LOGGER_LOG_ERROR(CLS_LOGGER_ERROR, CLS_FILE_NOT_FOUND,
-                             "Opening scene file for reading failed: %s", path);
-        error = CLS_FILE_NOT_FOUND;
-        goto cleanup;
-    }
-
-    u32 sig = 0;
-    if (fread(&sig, sizeof(u32), 1, file) != 1 ||
-        sig != CLS_ECS_SCENE_FILE_SIG) {
-        CLS_LOGGER_LOG_ERROR(CLS_LOGGER_ERROR, CLS_INVALID_ARG,
-                             "Tried to load invalid scene file format: %s",
-                             path);
-        error = CLS_FILE_CORRUPT;
-        goto cleanup;
-    }
-
-    u32 ver = 0;
-    if (fread(&ver, sizeof(u32), 1, file) != 1) {
-        error = CLS_FILE_CORRUPT;
-        goto cleanup;
-    }
-
-    if (ver != CLS_ECS_SCENE_FILE_VER) {
-        if (ver < CLS_ECS_SCENE_FILE_VER)
-            CLS_LOGGER_LOG_ERROR(
-                CLS_LOGGER_ERROR, CLS_INVALID_ARG,
-                "Scene file version (%u) is too old (unsupported): %s", ver,
-                path);
-
-        if (ver > CLS_ECS_SCENE_FILE_VER)
-            CLS_LOGGER_LOG_ERROR(
-                CLS_LOGGER_ERROR, CLS_INVALID_ARG,
-                "Scene file version (%u) is too new (unsupported): %s", ver,
-                path);
-
-        error = CLS_FILE_CORRUPT;
-        goto cleanup;
-    }
-
-    error = cls_array_create(&instance->entities, 32,
-                             sizeof(struct cls_ecs_scene_entity));
-    if (error)
-        goto cleanup;
-
-    cls_entity e_length = 0;
-    if (fread(&e_length, sizeof(u32), 1, file) != 1) {
-        error = CLS_FILE_CORRUPT;
-        goto cleanup;
-    }
-
-    for (cls_entity e_index = 0; e_index < e_length; ++e_index) {
-        struct cls_ecs_scene_entity e = {0};
-        error = cls_array_create(&e.components, 8,
-                                 sizeof(struct cls_ecs_comp_serialized));
-        if (error)
-            goto cleanup;
-
-        u32 comp_length = 0;
-        if (fread(&comp_length, sizeof(u32), 1, file) != 1) {
-            cls_array_destroy(e.components);
-            error = CLS_FILE_CORRUPT;
-            goto cleanup;
-        }
-
-        for (u32 comp_index = 0; comp_index < comp_length; ++comp_index) {
-            struct cls_ecs_comp_serialized comp = {0};
-
-            if (fread(&comp.id, sizeof(u32), 1, file) != 1) {
-                cls_array_destroy(e.components);
-                error = CLS_FILE_CORRUPT;
-                goto cleanup;
-            }
-
-            u32 read_size = 0;
-            if (fread(&read_size, sizeof(u32), 1, file) != 1) {
-                cls_array_destroy(e.components);
-                error = CLS_FILE_CORRUPT;
-                goto cleanup;
-            }
-
-            comp.size = (size_t)read_size;
-            comp.comp = malloc(comp.size);
-            if (!comp.comp) {
-                cls_array_destroy(e.components);
-                error = CLS_OUT_OF_MEMORY;
-                goto cleanup;
-            }
-
-            if (fread(comp.comp, comp.size, 1, file) != 1) {
-                free(comp.comp);
-                cls_array_destroy(e.components);
-                error = CLS_FILE_CORRUPT;
-                goto cleanup;
-            }
-
-            error = cls_array_push(&e.components, &comp);
-            if (error) {
-                free(comp.comp);
-                cls_array_destroy(e.components);
-                goto cleanup;
-            }
-        }
-
-        error = cls_array_push(&instance->entities, &e);
-        if (error) {
-            cls_array_destroy(e.components);
-            goto cleanup;
-        }
-    }
-
-    (void)fclose(file);
-    *scene = instance;
-    return CLS_SUCCESS;
-
-cleanup:
-    cls_ecs_scene_destroy(instance);
-
-    if (file)
-        (void)fclose(file);
-
-    return error;
-}
-
-int cls_ecs_world_add(struct cls_ecs *ecs, const char *id, float tick_rate,
-                      int priority, bool should_update) {
+int cls_ecs_world_add(struct cls_ecs_world **world, struct cls_ecs *ecs,
+                      const char *id, bool should_update) {
     if (!ecs || !id)
         return CLS_NULLPTR;
 
-    struct cls_ecs_world world = {0};
-    int error = cls_ecs_world_init(&world, tick_rate, priority, should_update);
+    struct cls_ecs_world w = {0};
+    int error = world_init(&w, should_update);
     if (error)
         return error;
 
@@ -1172,7 +568,19 @@ int cls_ecs_world_add(struct cls_ecs *ecs, const char *id, float tick_rate,
     if (error)
         return error;
 
-    return cls_table_insert(ecs->worlds, &hash, &world);
+    error = cls_table_insert(ecs->worlds, &hash, &w);
+    if (error)
+        return error;
+
+    void *find_ptr = NULL;
+    error = cls_table_find(&find_ptr, ecs->worlds, &hash);
+    if (error)
+        return error;
+
+    if (world)
+        *world = find_ptr;
+
+    return CLS_SUCCESS;
 }
 
 int cls_ecs_world_remove(struct cls_ecs *ecs, const char *id) {
@@ -1190,7 +598,7 @@ int cls_ecs_world_remove(struct cls_ecs *ecs, const char *id) {
         return error;
 
     struct cls_ecs_world *world = world_ptr;
-    cls_ecs_world_destroy(world);
+    world_destroy(world);
     return cls_table_remove(NULL, ecs->worlds, &hash);
 }
 
@@ -1210,15 +618,6 @@ int cls_ecs_world_get(struct cls_ecs_world **world, const struct cls_ecs *ecs,
         return error;
 
     *world = world_ptr;
-    return CLS_SUCCESS;
-}
-
-int cls_ecs_world_get_all(struct cls_table **worlds,
-                          const struct cls_ecs *ecs) {
-    if (!worlds || !ecs)
-        return CLS_NULLPTR;
-
-    *worlds = ecs->worlds;
     return CLS_SUCCESS;
 }
 
@@ -1292,20 +691,45 @@ int cls_ecs_world_iter_all(struct cls_ecs *in, cls_ecs_world_iter_fn fn,
     return CLS_SUCCESS;
 }
 
+int cls_ecs_world_flush(struct cls_ecs_world *world) {
+    if (!world)
+        return CLS_NULLPTR;
+
+    size_t pending_deletions_len = 0;
+    int error =
+        cls_array_length_get(&pending_deletions_len, world->pending_deletions);
+    if (error)
+        return error;
+
+    for (size_t i = 0; i < pending_deletions_len; ++i) {
+        cls_entity e = CLS_ENTITY_MAX;
+        error = cls_array_elem_get_cpy(&e, world->pending_deletions, i);
+        if (error)
+            continue;
+
+        error = world_entity_remove(world, e);
+        if (error)
+            CLS_LOGGER_LOG(CLS_LOGGER_ERROR, "Failed to delete cls_entity %u",
+                           e);
+    }
+
+    cls_array_clear(world->pending_deletions);
+    return CLS_SUCCESS;
+}
+
 int cls_ecs_world_entity_add(cls_entity *e, struct cls_ecs_world *world) {
     if (!e || !world)
         return CLS_NULLPTR;
 
-    size_t free_entities_length = 0;
-    int error =
-        cls_array_length_get(&free_entities_length, world->free_entities);
+    size_t free_entities_len = 0;
+    int error = cls_array_length_get(&free_entities_len, world->free_entities);
     if (error)
         return error;
 
     cls_entity instance = CLS_ENTITY_MAX;
-    if (free_entities_length > 0) {
+    if (free_entities_len > 0) {
         error = cls_array_elem_get_cpy(&instance, world->free_entities,
-                                       free_entities_length - 1);
+                                       free_entities_len - 1);
         if (error)
             return error;
         error = cls_array_pop(NULL, world->free_entities);
@@ -1330,13 +754,13 @@ int cls_ecs_world_entity_remove(struct cls_ecs_world *world, cls_entity e) {
     if (e == CLS_ENTITY_MAX)
         return CLS_INVALID_ARG;
 
-    size_t pending_deletions_length = 0;
-    int error = cls_array_length_get(&pending_deletions_length,
-                                     world->pending_deletions);
+    size_t pending_deletions_len = 0;
+    int error =
+        cls_array_length_get(&pending_deletions_len, world->pending_deletions);
     if (error)
         return error;
 
-    for (size_t i = 0; i < pending_deletions_length; ++i) {
+    for (size_t i = 0; i < pending_deletions_len; ++i) {
         cls_entity pending = CLS_ENTITY_MAX;
         error = cls_array_elem_get_cpy(&pending, world->pending_deletions, i);
         if (error)
@@ -1350,11 +774,11 @@ int cls_ecs_world_entity_remove(struct cls_ecs_world *world, cls_entity e) {
 }
 
 int cls_ecs_world_component_type_add(struct cls_ecs_world *world,
-                                     const char *id, size_t component_size) {
+                                     const char *id, size_t comp_size) {
     if (!world)
         return CLS_NULLPTR;
 
-    struct cls_ecs_world_sparse_set set = {.component_size = component_size,
+    struct cls_ecs_world_sparse_set set = {.component_size = comp_size,
                                            .sparse = NULL,
                                            .dense = NULL,
                                            .data = NULL};
@@ -1369,14 +793,14 @@ int cls_ecs_world_component_type_add(struct cls_ecs_world *world,
         goto cleanup;
 
     error = cls_array_create(&set.data, CLS_ECS_WORLD_ENTITY_START_CAPACITY,
-                             component_size);
+                             comp_size);
     if (error)
         goto cleanup;
 
     u32 hash = 0;
     error = cls_xxhash32(&hash, id, strlen(id), 0);
     if (error)
-        return error;
+        goto cleanup;
 
     error = cls_table_insert(world->components, &hash, &set);
     if (error)
@@ -1423,7 +847,7 @@ int cls_ecs_world_component_add(struct cls_ecs_world *world, cls_entity e,
     if (error)
         return error;
 
-    return cls_ecs_world_component_add_by_id(world, e, hash, comp);
+    return world_component_add_by_id(world, e, hash, comp);
 }
 
 int cls_ecs_world_component_remove(struct cls_ecs_world *world, cls_entity e,
@@ -1434,12 +858,12 @@ int cls_ecs_world_component_remove(struct cls_ecs_world *world, cls_entity e,
     if (e == CLS_ENTITY_MAX)
         return CLS_INVALID_ARG;
 
-    size_t entities_length = 0;
-    int error = cls_array_length_get(&entities_length, world->entities);
+    size_t entities_len = 0;
+    int error = cls_array_length_get(&entities_len, world->entities);
     if (error)
         return error;
 
-    if (e > entities_length)
+    if (e >= entities_len)
         return CLS_INVALID_ARG;
 
     u32 hash = 0;
@@ -1447,7 +871,7 @@ int cls_ecs_world_component_remove(struct cls_ecs_world *world, cls_entity e,
     if (error)
         return error;
 
-    return cls_ecs_world_entity_remove_component_by_id(world, e, hash);
+    return world_entity_remove_component_by_id(world, e, hash);
 }
 
 int cls_ecs_world_component_get(void **comp, const struct cls_ecs_world *world,
@@ -1476,52 +900,137 @@ int cls_ecs_world_component_get(void **comp, const struct cls_ecs_world *world,
         return CLS_INVALID_ARG;
     }
 
-    size_t sparse_length = 0;
-    error = cls_array_length_get(&sparse_length, set->sparse);
+    size_t sparse_len = 0;
+    error = cls_array_length_get(&sparse_len, set->sparse);
     if (error)
         return error;
 
-    if (e >= sparse_length)
+    if (e >= sparse_len)
         return CLS_INVALID_ARG;
 
-    u32 dense_index = 0;
-    error = cls_array_elem_get_cpy(&dense_index, set->sparse, e);
+    u32 dense_idx = 0;
+    error = cls_array_elem_get_cpy(&dense_idx, set->sparse, e);
     if (error)
         return error;
 
-    size_t dense_length = 0;
-    error = cls_array_length_get(&dense_length, set->dense);
+    size_t dense_len = 0;
+    error = cls_array_length_get(&dense_len, set->dense);
     if (error)
         return error;
 
-    if (dense_index >= dense_length)
+    if (dense_idx >= dense_len)
         return CLS_INVALID_ARG;
 
     cls_entity check_entity = CLS_ENTITY_MAX;
-    error = cls_array_elem_get_cpy(&check_entity, set->dense, dense_index);
+    error = cls_array_elem_get_cpy(&check_entity, set->dense, dense_idx);
     if (error)
         return error;
 
     if (check_entity != e)
         return CLS_INVALID_ARG;
 
-    return cls_array_elem_get(comp, set->data, dense_index);
+    return cls_array_elem_get(comp, set->data, dense_idx);
 }
 
 int cls_ecs_world_query_create(struct cls_ecs_world_query **query,
-                               struct cls_ecs_world *world, size_t count, ...) {
-    if (!query || !world)
+                               struct cls_ecs_world *world, size_t comp_count,
+                               const char *ids[]) {
+    if (!query || !world || !ids)
         return CLS_NULLPTR;
 
-    va_list args;
-    va_start(args, count);
-    int error =
-        cls_ecs_world_query_create_from_va_list(query, world, count, args);
-    va_end(args);
-    if (error)
-        return error;
+    if (comp_count == 0)
+        return CLS_INVALID_ARG;
 
+    struct cls_ecs_world_query *instance =
+        malloc(sizeof(struct cls_ecs_world_query));
+    if (!instance)
+        return CLS_OUT_OF_MEMORY;
+
+    instance->world = world;
+    instance->smallest_set = NULL;
+    instance->current_idx = 0;
+
+    int error = cls_array_create(&instance->comp_ids, comp_count, sizeof(u32));
+    if (error)
+        goto cleanup;
+
+    error = cls_array_create(&instance->sets, comp_count,
+                             sizeof(struct cls_ecs_world_sparse_set *));
+    if (error)
+        goto cleanup;
+
+    for (size_t i = 0; i < comp_count; ++i) {
+        const char *id = ids[i];
+
+        u32 hash = 0;
+        error = cls_xxhash32(&hash, id, strlen(id), 0);
+        if (error)
+            continue;
+
+        error = cls_array_push(&instance->comp_ids, &hash);
+        if (error)
+            continue;
+
+        void *set_ptr = NULL;
+        error = cls_table_find(&set_ptr, world->components, &hash);
+        if (error)
+            continue;
+
+        if (!set_ptr)
+            continue;
+
+        error = cls_array_push(&instance->sets, (const void *)&set_ptr);
+        if (error)
+            continue;
+    }
+
+    void *set_ptr = NULL;
+    error = cls_array_elem_get(&set_ptr, instance->sets, 0);
+    if (error)
+        goto cleanup;
+
+    struct cls_ecs_world_sparse_set *first_set =
+        *(struct cls_ecs_world_sparse_set **)set_ptr;
+    if (!first_set) {
+        error = CLS_INVALID_ARG;
+        goto cleanup;
+    }
+
+    instance->smallest_set = first_set;
+
+    size_t min_dense_len = 0;
+    error = cls_array_length_get(&min_dense_len, instance->smallest_set->dense);
+    if (error)
+        goto cleanup;
+
+    size_t set_count = 0;
+    error = cls_array_length_get(&set_count, instance->sets);
+    if (error)
+        goto cleanup;
+
+    for (size_t i = 1; i < set_count; ++i) {
+        struct cls_ecs_world_sparse_set *current_set = NULL;
+        error = cls_array_elem_get_cpy((void *)&current_set, instance->sets, i);
+        if (error)
+            continue;
+
+        size_t dense_len = 0;
+        error = cls_array_length_get(&dense_len, current_set->dense);
+        if (error)
+            continue;
+
+        if (dense_len < min_dense_len) {
+            instance->smallest_set = current_set;
+            min_dense_len = dense_len;
+        }
+    }
+
+    *query = instance;
     return CLS_SUCCESS;
+
+cleanup:
+    cls_ecs_world_query_destroy(instance);
+    return error;
 }
 
 void cls_ecs_world_query_destroy(struct cls_ecs_world_query *query) {
@@ -1542,65 +1051,68 @@ int cls_ecs_world_query_world_get(struct cls_ecs_world **world,
     return CLS_SUCCESS;
 }
 
-int cls_ecs_world_query_next(cls_entity *e, struct cls_ecs_world_query *query) {
-    if (!e || !query || !query->min_set)
+int cls_ecs_world_query_clear(struct cls_ecs_world_query *query) {
+    if (!query)
+        return CLS_NULLPTR;
+
+    query->current_idx = 0;
+    return CLS_SUCCESS;
+}
+
+int cls_ecs_world_query_next(cls_entity *e, void **comps,
+                             struct cls_ecs_world_query *query) {
+    if (!e || !query || !query->smallest_set)
         return CLS_INVALID_ARG;
 
     *e = CLS_ENTITY_MAX;
 
-    size_t min_dense_length = 0;
-    int error = cls_array_length_get(&min_dense_length, query->min_set->dense);
+    size_t min_dense_len = 0;
+    int error =
+        cls_array_length_get(&min_dense_len, query->smallest_set->dense);
     if (error)
         return error;
 
-    cls_entity current_e = CLS_ENTITY_MAX;
-    while (query->current_index < min_dense_length) {
-        error = cls_array_elem_get_cpy(&current_e, query->min_set->dense,
-                                       query->current_index++);
-        if (error != CLS_SUCCESS)
+    while (query->current_idx < min_dense_len) {
+        cls_entity current_e = CLS_ENTITY_MAX;
+        error = cls_array_elem_get_cpy(&current_e, query->smallest_set->dense,
+                                       query->current_idx++);
+        if (error)
             return error;
 
+        size_t len = 0;
+        cls_array_length_get(&len, query->comp_ids);
+
         bool match = true;
-        for (size_t i = 0; i < query->arg_count; ++i) {
+        for (size_t i = 0; i < len; ++i) {
             struct cls_ecs_world_sparse_set *set = NULL;
-            error = cls_array_elem_get_cpy((void *)&set, query->sets, i);
-            if (error != CLS_SUCCESS) {
+            cls_array_elem_get_cpy((void *)&set, query->sets, i);
+
+            size_t sparse_len = 0;
+            cls_array_length_get(&sparse_len, set->sparse);
+            if (current_e >= sparse_len) {
                 match = false;
                 break;
             }
 
-            if (set == query->min_set)
-                continue;
+            u32 dense_idx = 0;
+            cls_array_elem_get_cpy(&dense_idx, set->sparse, current_e);
 
-            size_t sparse_length = 0;
-            error = cls_array_length_get(&sparse_length, set->sparse);
-            if (error)
-                return error;
-
-            if (current_e >= sparse_length) {
-                match = false;
-                break;
-            }
-
-            size_t dense_length = 0;
-            error = cls_array_length_get(&dense_length, set->dense);
-            if (error)
-                return error;
-
-            u32 dense_index = 0;
-            error =
-                cls_array_elem_get_cpy(&dense_index, set->sparse, current_e);
-            if (error != CLS_SUCCESS || dense_index >= dense_length) {
+            size_t dense_len = 0;
+            cls_array_length_get(&dense_len, set->dense);
+            if (dense_idx >= dense_len) {
                 match = false;
                 break;
             }
 
             u32 check = 0;
-            error = cls_array_elem_get_cpy(&check, set->dense, dense_index);
-            if (error != CLS_SUCCESS || check != current_e) {
+            cls_array_elem_get_cpy(&check, set->dense, dense_idx);
+            if (check != current_e) {
                 match = false;
                 break;
             }
+
+            if (comps)
+                cls_array_elem_get(&comps[i], set->data, dense_idx);
         }
 
         if (match) {
@@ -1612,91 +1124,25 @@ int cls_ecs_world_query_next(cls_entity *e, struct cls_ecs_world_query *query) {
     return CLS_SUCCESS;
 }
 
-int cls_ecs_world_query_component_get(void **comp,
-                                      const struct cls_ecs_world_query *query,
-                                      cls_entity e, const char *id) {
-    if (!comp || !query)
+int cls_ecs_world_system_add(struct cls_ecs_world *world, const char *id,
+                             cls_ecs_world_system_fn system, float tick_rate,
+                             size_t comp_count, const char *ids[]) {
+    if (!world)
         return CLS_NULLPTR;
+
+    struct cls_ecs_world_system new_system = {
+        .system = system, .tick_rate = tick_rate, .tick_amount = 0};
 
     u32 hash = 0;
     int error = cls_xxhash32(&hash, id, strlen(id), 0);
     if (error)
         return error;
 
-    for (size_t i = 0; i < query->arg_count; ++i) {
-        u32 stored_id = 0;
-        error = cls_array_elem_get_cpy(&stored_id, query->comp_ids, i);
+    if (comp_count > 0) {
+        error = cls_ecs_world_query_create(&new_system.query, world, comp_count,
+                                           ids);
         if (error)
-            continue;
-
-        if (hash == stored_id) {
-            struct cls_ecs_world_sparse_set *set = NULL;
-            error = cls_array_elem_get_cpy((void *)&set, query->sets, i);
-            if (error)
-                return error;
-
-            size_t sparse_length = 0;
-            error = cls_array_length_get(&sparse_length, set->sparse);
-            if (error)
-                return error;
-
-            if (e >= sparse_length)
-                return CLS_INVALID_ARG;
-
-            u32 dense_index = 0;
-            error = cls_array_elem_get_cpy(&dense_index, set->sparse, e);
-            if (error)
-                return error;
-
-            size_t data_length = 0;
-            error = cls_array_length_get(&data_length, set->data);
-            if (error)
-                return error;
-
-            if (dense_index >= data_length)
-                return CLS_INVALID_ARG;
-
-            error = cls_array_elem_get(comp, set->data, dense_index);
-            if (error)
-                return error;
-
-            return CLS_SUCCESS;
-        }
-    }
-
-    return CLS_SUCCESS;
-}
-
-int cls_ecs_world_system_add(struct cls_ecs_world *world, const char *id,
-                             cls_ecs_world_system_fn system, void *user_data,
-                             size_t user_data_size, size_t query_count, ...) {
-    if (!world)
-        return CLS_NULLPTR;
-
-    struct cls_ecs_world_system new_system = {.system = system,
-                                              .user_data = NULL};
-    if (user_data && user_data_size > 0) {
-        new_system.user_data = malloc(user_data_size);
-        if (!new_system.user_data)
-            return CLS_OUT_OF_MEMORY;
-
-        memcpy(new_system.user_data, user_data, user_data_size);
-    }
-
-    u32 hash = 0;
-    int error = cls_xxhash32(&hash, id, strlen(id), 0);
-    if (error)
-        goto cleanup;
-
-    if (query_count > 0) {
-        va_list args;
-        va_start(args, query_count);
-        error = cls_ecs_world_query_create_from_va_list(
-            &new_system.query, world, query_count, args);
-        va_end(args);
-
-        if (error)
-            goto cleanup;
+            return error;
     } else {
         new_system.query = NULL;
     }
@@ -1706,16 +1152,10 @@ int cls_ecs_world_system_add(struct cls_ecs_world *world, const char *id,
         if (new_system.query)
             cls_ecs_world_query_destroy(new_system.query);
 
-        goto cleanup;
+        return error;
     }
 
     return CLS_SUCCESS;
-
-cleanup:
-    if (new_system.user_data)
-        free(new_system.user_data);
-
-    return error;
 }
 
 int cls_ecs_world_system_remove(struct cls_ecs_world *world, const char *id) {
@@ -1736,9 +1176,93 @@ int cls_ecs_world_system_remove(struct cls_ecs_world *world, const char *id) {
     if (!system)
         return CLS_NULLPTR;
 
-    free(system->user_data);
     cls_ecs_world_query_destroy(system->query);
     return cls_table_remove(NULL, world->systems, &hash);
+}
+
+int cls_ecs_world_singleton_add(struct cls_ecs_world *world, const char *id,
+                                const void *data, size_t size) {
+    if (!world || !id || !data)
+        return CLS_NULLPTR;
+
+    u32 hash = 0;
+    int error = cls_xxhash32(&hash, id, strlen(id), 0);
+    if (error)
+        return error;
+
+    void *slot = NULL;
+    if (cls_table_find(&slot, world->singletons, &hash) == CLS_SUCCESS &&
+        slot) {
+        struct cls_ecs_singleton *existing = slot;
+        if (existing->size != size) {
+            void *new_data = realloc(existing->data, size);
+            if (!new_data)
+                return CLS_OUT_OF_MEMORY;
+            existing->data = new_data;
+            existing->size = size;
+        }
+
+        memcpy(existing->data, data, size);
+        return CLS_SUCCESS;
+    }
+
+    void *copy = malloc(size);
+    if (!copy)
+        return CLS_OUT_OF_MEMORY;
+
+    memcpy(copy, data, size);
+
+    struct cls_ecs_singleton singleton = {.data = copy, .size = size};
+    error = cls_table_insert(world->singletons, &hash, &singleton);
+    if (error) {
+        free(copy);
+        return error;
+    }
+
+    return CLS_SUCCESS;
+}
+
+int cls_ecs_world_singleton_remove(struct cls_ecs_world *world,
+                                   const char *id) {
+    if (!world || !id)
+        return CLS_NULLPTR;
+
+    u32 hash = 0;
+    int error = cls_xxhash32(&hash, id, strlen(id), 0);
+    if (error)
+        return error;
+
+    void *slot = NULL;
+    error = cls_table_find(&slot, world->singletons, &hash);
+    if (error)
+        return error;
+
+    if (slot)
+        free(((struct cls_ecs_singleton *)slot)->data);
+
+    return cls_table_remove(NULL, world->singletons, &hash);
+}
+
+int cls_ecs_world_singleton_get(void **out, const struct cls_ecs_world *world,
+                                const char *id) {
+    if (!out || !world || !id)
+        return CLS_NULLPTR;
+
+    u32 hash = 0;
+    int error = cls_xxhash32(&hash, id, strlen(id), 0);
+    if (error)
+        return error;
+
+    void *slot = NULL;
+    error = cls_table_find(&slot, world->singletons, &hash);
+    if (error)
+        return error;
+
+    if (!slot)
+        return CLS_INVALID_ARG;
+
+    *out = ((struct cls_ecs_singleton *)slot)->data;
+    return CLS_SUCCESS;
 }
 
 int cls_ecs_world_update(struct cls_ecs_world *world, struct cls_app *app) {
@@ -1748,38 +1272,11 @@ int cls_ecs_world_update(struct cls_ecs_world *world, struct cls_app *app) {
     if (!world->should_update)
         return CLS_SUCCESS;
 
-    if (world->tick_rate < 0.0f)
-        return CLS_SUCCESS;
-
-    if (world->tick_rate < 0.00001f) {
-        int error = cls_ecs_world_run_systems(world, app);
-        if (error)
-            return error;
-
-        return cls_ecs_world_delete_entities(world);
-    }
-
-    float dt = 0;
-    int error = cls_window_timing_dt_get(&dt, app->window);
+    int error = world_run_systems(world, app);
     if (error)
         return error;
 
-    float tick_interval = 1.0f / world->tick_rate;
-    world->tick_amount += dt;
-
-    while (world->tick_amount >= tick_interval) {
-        error = cls_ecs_world_run_systems(world, app);
-        if (error)
-            return error;
-
-        error = cls_ecs_world_delete_entities(world);
-        if (error)
-            return error;
-
-        world->tick_amount -= tick_interval;
-    }
-
-    return CLS_SUCCESS;
+    return cls_ecs_world_flush(world);
 }
 
 int cls_ecs_world_entities_length_get(size_t *len,

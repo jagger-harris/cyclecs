@@ -6,12 +6,11 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define MIN_CAPACITY 16
-#define MIN_LOAD_FACTOR 0.25
-#define MAX_LOAD_FACTOR 0.75
-#define GROWTH_FACTOR 2
-#define SHRINK_FACTOR 0.5
-#define SLOT_METADATA_SIZE 8
+static const double MIN_LOAD_FACTOR = 0.25;
+static const double MAX_LOAD_FACTOR = 0.75;
+static const double SHRINK_FACTOR = 0.5;
+static const size_t GROWTH_FACTOR = 2;
+static const size_t SLOT_METADATA_SIZE = 8;
 
 struct cls_table {
     size_t capacity;
@@ -24,7 +23,7 @@ struct cls_table {
 
 struct cls_table_iterator {
     const struct cls_table *t;
-    size_t current_index;
+    size_t current_idx;
     void *key;
     void *value;
 };
@@ -42,21 +41,21 @@ static size_t table_calculate_slot_size(size_t key_size, size_t value_size) {
 }
 
 static int cls_table_get_slot(void **slot, const struct cls_table *t,
-                              size_t index) {
+                              size_t idx) {
     if (!slot || !t)
         return CLS_NULLPTR;
 
-    *slot = (u8 *)t->slots + index * t->slot_size;
+    *slot = (u8 *)t->slots + idx * t->slot_size;
     return CLS_SUCCESS;
 }
 
 static int cls_table_get_metadata(u8 **meta, const struct cls_table *t,
-                                  size_t index) {
+                                  size_t idx) {
     if (!meta || !t)
         return CLS_NULLPTR;
 
     void *slot = NULL;
-    int error = cls_table_get_slot(&slot, t, index);
+    int error = cls_table_get_slot(&slot, t, idx);
     if (error)
         return error;
 
@@ -65,12 +64,12 @@ static int cls_table_get_metadata(u8 **meta, const struct cls_table *t,
 }
 
 static int cls_table_get_key(void **key, const struct cls_table *t,
-                             size_t index) {
+                             size_t idx) {
     if (!key || !t)
         return CLS_NULLPTR;
 
     void *slot = NULL;
-    int error = cls_table_get_slot(&slot, t, index);
+    int error = cls_table_get_slot(&slot, t, idx);
     if (error)
         return error;
 
@@ -81,12 +80,12 @@ static int cls_table_get_key(void **key, const struct cls_table *t,
 }
 
 static int cls_table_get_value(void **value, const struct cls_table *t,
-                               size_t index) {
+                               size_t idx) {
     if (!value || !t)
         return CLS_NULLPTR;
 
     void *slot = NULL;
-    int error = cls_table_get_slot(&slot, t, index);
+    int error = cls_table_get_slot(&slot, t, idx);
     if (error)
         return error;
 
@@ -108,10 +107,10 @@ static int cls_table_insert_no_resize(struct cls_table *t, const void *key,
         return error;
 
     u8 fingerprint = (hash & 0x7f) | 0x80;
-    u32 index = hash & ((u32)t->capacity - 1);
+    u32 idx = hash & ((u32)t->capacity - 1);
 
     for (size_t i = 0; i < t->capacity; ++i) {
-        u32 probe = (u32)(index + i) & (u32)(t->capacity - 1);
+        u32 probe = (u32)(idx + i) & (u32)(t->capacity - 1);
         u8 *probe_metadata = NULL;
         error = cls_table_get_metadata(&probe_metadata, t, probe);
         if (error)
@@ -288,10 +287,10 @@ int cls_table_remove(void *value, struct cls_table *t, const void *key) {
         return error;
 
     u8 hash_metadata = (hash & 0x7f) | 0x80;
-    u32 index = hash & (u32)(t->capacity - 1);
+    u32 idx = hash & (u32)(t->capacity - 1);
 
     for (size_t i = 0; i < t->capacity; ++i) {
-        u32 probe = (u32)(index + i) & (u32)(t->capacity - 1);
+        u32 probe = (u32)(idx + i) & (u32)(t->capacity - 1);
         u8 *probe_metadata = NULL;
         error = cls_table_get_metadata(&probe_metadata, t, probe);
         if (error)
@@ -346,10 +345,10 @@ int cls_table_find(void **value, const struct cls_table *t, const void *key) {
         return error;
 
     u8 fingerprint = (hash & 0x7f) | 0x80;
-    u32 index = hash & (u32)(t->capacity - 1);
+    u32 idx = hash & (u32)(t->capacity - 1);
 
     for (size_t i = 0; i < t->capacity; ++i) {
-        u32 probe = (u32)(index + i) & (u32)(t->capacity - 1);
+        u32 probe = (u32)(idx + i) & (u32)(t->capacity - 1);
         u8 *probe_metadata = NULL;
         error = cls_table_get_metadata(&probe_metadata, t, probe);
         if (error)
@@ -419,7 +418,7 @@ int cls_table_iterator_create(struct cls_table_iterator **it,
         return CLS_OUT_OF_MEMORY;
 
     iter->t = t;
-    iter->current_index = 0;
+    iter->current_idx = 0;
     iter->key = NULL;
     iter->value = NULL;
 
@@ -438,9 +437,9 @@ int cls_table_iterator_next(bool *exists, struct cls_table_iterator *it) {
     if (!it || !it->t)
         return CLS_NULLPTR;
 
-    while (it->current_index < it->t->capacity) {
+    while (it->current_idx < it->t->capacity) {
         u8 *metadata = NULL;
-        int error = cls_table_get_metadata(&metadata, it->t, it->current_index);
+        int error = cls_table_get_metadata(&metadata, it->t, it->current_idx);
         if (error)
             return error;
 
@@ -448,22 +447,22 @@ int cls_table_iterator_next(bool *exists, struct cls_table_iterator *it) {
             void *key_ptr = NULL;
             void *value_ptr = NULL;
 
-            error = cls_table_get_key(&key_ptr, it->t, it->current_index);
+            error = cls_table_get_key(&key_ptr, it->t, it->current_idx);
             if (error)
                 return error;
 
-            error = cls_table_get_value(&value_ptr, it->t, it->current_index);
+            error = cls_table_get_value(&value_ptr, it->t, it->current_idx);
             if (error)
                 return error;
 
             it->key = key_ptr;
             it->value = value_ptr;
-            it->current_index++;
+            it->current_idx++;
             *exists = true;
             return CLS_SUCCESS;
         }
 
-        it->current_index++;
+        it->current_idx++;
     }
 
     it->key = NULL;
@@ -476,7 +475,7 @@ int cls_table_iterator_clear(struct cls_table_iterator *it) {
     if (!it)
         return CLS_NULLPTR;
 
-    it->current_index = 0;
+    it->current_idx = 0;
     it->key = NULL;
     it->value = NULL;
     return CLS_SUCCESS;

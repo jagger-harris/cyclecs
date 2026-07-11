@@ -18,7 +18,6 @@ struct cls_preset_ui_label {
     struct transform tf;
     struct ui ui;
     struct label label;
-    struct label_group grp;
 };
 
 struct cls_assets;
@@ -52,8 +51,8 @@ int cls_preset_image_button_spawn(cls_entity *button,
                                   vec2 scale, vec2 uv_offset, vec2 uv_scale,
                                   ivec4 image_tint, bool visible);
 int cls_preset_label_spawn(cls_entity *label, struct cls_ecs_world *world,
-                           struct cls_assets *assets, const char *id, vec2 pos,
-                           float z_index, const char *text, int font_size,
-                           const char *font_id, bool visible, ivec4 tint);
+                           const char *id, vec2 pos, float z_index,
+                           const char *text, int font_size, const char *font_id,
+                           bool visible, ivec4 tint);
 
 #endif // CLS_PRESETS_H

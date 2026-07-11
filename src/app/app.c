@@ -11,8 +11,8 @@
 #include <cls/util/logger.h>
 #include <cls/util/mem.h>
 
-#define APP_PERM_SIZE (1024L * 1024L)
-#define APP_FRAME_SIZE (1024L * 1024L * 50L)
+static const size_t APP_PERM_ARENA_SIZE = 1024L * 1024L;
+static const size_t APP_FRAME_ARENA_SIZE = 1024L * 1024L * 50L;
 
 static int allocator_arena_alloc(void **dest, void *ctx, size_t size,
                                  size_t align) {
@@ -23,17 +23,17 @@ static int allocator_arena_alloc(void **dest, void *ctx, size_t size,
 }
 
 int cls_app_init(struct cls_app *app, struct cls_gfx_api *api,
-                 ivec2 window_size, const char *title, ivec4 bg_color) {
+                 ivec2 window_size, const char *title, const ivec4 bg_color) {
     if (!app || !title)
         return CLS_NULLPTR;
 
     app->api = api;
 
-    int error = cls_arena_create(&app->arena_perm, APP_PERM_SIZE);
+    int error = cls_arena_create(&app->arena_perm, APP_PERM_ARENA_SIZE);
     if (error)
         goto cleanup;
 
-    error = cls_arena_create(&app->arena_frame, APP_FRAME_SIZE);
+    error = cls_arena_create(&app->arena_frame, APP_FRAME_ARENA_SIZE);
     if (error)
         goto cleanup;
 

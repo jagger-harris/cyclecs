@@ -37,11 +37,7 @@ struct camera {
     float far_clip;
     float rot_angle;
     int layer;
-    bool update;
-};
-
-struct camera_active {
-    u8 _;
+    bool dirty;
 };
 
 struct transform;

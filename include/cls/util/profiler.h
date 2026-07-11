@@ -4,6 +4,7 @@
 #include <cls/util/error.h>
 #include <stdio.h>
 #include <string.h>
+#include <sys/time.h>
 #include <time.h>
 
 static inline int cls_profiler_mem_usage_get(size_t *mb) {
@@ -40,10 +41,6 @@ static inline double cls_profiler_get_time(void) {
 #define CLS_PROFILER_TIME_DIFF_MS(start, end)                                  \
     (((end.tv_sec - start.tv_sec) * 1000.0) +                                  \
      ((end.tv_nsec - start.tv_nsec) / 1e6))
-
-#ifdef ENABLE_PROFILER
-
-#include <sys/time.h>
 
 #define CLS_PROFILER_START(name)                                               \
     double _profiler_start_##name = cls_profiler_get_time()
@@ -131,17 +128,5 @@ static inline void cls_profiler_reset(void) {
         _profiler_entries[i].call_count = 0;
     }
 }
-
-#else
-
-#define CLS_PROFILER_START(name) ((void)0)
-#define CLS_PROFILER_END(name) ((void)0)
-#define CLS_PROFILER_SCOPE(name) ((void)0)
-#define CLS_PROFILER_FUNC_START(name) ((void)0)
-#define CLS_PROFILER_FUNC_END(name) ((void)0)
-#define cls_profiler_print_summary() ((void)0)
-#define cls_profiler_reset() ((void)0)
-
-#endif // ENABLE_PROFILER
 
 #endif // CLS_PROFILER_H

@@ -1,8 +1,10 @@
+#include "cls/util/logger.h"
 #include <cglm/types.h>
 #include <cls/gfx/gl/mesh.h>
 #include <cls/util/error.h>
 #include <cls/util/types.h>
 #include <stddef.h>
+#include <string.h>
 
 int cls_gl_mesh_init(struct cls_gl_mesh *mesh,
                      const struct cls_vertex *vertices, size_t vertex_count,
@@ -61,19 +63,28 @@ int cls_gl_mesh_draw(const struct cls_gl_mesh *mesh) {
 int cls_gl_mesh_draw_instanced(struct cls_gl_mesh *mesh,
                                struct cls_gl_mesh_instance_data *instances,
                                GLsizei instance_count) {
-    if (!mesh || instance_count == 0)
+    if (!mesh)
         return CLS_NULLPTR;
+
+    if (instance_count == 0)
+        return CLS_INVALID_ARG;
 
     if (mesh->instance_vbo == 0) {
         glGenBuffers(1, &mesh->instance_vbo);
         glBindVertexArray(mesh->vao);
         glBindBuffer(GL_ARRAY_BUFFER, mesh->instance_vbo);
-        glBufferData(GL_ARRAY_BUFFER,
-                     (GLsizeiptr)((size_t)instance_count *
-                                  sizeof(struct cls_gl_mesh_instance_data)),
-                     NULL, GL_DYNAMIC_DRAW);
+
+        glBufferData(
+            GL_ARRAY_BUFFER,
+            (GLsizeiptr)((GLsizeiptr)instance_count *
+                         (GLsizeiptr)sizeof(struct cls_gl_mesh_instance_data)),
+            NULL, GL_DYNAMIC_DRAW);
+        mesh->instance_capacity =
+            (GLsizeiptr)instance_count *
+            (GLsizeiptr)sizeof(struct cls_gl_mesh_instance_data);
 
         GLsizei stride = sizeof(struct cls_gl_mesh_instance_data);
+
         size_t offset_mvp = offsetof(struct cls_gl_mesh_instance_data, mvp);
         for (GLuint i = 0; i < 4; ++i) {
             glEnableVertexAttribArray(3 + i);
@@ -102,21 +113,28 @@ int cls_gl_mesh_draw_instanced(struct cls_gl_mesh *mesh,
         glVertexAttribPointer(9, 2, GL_FLOAT, GL_FALSE, stride,
                               (const void *)offset_uv_scale);
         glVertexAttribDivisor(9, 1);
+
+        glBindVertexArray(0);
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
     }
 
-    glBindBuffer(GL_ARRAY_BUFFER, mesh->instance_vbo);
-    GLsizeiptr size = (GLsizeiptr)((size_t)instance_count *
-                                   sizeof(struct cls_gl_mesh_instance_data));
-
-    if (size > mesh->instance_capacity) {
-        glBufferData(GL_ARRAY_BUFFER, size, instances, GL_DYNAMIC_DRAW);
-        mesh->instance_capacity = size;
-    } else {
-        glBufferSubData(GL_ARRAY_BUFFER, 0, size, instances);
-    }
+    GLsizeiptr size = (GLsizeiptr)instance_count *
+                      (GLsizeiptr)sizeof(struct cls_gl_mesh_instance_data);
 
     glBindVertexArray(mesh->vao);
+    glBindBuffer(GL_ARRAY_BUFFER, mesh->instance_vbo);
+
+    // Grow buffer if needed
+    if (size > (GLsizeiptr)mesh->instance_capacity) {
+        glBufferData(GL_ARRAY_BUFFER, size, NULL, GL_DYNAMIC_DRAW);
+        mesh->instance_capacity = size;
+    }
+
+    glBufferSubData(GL_ARRAY_BUFFER, 0, size, instances);
     glDrawElementsInstanced(GL_TRIANGLES, mesh->index_count, GL_UNSIGNED_INT, 0,
                             instance_count);
+
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
     return CLS_SUCCESS;
 }

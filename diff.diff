@@ -1,0 +1,4673 @@
+diff --git a/examples/tic_tac_toe.c b/examples/tic_tac_toe.c
+index 320572b..19ad767 100644
+--- a/examples/tic_tac_toe.c
++++ b/examples/tic_tac_toe.c
+@@ -1,9 +1,10 @@
++#include <cglm/vec3.h>
+ #include <cls/app/app.h>
+ #include <cls/app/assets.h>
+ #include <cls/app/window.h>
+ #include <cls/ecs/ecs.h>
+ #include <cls/ecs/preset/presets.h>
+-#include <cls/ecs/system/button.h>
++#include <cls/ecs/system/systems.h>
+ #include <cls/gfx/gfx_api.h>
+ #include <cls/gfx/gl/renderer.h>
+ #include <cls/gfx/gl/shader.h>
+@@ -16,24 +17,24 @@
+ #include <cls/util/xxhash32.h>
+ #include <string.h>
+ 
+-#define SCREEN_WIDTH 500
+-#define SCREEN_HEIGHT 500
+-#define SCREEN_TITLE "Tic-Tac-Toe"
+-#define SCREEN_COLOR (ivec4){5, 10, 20, 255}
++static const int WIN_WIDTH = 500;
++static const int WIN_HEIGHT = 500;
++static const char *WIN_TITLE = "Tic-Tac-Toe";
++static const ivec4 WIN_COLOR = {5, 10, 20, 255};
+ 
+-#define COMP_GAME_STATE "game_state"
+-#define COMP_CELL_STATE "cell_state"
+-#define COMP_BOARD_GROUP "board_group"
++static const char *COMP_GAME_STATE = "game_state";
++static const char *COMP_CELL_STATE = "cell_state";
++static const char *COMP_BOARD_TAG = "board_tag";
+ 
+ enum player { PLAYER_NONE = 0, PLAYER_X, PLAYER_O };
+ enum winner { WINNER_NONE = 0, WINNER_X, WINNER_O, WINNER_DRAW };
+ 
+-struct board_group {
++struct board_tag {
+     u8 _;
+ };
+ 
+ struct cell_state {
+-    int index;
++    int idx;
+     enum player owner;
+ };
+ 
+@@ -42,40 +43,10 @@ struct game_state {
+     enum winner winner;
+ };
+ 
+-struct winner_label_data {
+-    struct cls_ecs_world *main_world;
+-    cls_entity state_e;
++struct world {
++    struct cls_ecs_world *world;
+ };
+ 
+-static int preset_game_state_spawn(cls_entity *state,
+-                                   struct cls_ecs_world *world,
+-                                   enum player turn) {
+-    if (!world)
+-        return CLS_NULLPTR;
+-
+-    cls_entity root = CLS_ENTITY_MAX;
+-    int error = cls_ecs_world_entity_add(&root, world);
+-    if (error)
+-        return error;
+-
+-    error = cls_ecs_world_component_add(
+-        world, root, COMP_GAME_STATE,
+-        &(struct game_state){.turn = turn, .winner = WINNER_NONE});
+-    if (error)
+-        goto cleanup;
+-
+-    if (state)
+-        *state = root;
+-
+-    return CLS_SUCCESS;
+-
+-cleanup:
+-    if (root != CLS_ENTITY_MAX)
+-        cls_ecs_world_entity_remove(world, root);
+-
+-    return error;
+-}
+-
+ static int preset_board_spawn(cls_entity *board, struct cls_ecs_world *world,
+                               const char *id, vec2 pos, enum player turn) {
+     int rows = 3;
+@@ -118,8 +89,8 @@ static int preset_board_spawn(cls_entity *board, struct cls_ecs_world *world,
+     if (error)
+         goto cleanup;
+ 
+-    error = cls_ecs_world_component_add(world, root, COMP_BOARD_GROUP,
+-                                        &(struct board_group){0});
++    error = cls_ecs_world_component_add(world, root, COMP_BOARD_TAG,
++                                        &(struct board_tag){0});
+     if (error)
+         goto cleanup;
+ 
+@@ -146,8 +117,8 @@ static int preset_board_spawn(cls_entity *board, struct cls_ecs_world *world,
+     if (error)
+         goto cleanup;
+ 
+-    error = cls_ecs_world_component_add(world, bg, COMP_BOARD_GROUP,
+-                                        &(struct board_group){0});
++    error = cls_ecs_world_component_add(world, bg, COMP_BOARD_TAG,
++                                        &(struct board_tag){0});
+     if (error)
+         goto cleanup;
+ 
+@@ -173,14 +144,14 @@ static int preset_board_spawn(cls_entity *board, struct cls_ecs_world *world,
+         if (error)
+             goto cleanup;
+ 
+-        error = cls_ecs_world_component_add(world, button, COMP_BOARD_GROUP,
+-                                            &(struct board_group){0});
++        error = cls_ecs_world_component_add(world, button, COMP_BOARD_TAG,
++                                            &(struct board_tag){0});
+         if (error)
+             goto cleanup;
+ 
+         error = cls_ecs_world_component_add(
+             world, button, COMP_CELL_STATE,
+-            &(struct cell_state){.index = i, .owner = 0});
++            &(struct cell_state){.idx = i, .owner = 0});
+         if (error)
+             goto cleanup;
+     }
+@@ -196,8 +167,8 @@ cleanup:
+ }
+ 
+ static int board_button_system(struct cls_ecs_world_query *query,
+-                               struct cls_app *app, void *user_data) {
+-    if (!query || !app || !user_data)
++                               struct cls_app *app) {
++    if (!query || !app)
+         return CLS_NULLPTR;
+ 
+     struct cls_ecs_world *world = NULL;
+@@ -205,10 +176,8 @@ static int board_button_system(struct cls_ecs_world_query *query,
+     if (error)
+         return error;
+ 
+-    cls_entity state_e = *(cls_entity *)user_data;
+     void *state_ptr = NULL;
+-    error = cls_ecs_world_component_get(&state_ptr, world, state_e,
+-                                        COMP_GAME_STATE);
++    error = cls_ecs_world_singleton_get(&state_ptr, world, COMP_GAME_STATE);
+     if (error)
+         return error;
+ 
+@@ -240,12 +209,10 @@ static int board_button_system(struct cls_ecs_world_query *query,
+     int sprite_count = 0;
+ 
+     cls_entity e = CLS_ENTITY_MAX;
+-    while (cls_ecs_world_query_next(&e, query) == CLS_SUCCESS && e != U32_MAX) {
+-        void *grp_ptr = NULL;
+-        cls_ecs_world_query_component_get(&grp_ptr, query, e, CLS_COMP_GROUP);
+-        struct group *grp = grp_ptr;
+-        if (!grp)
+-            continue;
++    void *comps[2] = {NULL, NULL};
++    while (cls_ecs_world_query_next(&e, comps, query) == CLS_SUCCESS &&
++           e != CLS_ENTITY_MAX) {
++        struct group *grp = comps[0];
+ 
+         if (grp->user_id == root_hash) {
+             struct cell_ctx ctx = {.button = NULL, .cell = NULL, .ren = NULL};
+@@ -285,11 +252,12 @@ static int board_button_system(struct cls_ecs_world_query *query,
+         e = sprite_entities[i];
+ 
+         void *grp_ptr = NULL;
+-        cls_ecs_world_query_component_get(&grp_ptr, query, e, CLS_COMP_GROUP);
+-        struct group *grp = grp_ptr;
+-        if (!grp)
++        error = cls_ecs_world_component_get(&grp_ptr, world, e, CLS_COMP_GROUP);
++        if (error)
+             continue;
+ 
++        struct group *grp = grp_ptr;
++
+         struct cell_ctx *ctx = NULL;
+         for (int j = 0; j < root_count; ++j) {
+             if (roots[j].grp_id == grp->grp_id) {
+@@ -326,15 +294,15 @@ static int board_button_system(struct cls_ecs_world_query *query,
+         switch (state->turn) {
+         case PLAYER_X:
+             ctx->cell->owner = PLAYER_X;
++            state->turn = PLAYER_O;
+             glm_ivec4_copy((ivec4){255, 100, 100, 255}, sprite_ren->tint);
+             glm_vec2_copy((vec2){0.0f, 0.0f}, sprite_ren->uv_offset);
+-            state->turn = PLAYER_O;
+             break;
+         case PLAYER_O:
+             ctx->cell->owner = PLAYER_O;
++            state->turn = PLAYER_X;
+             glm_ivec4_copy((ivec4){100, 100, 255, 255}, sprite_ren->tint);
+             glm_vec2_copy((vec2){0.5f, 0.0f}, sprite_ren->uv_offset);
+-            state->turn = PLAYER_X;
+             break;
+         default:
+             break;
+@@ -365,9 +333,9 @@ static enum winner check_winner(enum player state[9]) {
+     return WINNER_DRAW;
+ }
+ 
+-static int winner_system(struct cls_ecs_world_query *query, struct cls_app *app,
+-                         void *user_data) {
+-    if (!query || !app || !user_data)
++static int winner_system(struct cls_ecs_world_query *query,
++                         struct cls_app *app) {
++    if (!query || !app)
+         return CLS_NULLPTR;
+ 
+     struct cls_ecs_world *world = NULL;
+@@ -375,10 +343,8 @@ static int winner_system(struct cls_ecs_world_query *query, struct cls_app *app,
+     if (error)
+         return error;
+ 
+-    cls_entity state_e = *(cls_entity *)user_data;
+     void *state_ptr = NULL;
+-    error = cls_ecs_world_component_get(&state_ptr, world, state_e,
+-                                        COMP_GAME_STATE);
++    error = cls_ecs_world_singleton_get(&state_ptr, world, COMP_GAME_STATE);
+     if (error)
+         return error;
+ 
+@@ -391,7 +357,8 @@ static int winner_system(struct cls_ecs_world_query *query, struct cls_app *app,
+     int cell_count = 0;
+ 
+     cls_entity e = CLS_ENTITY_MAX;
+-    while (cls_ecs_world_query_next(&e, query) == CLS_SUCCESS &&
++    void *comps[1] = {NULL};
++    while (cls_ecs_world_query_next(&e, comps, query) == CLS_SUCCESS &&
+            e != CLS_ENTITY_MAX) {
+         void *cell_ptr = NULL;
+         error =
+@@ -401,76 +368,35 @@ static int winner_system(struct cls_ecs_world_query *query, struct cls_app *app,
+ 
+         struct cell_state *cell = cell_ptr;
+ 
+-        board[cell->index] = cell->owner;
++        board[cell->idx] = cell->owner;
+     }
+ 
+     enum winner winner = check_winner(board);
+-    if (winner != WINNER_NONE)
++    if (winner != WINNER_NONE) {
+         state->winner = winner;
+ 
+-    return CLS_SUCCESS;
+-}
+-
+-static int winner_label_system(struct cls_ecs_world_query *query,
+-                               struct cls_app *app, void *user_data) {
+-    if (!query || !app || !user_data)
+-        return CLS_NULLPTR;
+-
+-    struct cls_ecs_world *world = NULL;
+-    int error = cls_ecs_world_query_world_get(&world, query);
+-    if (error)
+-        return error;
+-
+-    struct winner_label_data *winner_label_data = user_data;
+-    void *state_ptr = NULL;
+-    error = cls_ecs_world_component_get(
+-        &state_ptr, winner_label_data->main_world, winner_label_data->state_e,
+-        COMP_GAME_STATE);
+-    if (error)
+-        return error;
+-
+-    struct game_state *state = state_ptr;
+-
+-    const char *winner_id = "winner";
+-    u32 winner_hash = 0;
+-    error = cls_xxhash32(&winner_hash, winner_id, strlen(winner_id), 0);
+-    if (error)
+-        return error;
+-
+-    cls_entity e = CLS_ENTITY_MAX;
+-    while (cls_ecs_world_query_next(&e, query) == CLS_SUCCESS && e != U32_MAX) {
+-        void *grp_ptr = NULL;
+-        error = cls_ecs_world_query_component_get(&grp_ptr, query, e,
+-                                                  CLS_COMP_GROUP);
++        void *world_ptr = NULL;
++        error = cls_ecs_world_singleton_get(&world_ptr, world, "ui_world");
+         if (error)
+-            continue;
+-
+-        struct group *grp = grp_ptr;
+-        if (!grp)
+-            continue;
+-
+-        u32 id = grp->grp_id;
+-        if (grp->grp_id == winner_hash)
+-            break;
+-    }
++            return error;
+ 
+-    if (state->winner != WINNER_NONE) {
+-        cls_preset_group_despawn(e, world);
++        struct world *world = world_ptr;
+ 
+-        error = cls_preset_label_spawn(
+-            NULL, world, app->assets, "winner", (vec2){100.0f, 500.0f}, 1.0f,
+-            "Someone won!", 150, "human_sans-regular.otf", true,
+-            (ivec4){255, 255, 255, 255});
++        error = cls_preset_label_spawn(NULL, world->world, "winner",
++                                       (vec2){100.0f, 100.0f}, 1.0f, "Winner!",
++                                       100, "human_sans-regular.otf", true,
++                                       (ivec4){255, 255, 255, 255});
+         if (error)
+             return error;
++        CLS_LOGGER_LOG(CLS_LOGGER_DEBUG, "%s", "Okay.....");
+     }
+ 
+     return CLS_SUCCESS;
+ }
+ 
+ static int debug_labels_system(struct cls_ecs_world_query *query,
+-                               struct cls_app *app, void *user_data) {
+-    if (!query || !app || !user_data)
++                               struct cls_app *app) {
++    if (!query || !app)
+         return CLS_NULLPTR;
+ 
+     struct cls_ecs_world *world = NULL;
+@@ -478,15 +404,12 @@ static int debug_labels_system(struct cls_ecs_world_query *query,
+     if (error)
+         return error;
+ 
+-    struct winner_label_data *winner_label_data = user_data;
+-    void *state_ptr = NULL;
+-    error = cls_ecs_world_component_get(
+-        &state_ptr, winner_label_data->main_world, winner_label_data->state_e,
+-        COMP_GAME_STATE);
++    void *world_ptr = NULL;
++    error = cls_ecs_world_singleton_get(&world_ptr, world, "main_world");
+     if (error)
+         return error;
+ 
+-    struct game_state *state = state_ptr;
++    struct world *main_world = world_ptr;
+ 
+     const char *fps_id = "fps";
+     u32 fps_hash = 0;
+@@ -506,72 +429,49 @@ static int debug_labels_system(struct cls_ecs_world_query *query,
+     if (error)
+         return error;
+ 
+-    cls_entity fps_e = CLS_ENTITY_MAX;
+-    cls_entity entities_e = CLS_ENTITY_MAX;
+-    cls_entity ram_e = CLS_ENTITY_MAX;
++    struct label *fps_l = NULL;
++    struct label *entities_l = NULL;
++    struct label *ram_l = NULL;
+     cls_entity e = CLS_ENTITY_MAX;
+-    while (cls_ecs_world_query_next(&e, query) == CLS_SUCCESS && e != U32_MAX) {
+-        void *grp_ptr = NULL;
+-        error = cls_ecs_world_query_component_get(&grp_ptr, query, e,
+-                                                  CLS_COMP_GROUP);
+-        if (error)
+-            continue;
+-
+-        struct group *grp = grp_ptr;
+-        if (!grp)
+-            continue;
++    void *comps[2] = {NULL, NULL};
++    while (cls_ecs_world_query_next(&e, comps, query) == CLS_SUCCESS &&
++           e != CLS_ENTITY_MAX) {
++        struct group *grp = comps[0];
++        struct label *l = comps[1];
+ 
+-        // Early return
+-        if (fps_e != CLS_ENTITY_MAX && entities_e != CLS_ENTITY_MAX &&
+-            ram_e != CLS_ENTITY_MAX)
++        if (fps_l != NULL && entities_l != NULL && ram_l != NULL)
+             break;
+ 
+         u32 id = grp->grp_id;
+         if (grp->grp_id == fps_hash)
+-            fps_e = e;
++            fps_l = l;
+ 
+         if (grp->grp_id == entities_hash)
+-            entities_e = e;
++            entities_l = l;
+ 
+         if (grp->grp_id == ram_hash)
+-            ram_e = e;
++            ram_l = l;
+     }
+ 
+-    if (fps_e == CLS_ENTITY_MAX || entities_e == CLS_ENTITY_MAX ||
+-        ram_e == CLS_ENTITY_MAX)
++    if (!fps_l || !entities_l || !ram_l)
+         return CLS_FAILURE;
+ 
+-    error = cls_preset_group_despawn(fps_e, world);
+-    if (error)
+-        return error;
+-
+     float fps = 0.0f;
+     error = cls_window_timing_fps_avg_get(&fps, app->window);
+     if (error)
+         return error;
+ 
+-    char fps_text[32];
+-    snprintf(fps_text, sizeof(fps_text), "FPS: %.0f", fps);
+-
+-    error = cls_preset_label_spawn(
+-        NULL, world, app->assets, "fps", (vec2){10.0f, 30.0f}, 1.0f, fps_text,
+-        20, "human_sans-regular.otf", true, (ivec4){255, 255, 255, 255});
+-    if (error)
+-        return error;
+-
+-    error = cls_preset_group_despawn(entities_e, world);
+-    if (error)
+-        return error;
++    snprintf(fps_l->text, sizeof(fps_l->text), "FPS: %.0f", fps);
+ 
+     size_t main_world_entities_total = 0;
+     error = cls_ecs_world_entities_length_get(&main_world_entities_total,
+-                                              winner_label_data->main_world);
++                                              main_world->world);
+     if (error)
+         return error;
+ 
+     size_t main_world_entities_free = 0;
+-    error = cls_ecs_world_free_entities_length_get(
+-        &main_world_entities_free, winner_label_data->main_world);
++    error = cls_ecs_world_free_entities_length_get(&main_world_entities_free,
++                                                   main_world->world);
+     if (error)
+         return error;
+ 
+@@ -592,35 +492,15 @@ static int debug_labels_system(struct cls_ecs_world_query *query,
+     size_t ui_world_entities_active =
+         ui_world_entities_total - ui_world_entities_free;
+ 
+-    char entities_text[32];
+-    snprintf(entities_text, sizeof(entities_text), "Entities: %.0zu",
++    snprintf(entities_l->text, sizeof(entities_l->text), "ENTITIES: %.0zu",
+              main_world_entities_active + ui_world_entities_active);
+ 
+-    error = cls_preset_label_spawn(NULL, world, app->assets, "entities",
+-                                   (vec2){10.0f, 50.0f}, 1.0f, entities_text,
+-                                   20, "human_sans-regular.otf", true,
+-                                   (ivec4){255, 255, 255, 255});
+-    if (error)
+-        return error;
+-
+-    error = cls_preset_group_despawn(ram_e, world);
+-    if (error)
+-        return error;
+-
+     size_t ram = 0;
+     error = cls_profiler_mem_usage_get(&ram);
+     if (error)
+         return error;
+ 
+-    char ram_text[32];
+-    snprintf(ram_text, sizeof(ram_text), "RAM: %.0zuMB", ram);
+-
+-    error = cls_preset_label_spawn(
+-        NULL, world, app->assets, "ram", (vec2){10.0f, 70.0f}, 1.0f, ram_text,
+-        20, "human_sans-regular.otf", true, (ivec4){255, 255, 255, 255});
+-    if (error)
+-        return error;
+-
++    snprintf(ram_l->text, sizeof(ram_l->text), "RAM: %.0zuMB", ram);
+     return CLS_SUCCESS;
+ }
+ 
+@@ -633,26 +513,23 @@ static int game_init(struct cls_app *app) {
+                              CLS_TEXTURE_WRAP_CLAMP);
+ 
+     // Worlds
+-    int error = cls_ecs_world_add(ecs, "main", 0.0f, 0, true);
+-    if (error)
+-        return error;
++    struct cls_ecs_world *main_world = NULL;
++    struct cls_ecs_world *ui_world = NULL;
+ 
+-    error = cls_ecs_world_add(ecs, "ui", 20.0f, 0, true);
++    int error = cls_ecs_world_add(&main_world, ecs, "main", true);
+     if (error)
+         return error;
+ 
+-    struct cls_ecs_world *main_world = NULL;
+-    error = cls_ecs_world_get(&main_world, ecs, "main");
++    error = cls_ecs_world_add(&ui_world, ecs, "ui", true);
+     if (error)
+         return error;
+ 
+-    error = cls_ecs_world_component_type_add(main_world, COMP_GAME_STATE,
+-                                             sizeof(struct game_state));
++    error = cls_ecs_world_get(&main_world, ecs, "main");
+     if (error)
+         return error;
+ 
+-    error = cls_ecs_world_component_type_add(main_world, COMP_BOARD_GROUP,
+-                                             sizeof(struct board_group));
++    error = cls_ecs_world_component_type_add(main_world, COMP_BOARD_TAG,
++                                             sizeof(struct board_tag));
+     if (error)
+         return error;
+ 
+@@ -662,46 +539,77 @@ static int game_init(struct cls_app *app) {
+         return error;
+ 
+     // Singletons
+-    cls_entity state = CLS_ENTITY_MAX;
+-    error = preset_game_state_spawn(&state, main_world, PLAYER_X);
++    struct game_state state = {.turn = PLAYER_X, .winner = WINNER_NONE};
++    error = cls_ecs_world_singleton_add(main_world, COMP_GAME_STATE, &state,
++                                        sizeof(struct game_state));
++    if (error)
++        return error;
++
++    struct world ui_world_sing = {.world = ui_world};
++    error = cls_ecs_world_singleton_add(main_world, "ui_world", &ui_world_sing,
++                                        sizeof(struct world));
++    if (error)
++        return error;
++
++    struct world main_world_sing = {.world = main_world};
++    error = cls_ecs_world_singleton_add(ui_world, "main_world",
++                                        &main_world_sing, sizeof(struct world));
+     if (error)
+         return error;
+ 
+     // Systems
+-    error = cls_ecs_world_system_add(main_world, "button", button_system, NULL,
+-                                     0, 3, CLS_COMP_UI, CLS_COMP_BUTTON,
+-                                     CLS_COMP_TRANSFORM);
++    error = cls_ecs_world_system_add(
++        main_world, "button", cls_button_system, 0.0f, 3,
++        (const char *[]){CLS_COMP_UI, CLS_COMP_BUTTON, CLS_COMP_TRANSFORM});
+     if (error)
+         return error;
+ 
+-    error = cls_ecs_world_system_add(main_world, "board_button",
+-                                     board_button_system, &state, sizeof(state),
+-                                     2, CLS_COMP_GROUP, CLS_COMP_BUTTON_GROUP);
++    error = cls_ecs_world_system_add(
++        main_world, "board_button", board_button_system, 0.0f, 2,
++        (const char *[]){CLS_COMP_GROUP, CLS_COMP_BUTTON_GROUP});
+     if (error)
+         return error;
+ 
+-    error = cls_ecs_world_system_add(main_world, "winner", winner_system,
+-                                     &state, sizeof(state), 1, COMP_CELL_STATE);
++    error = cls_ecs_world_system_add(main_world, "winner", winner_system, 5.0f,
++                                     1, (const char *[]){COMP_CELL_STATE});
+     if (error)
+         return error;
+ 
+-    struct cls_ecs_world *ui_world = NULL;
+-    error = cls_ecs_world_get(&ui_world, ecs, "ui");
++    error = cls_ecs_world_system_add(
++        main_world, "camera", cls_camera_system, 0.0f, 3,
++        (const char *[]){CLS_COMP_CAMERA, CLS_COMP_CAMERA_ACTIVE,
++                         CLS_COMP_TRANSFORM});
+     if (error)
+         return error;
+ 
+-    struct winner_label_data winner_label_data = {.main_world = main_world,
+-                                                  .state_e = state};
++    error = cls_ecs_world_system_add(
++        main_world, "render", cls_render_system, 0.0f, 2,
++        (const char *[]){CLS_COMP_RENDERABLE, CLS_COMP_TRANSFORM});
++    if (error)
++        return error;
++
++    error = cls_ecs_world_system_add(
++        ui_world, "debug_labels", debug_labels_system, 5.0f, 2,
++        (const char *[]){CLS_COMP_GROUP, CLS_COMP_LABEL});
++    if (error)
++        return error;
+ 
+     error = cls_ecs_world_system_add(
+-        ui_world, "winner_label", winner_label_system, &winner_label_data,
+-        sizeof(winner_label_data), 1, CLS_COMP_GROUP, CLS_COMP_LABEL_GROUP);
++        ui_world, "camera", cls_camera_system, 0.0f, 3,
++        (const char *[]){CLS_COMP_CAMERA, CLS_COMP_CAMERA_ACTIVE,
++                         CLS_COMP_TRANSFORM});
+     if (error)
+         return error;
+ 
+     error = cls_ecs_world_system_add(
+-        ui_world, "debug_labels", debug_labels_system, &winner_label_data,
+-        sizeof(winner_label_data), 1, CLS_COMP_GROUP, CLS_COMP_LABEL_GROUP);
++        ui_world, "label_render", cls_label_render_system, 0.0f, 2,
++        (const char *[]){CLS_COMP_LABEL, CLS_COMP_TRANSFORM});
++    if (error)
++        return error;
++
++    error = cls_ecs_world_system_add(
++        ui_world, "render", cls_render_system, 0.0f, 2,
++        (const char *[]){CLS_COMP_RENDERABLE, CLS_COMP_TRANSFORM});
+     if (error)
+         return error;
+ 
+@@ -730,28 +638,21 @@ static int game_init(struct cls_app *app) {
+     if (error)
+         return error;
+ 
+-    error = cls_preset_label_spawn(NULL, ui_world, app->assets, "fps",
+-                                   (vec2){10.0f, 30.0f}, 1.0f, "FPS: 100", 20,
+-                                   "human_sans-regular.otf", true,
+-                                   (ivec4){255, 255, 255, 255});
+-    if (error)
+-        return error;
+-
+-    error = cls_preset_label_spawn(NULL, ui_world, app->assets, "entities",
+-                                   (vec2){10.0f, 50.0f}, 1.0f, "Entities: 100",
+-                                   20, "human_sans-regular.otf", true,
+-                                   (ivec4){255, 255, 255, 255});
++    error = cls_preset_label_spawn(NULL, ui_world, "fps", (vec2){10.0f, 30.0f},
++                                   1.0f, "FPS: 0", 20, "human_sans-regular.otf",
++                                   true, (ivec4){255, 255, 255, 255});
+     if (error)
+         return error;
+ 
+-    error = cls_preset_label_spawn(NULL, ui_world, app->assets, "ram",
+-                                   (vec2){10.0f, 70.0f}, 1.0f, "RAM: 0MB", 20,
+-                                   "human_sans-regular.otf", true,
+-                                   (ivec4){255, 255, 255, 255});
++    error = cls_preset_label_spawn(
++        NULL, ui_world, "entities", (vec2){10.0f, 50.0f}, 1.0f, "ENTITIES: 0",
++        20, "human_sans-regular.otf", true, (ivec4){255, 255, 255, 255});
+     if (error)
+         return error;
+ 
+-    return CLS_SUCCESS;
++    return cls_preset_label_spawn(
++        NULL, ui_world, "ram", (vec2){10.0f, 70.0f}, 1.0f, "RAM: 0MB", 20,
++        "human_sans-regular.otf", true, (ivec4){255, 255, 255, 255});
+ }
+ 
+ int main(void) {
+@@ -768,8 +669,8 @@ int main(void) {
+                              .texture2d_destroy = cls_gl_texture2d_destroy,
+                              .texture2d_use = cls_gl_texture2d_use};
+     struct cls_app app = {0};
+-    int error = cls_app_init(&app, &api, (ivec2){SCREEN_WIDTH, SCREEN_HEIGHT},
+-                             SCREEN_TITLE, SCREEN_COLOR);
++    int error = cls_app_init(&app, &api, (ivec2){WIN_WIDTH, WIN_HEIGHT},
++                             WIN_TITLE, WIN_COLOR);
+     if (error) {
+         CLS_LOGGER_LOG_ERROR(CLS_LOGGER_ERROR, error, "%s", "Init app failed");
+         goto cleanup;
+diff --git a/include/cls/app/app.h b/include/cls/app/app.h
+index 83e1265..a1fee75 100644
+--- a/include/cls/app/app.h
++++ b/include/cls/app/app.h
+@@ -21,7 +21,7 @@ struct cls_app {
+ };
+ 
+ int cls_app_init(struct cls_app *app, struct cls_gfx_api *api, ivec2 size,
+-                 const char *title, ivec4 bg_color);
++                 const char *title, const ivec4 bg_color);
+ void cls_app_destroy(struct cls_app *app);
+ int cls_app_run(struct cls_app *app);
+ 
+diff --git a/include/cls/app/assets.h b/include/cls/app/assets.h
+index aa87dd4..29805f1 100644
+--- a/include/cls/app/assets.h
++++ b/include/cls/app/assets.h
+@@ -17,8 +17,8 @@ int cls_assets_create(struct cls_assets **assets, struct cls_mem *mem,
+ void cls_assets_destroy(struct cls_assets *assets);
+ void cls_assets_font_add(struct cls_assets *assets, const char *font_path,
+                          int pixel_size);
+-int cls_assets_font_get(const struct cls_font **f,
+-                        const struct cls_assets *assets, u32 font_id);
++int cls_assets_font_get(struct cls_font **f, const struct cls_assets *assets,
++                        const char *id);
+ void cls_assets_shader_add(struct cls_assets *assets, const char *shader_path);
+ int cls_assets_shader_get(struct cls_shader **shader,
+                           const struct cls_assets *assets, u32 shader_id);
+diff --git a/include/cls/app/window.h b/include/cls/app/window.h
+index cdda844..fed4f50 100644
+--- a/include/cls/app/window.h
++++ b/include/cls/app/window.h
+@@ -1,11 +1,10 @@
+ #ifndef CLS_WINDOW_H
+ #define CLS_WINDOW_H
+ 
++#include <GLFW/glfw3.h>
+ #include <cglm/types.h>
+ #include <stdbool.h>
+-
+-#define WINDOW_INPUT_KEYS_SIZE (GLFW_KEY_LAST + 1)
+-#define WINDOW_INPUT_MOUSE_BUTTONS_SIZE (GLFW_MOUSE_BUTTON_LAST + 1)
++#include <stddef.h>
+ 
+ struct cls_app;
+ struct cls_gfx_api;
+@@ -19,8 +18,9 @@ typedef struct GLFWwindow GLFWwindow;
+ int cls_window_create(struct cls_window **win, struct cls_mem *alloc_perm,
+                       struct cls_mem *alloc_frame, struct cls_gfx_api *api,
+                       ivec2 size, const char *title, bool vsync,
+-                      ivec4 bg_color);
++                      const ivec4 bg_color);
+ void cls_window_destroy(struct cls_window *win);
++int cls_window_renderer_get(struct cls_renderer **rend, struct cls_window *win);
+ int cls_window_update(bool *should_close, struct cls_window *win);
+ int cls_window_renderer_update(struct cls_window *win, struct cls_app *app);
+ int cls_window_should_close(bool *should_close, const struct cls_window *win);
+diff --git a/include/cls/ecs/component/camera.h b/include/cls/ecs/component/camera.h
+index 81ba6cf..ebda5a6 100644
+--- a/include/cls/ecs/component/camera.h
++++ b/include/cls/ecs/component/camera.h
+@@ -37,11 +37,7 @@ struct camera {
+     float far_clip;
+     float rot_angle;
+     int layer;
+-    bool update;
+-};
+-
+-struct camera_active {
+-    u8 _;
++    bool dirty;
+ };
+ 
+ struct transform;
+diff --git a/include/cls/ecs/component/components.h b/include/cls/ecs/component/components.h
+index 5f7bef8..3132f5a 100644
+--- a/include/cls/ecs/component/components.h
++++ b/include/cls/ecs/component/components.h
+@@ -2,6 +2,8 @@
+ #define CLS_COMPONENTS_H
+ 
+ #include <cglm/types.h>
++#include <cls/ecs/component/camera.h>
++#include <cls/io/font.h>
+ #include <cls/util/types.h>
+ #include <stdbool.h>
+ #include <stdio.h>
+@@ -10,6 +12,7 @@
+ 
+ #define CLS_COMP_CAMERA "camera"
+ #define CLS_COMP_CAMERA_ACTIVE "camera_active"
++#define CLS_SINGLETON_CAMERA_ACTIVE "singleton_camera_active"
+ #define CLS_COMP_GROUP "group"
+ #define CLS_COMP_RENDERABLE "renderable"
+ #define CLS_COMP_TRANSFORM "transform"
+@@ -17,7 +20,6 @@
+ #define CLS_COMP_BUTTON "button"
+ #define CLS_COMP_BUTTON_GROUP "button_group"
+ #define CLS_COMP_LABEL "label"
+-#define CLS_COMP_LABEL_GROUP "label_group"
+ #define CLS_COMP_PROGRESS_BAR "progress_bar"
+ 
+ struct group {
+@@ -35,6 +37,7 @@ struct render_state {
+ 
+ struct renderable {
+     struct render_state state;
++    mat4 mvp;
+     vec2 uv_offset;
+     vec2 uv_scale;
+     ivec4 tint;
+@@ -51,6 +54,16 @@ struct transform {
+     vec3 scale;
+     vec3 rot_axis;
+     float rot_angle;
++    bool dirty;
++};
++
++struct singleton_camera_active {
++    struct camera cam;
++    struct transform tf;
++};
++
++struct camera_active {
++    u8 _;
+ };
+ 
+ struct ui {
+@@ -71,13 +84,11 @@ struct button_group {
+ 
+ struct label {
+     char text[CLS_UI_TEXT_MAX];
++    ivec4 tint;
+     int font_size;
+     u32 font_id;
+-    bool font;
+-};
+-
+-struct label_group {
+-    u8 _;
++    bool visible;
++    bool dirty;
+ };
+ 
+ struct progress_bar {
+diff --git a/include/cls/ecs/ecs.h b/include/cls/ecs/ecs.h
+index bbdca12..4c725a0 100644
+--- a/include/cls/ecs/ecs.h
++++ b/include/cls/ecs/ecs.h
+@@ -4,13 +4,12 @@
+ #include <cls/util/table.h>
+ #include <cls/util/types.h>
+ 
+-#define CLS_ENTITY_MAX U32_MAX
++static const u32 CLS_ENTITY_MAX = U32_MAX;
+ typedef u32 cls_entity;
+ 
+ struct cls_array;
+ struct cls_app;
+ struct cls_ecs;
+-struct cls_ecs_scene;
+ struct cls_ecs_world;
+ struct cls_ecs_world_query;
+ struct cls_mem;
+@@ -18,37 +17,24 @@ struct cls_mem;
+ typedef int (*cls_ecs_world_iter_fn)(struct cls_ecs_world *world,
+                                      void *user_data);
+ typedef int (*cls_ecs_world_system_fn)(struct cls_ecs_world_query *query,
+-                                       struct cls_app *app, void *user_data);
++                                       struct cls_app *app);
+ 
+ int cls_ecs_create(struct cls_ecs **ecs, struct cls_mem *mem);
+ void cls_ecs_destroy(struct cls_ecs *ecs);
+ 
+-int cls_ecs_scene_create_from_world(struct cls_ecs_scene **scene,
+-                                    const struct cls_ecs_world *world,
+-                                    const char *id);
+-int cls_ecs_scene_create_from_query(struct cls_ecs_scene **out,
+-                                    struct cls_ecs_world_query *query,
+-                                    const char *id);
+-void cls_ecs_scene_destroy(struct cls_ecs_scene *scene);
+-int cls_ecs_scene_spawn(const struct cls_ecs_scene *scene,
+-                        struct cls_ecs_world *world);
+-int cls_ecs_scene_save(const struct cls_ecs_scene *scene, const char *path);
+-int cls_ecs_scene_load(struct cls_ecs_scene **scene, const char *id,
+-                       const char *path);
+-
+-int cls_ecs_world_add(struct cls_ecs *ecs, const char *id, float tick_rate,
+-                      int priority, bool should_update);
++int cls_ecs_world_add(struct cls_ecs_world **world, struct cls_ecs *ecs,
++                      const char *id, bool should_update);
+ int cls_ecs_world_remove(struct cls_ecs *ecs, const char *id);
+ int cls_ecs_world_get(struct cls_ecs_world **world, const struct cls_ecs *ecs,
+                       const char *id);
+-int cls_ecs_world_get_all(struct cls_table **worlds, const struct cls_ecs *ecs);
+ int cls_ecs_world_update_all(struct cls_ecs *ecs, struct cls_app *app);
+ int cls_ecs_world_iter_all(struct cls_ecs *ecs, cls_ecs_world_iter_fn fn,
+                            void *user_data);
++int cls_ecs_world_flush(struct cls_ecs_world *world);
+ int cls_ecs_world_entity_add(cls_entity *e, struct cls_ecs_world *world);
+ int cls_ecs_world_entity_remove(struct cls_ecs_world *world, cls_entity e);
+ int cls_ecs_world_component_type_add(struct cls_ecs_world *world,
+-                                     const char *id, size_t component_size);
++                                     const char *id, size_t comp_size);
+ int cls_ecs_world_component_type_remove(struct cls_ecs_world *world,
+                                         const char *id);
+ int cls_ecs_world_component_add(struct cls_ecs_world *world, cls_entity e,
+@@ -58,18 +44,23 @@ int cls_ecs_world_component_remove(struct cls_ecs_world *world, cls_entity e,
+ int cls_ecs_world_component_get(void **comp, const struct cls_ecs_world *world,
+                                 cls_entity e, const char *id);
+ int cls_ecs_world_query_create(struct cls_ecs_world_query **query,
+-                               struct cls_ecs_world *world, size_t count, ...);
++                               struct cls_ecs_world *world, size_t comp_count,
++                               const char *ids[]);
+ void cls_ecs_world_query_destroy(struct cls_ecs_world_query *query);
+ int cls_ecs_world_query_world_get(struct cls_ecs_world **world,
+                                   struct cls_ecs_world_query *query);
+-int cls_ecs_world_query_next(cls_entity *e, struct cls_ecs_world_query *query);
+-int cls_ecs_world_query_component_get(void **comp,
+-                                      const struct cls_ecs_world_query *query,
+-                                      cls_entity e, const char *id);
++int cls_ecs_world_query_clear(struct cls_ecs_world_query *query);
++int cls_ecs_world_query_next(cls_entity *e, void **comps,
++                             struct cls_ecs_world_query *query);
+ int cls_ecs_world_system_add(struct cls_ecs_world *world, const char *id,
+-                             cls_ecs_world_system_fn system, void *user_data,
+-                             size_t user_data_size, size_t query_count, ...);
++                             cls_ecs_world_system_fn system, float tick_rate,
++                             size_t comp_count, const char *ids[]);
+ int cls_ecs_world_system_remove(struct cls_ecs_world *world, const char *id);
++int cls_ecs_world_singleton_add(struct cls_ecs_world *world, const char *id,
++                                const void *data, size_t size);
++int cls_ecs_world_singleton_remove(struct cls_ecs_world *world, const char *id);
++int cls_ecs_world_singleton_get(void **comp, const struct cls_ecs_world *world,
++                                const char *id);
+ int cls_ecs_world_update(struct cls_ecs_world *world, struct cls_app *app);
+ int cls_ecs_world_entities_length_get(size_t *len,
+                                       const struct cls_ecs_world *world);
+diff --git a/include/cls/ecs/preset/presets.h b/include/cls/ecs/preset/presets.h
+index 04bcabb..895498b 100644
+--- a/include/cls/ecs/preset/presets.h
++++ b/include/cls/ecs/preset/presets.h
+@@ -18,7 +18,6 @@ struct cls_preset_ui_label {
+     struct transform tf;
+     struct ui ui;
+     struct label label;
+-    struct label_group grp;
+ };
+ 
+ struct cls_assets;
+@@ -52,8 +51,8 @@ int cls_preset_image_button_spawn(cls_entity *button,
+                                   vec2 scale, vec2 uv_offset, vec2 uv_scale,
+                                   ivec4 image_tint, bool visible);
+ int cls_preset_label_spawn(cls_entity *label, struct cls_ecs_world *world,
+-                           struct cls_assets *assets, const char *id, vec2 pos,
+-                           float z_index, const char *text, int font_size,
+-                           const char *font_id, bool visible, ivec4 tint);
++                           const char *id, vec2 pos, float z_index,
++                           const char *text, int font_size, const char *font_id,
++                           bool visible, ivec4 tint);
+ 
+ #endif // CLS_PRESETS_H
+diff --git a/include/cls/ecs/system/button.h b/include/cls/ecs/system/button.h
+deleted file mode 100644
+index 9601feb..0000000
+--- a/include/cls/ecs/system/button.h
++++ /dev/null
+@@ -1,10 +0,0 @@
+-#ifndef CLS_BUTTON_H
+-#define CLS_BUTTON_H
+-
+-struct cls_app;
+-struct cls_ecs_world_query;
+-
+-int button_system(struct cls_ecs_world_query *query, struct cls_app *app,
+-                  void *user_data);
+-
+-#endif // CLS_BUTTON_H
+diff --git a/include/cls/gfx/cmd.h b/include/cls/gfx/cmd.h
+deleted file mode 100644
+index 79fee7e..0000000
+--- a/include/cls/gfx/cmd.h
++++ /dev/null
+@@ -1,16 +0,0 @@
+-#ifndef CLS_RENDERER_CMD_H
+-#define CLS_RENDERER_CMD_H
+-
+-#include <cglm/types.h>
+-
+-struct renderable;
+-struct transform;
+-
+-struct cls_renderer_cmd {
+-    mat4 mvp;
+-    struct renderable *ren;
+-    struct transform *tf;
+-    float depth;
+-};
+-
+-#endif // CLS_RENDERER_CMD_H
+diff --git a/include/cls/gfx/gfx_api.h b/include/cls/gfx/gfx_api.h
+index a5993f7..61a2f7b 100644
+--- a/include/cls/gfx/gfx_api.h
++++ b/include/cls/gfx/gfx_api.h
+@@ -17,7 +17,8 @@ struct cls_gfx_api {
+     int (*swap_buffers)(GLFWwindow *win);
+     void (*on_resize)(int width, int height);
+     void (*begin_frame)(void);
+-    int (*draw_batches)(struct cls_app *app, struct cls_array *batches,
++    int (*draw_batches)(struct cls_app *app, struct cls_array *cmds,
++                        struct cls_array *batches,
+                         struct cls_array *transparent_batches);
+     int (*shader_init)(struct cls_shader *s,
+                        const struct cls_shader_info *info);
+diff --git a/include/cls/gfx/gl/renderer.h b/include/cls/gfx/gl/renderer.h
+index 8ed8fb8..a3e541f 100644
+--- a/include/cls/gfx/gl/renderer.h
++++ b/include/cls/gfx/gl/renderer.h
+@@ -12,7 +12,8 @@ int cls_gl_renderer_init(ivec4 bg_color);
+ int cls_gl_renderer_swap_buffers(GLFWwindow *win);
+ void cls_gl_renderer_on_resize(int width, int height);
+ void cls_gl_renderer_begin_frame(void);
+-int cls_gl_renderer_draw_batches(struct cls_app *app, struct cls_array *batches,
++int cls_gl_renderer_draw_batches(struct cls_app *app, struct cls_array *cmds,
++                                 struct cls_array *batches,
+                                  struct cls_array *transparent_batches);
+ 
+ #endif // CLS_GL_RENDERER_H
+diff --git a/include/cls/gfx/renderer.h b/include/cls/gfx/renderer.h
+index b4086cb..6c92d3c 100644
+--- a/include/cls/gfx/renderer.h
++++ b/include/cls/gfx/renderer.h
+@@ -2,22 +2,34 @@
+ #define CLS_RENDERER_H
+ 
+ #include <cglm/types.h>
++#include <cls/ecs/component/components.h>
+ #include <cls/util/array.h>
+ #include <cls/util/mem.h>
+ #include <cls/util/table.h>
+ 
+ typedef struct GLFWwindow GLFWwindow;
+-struct cls_cls_allocator;
+ struct cls_app;
+ struct cls_gfx_api;
++struct cls_mem;
+ struct cls_renderer;
++struct cls_ecs_world;
++struct renderable;
++struct transform;
++
++struct cls_renderer_cmd {
++    struct renderable ren;
++    struct transform tf;
++    float depth;
++};
+ 
+ int cls_renderer_create(struct cls_renderer **rend, struct cls_mem *mem_perm,
+                         struct cls_mem *mem_frame, struct cls_gfx_api *api,
+-                        ivec4 bg_color);
++                        const ivec4 bg_color);
+ void cls_renderer_destroy(struct cls_renderer *rend);
+ int cls_renderer_swap_buffers(struct cls_renderer *rend, GLFWwindow *win);
+ int cls_renderer_on_resize(struct cls_renderer *rend, int width, int height);
++int cls_renderer_cmd_push(struct cls_renderer *rend, struct renderable *ren,
++                          struct transform *tf, float depth);
+ int cls_renderer_frame_create(struct cls_renderer *rend, struct cls_app *app);
+ 
+ #endif // CLS_RENDERER_H
+diff --git a/include/cls/io/font.h b/include/cls/io/font.h
+index 8f5709c..5a5d871 100644
+--- a/include/cls/io/font.h
++++ b/include/cls/io/font.h
+@@ -6,9 +6,11 @@
+ #include <stdbool.h>
+ #include FT_FREETYPE_H
+ 
+-#define CLS_FONT_CHAR_START 32
+-#define CLS_FONT_CHAR_END 126
+-#define CLS_FONT_CHAR_LENGTH (CLS_FONT_CHAR_END - CLS_FONT_CHAR_START + 1)
++enum {
++    CLS_FONT_CHAR_START = 32,
++    CLS_FONT_CHAR_END = 126,
++    CLS_FONT_CHAR_LENGTH = CLS_FONT_CHAR_END - CLS_FONT_CHAR_START + 1,
++};
+ 
+ struct cls_glyph {
+     unsigned int width;
+diff --git a/include/cls/util/profiler.h b/include/cls/util/profiler.h
+index aa5b086..2acf6f3 100644
+--- a/include/cls/util/profiler.h
++++ b/include/cls/util/profiler.h
+@@ -4,6 +4,7 @@
+ #include <cls/util/error.h>
+ #include <stdio.h>
+ #include <string.h>
++#include <sys/time.h>
+ #include <time.h>
+ 
+ static inline int cls_profiler_mem_usage_get(size_t *mb) {
+@@ -41,10 +42,6 @@ static inline double cls_profiler_get_time(void) {
+     (((end.tv_sec - start.tv_sec) * 1000.0) +                                  \
+      ((end.tv_nsec - start.tv_nsec) / 1e6))
+ 
+-#ifdef ENABLE_PROFILER
+-
+-#include <sys/time.h>
+-
+ #define CLS_PROFILER_START(name)                                               \
+     double _profiler_start_##name = cls_profiler_get_time()
+ 
+@@ -132,16 +129,4 @@ static inline void cls_profiler_reset(void) {
+     }
+ }
+ 
+-#else
+-
+-#define CLS_PROFILER_START(name) ((void)0)
+-#define CLS_PROFILER_END(name) ((void)0)
+-#define CLS_PROFILER_SCOPE(name) ((void)0)
+-#define CLS_PROFILER_FUNC_START(name) ((void)0)
+-#define CLS_PROFILER_FUNC_END(name) ((void)0)
+-#define cls_profiler_print_summary() ((void)0)
+-#define cls_profiler_reset() ((void)0)
+-
+-#endif // ENABLE_PROFILER
+-
+ #endif // CLS_PROFILER_H
+diff --git a/src/app/app.c b/src/app/app.c
+index b13606c..873bc9c 100644
+--- a/src/app/app.c
++++ b/src/app/app.c
+@@ -11,8 +11,8 @@
+ #include <cls/util/logger.h>
+ #include <cls/util/mem.h>
+ 
+-#define APP_PERM_SIZE (1024L * 1024L)
+-#define APP_FRAME_SIZE (1024L * 1024L * 50L)
++static const size_t APP_PERM_ARENA_SIZE = 1024L * 1024L;
++static const size_t APP_FRAME_ARENA_SIZE = 1024L * 1024L * 50L;
+ 
+ static int allocator_arena_alloc(void **dest, void *ctx, size_t size,
+                                  size_t align) {
+@@ -23,17 +23,17 @@ static int allocator_arena_alloc(void **dest, void *ctx, size_t size,
+ }
+ 
+ int cls_app_init(struct cls_app *app, struct cls_gfx_api *api,
+-                 ivec2 window_size, const char *title, ivec4 bg_color) {
++                 ivec2 window_size, const char *title, const ivec4 bg_color) {
+     if (!app || !title)
+         return CLS_NULLPTR;
+ 
+     app->api = api;
+ 
+-    int error = cls_arena_create(&app->arena_perm, APP_PERM_SIZE);
++    int error = cls_arena_create(&app->arena_perm, APP_PERM_ARENA_SIZE);
+     if (error)
+         goto cleanup;
+ 
+-    error = cls_arena_create(&app->arena_frame, APP_FRAME_SIZE);
++    error = cls_arena_create(&app->arena_frame, APP_FRAME_ARENA_SIZE);
+     if (error)
+         goto cleanup;
+ 
+diff --git a/src/app/assets.c b/src/app/assets.c
+index d547064..d5f3dd6 100644
+--- a/src/app/assets.c
++++ b/src/app/assets.c
+@@ -13,7 +13,6 @@
+ #include <cls/util/types.h>
+ #include <cls/util/xxhash32.h>
+ 
+-#define START_CAPACITY 64
+ #define CORE_PATH "data/core/"
+ #define FONT_PATH CORE_PATH "gfx/fonts/"
+ #define SHADER_PATH CORE_PATH "gfx/shaders/"
+@@ -21,6 +20,8 @@
+ #define TEXTURE2D_DEFAULT_BLANK "DEFAULT_BLANK"
+ #define TEXTURE2D_DEFAULT_MISSING "DEFAULT_MISSING"
+ 
++static const size_t START_CAPACITY = 64;
++
+ struct cls_assets {
+     struct cls_table *fonts;
+     struct cls_table *meshes;
+@@ -252,13 +253,18 @@ void cls_assets_font_add(struct cls_assets *assets, const char *font_path,
+     return;
+ }
+ 
+-int cls_assets_font_get(const struct cls_font **font,
+-                        const struct cls_assets *assets, u32 font_id) {
+-    if (!font || !assets || !font_id)
++int cls_assets_font_get(struct cls_font **font, const struct cls_assets *assets,
++                        const char *id) {
++    if (!font || !assets || !id)
+         return CLS_NULLPTR;
+ 
++    u32 hash = 0;
++    int error = cls_xxhash32(&hash, id, strlen(id), 0);
++    if (error)
++        return error;
++
+     void *found_ptr = NULL;
+-    int error = cls_table_find(&found_ptr, assets->fonts, &font_id);
++    error = cls_table_find(&found_ptr, assets->fonts, &hash);
+     if (error)
+         return error;
+ 
+diff --git a/src/app/window.c b/src/app/window.c
+index 0d3ca68..71ff563 100644
+--- a/src/app/window.c
++++ b/src/app/window.c
+@@ -1,4 +1,3 @@
+-#include <GLFW/glfw3.h>
+ #include <cglm/ivec2.h>
+ #include <cglm/vec2.h>
+ #include <cls/app/window.h>
+@@ -8,6 +7,11 @@
+ #include <cls/util/mem.h>
+ #include <string.h>
+ 
++enum {
++    WINDOW_INPUT_KEYS_SIZE = GLFW_KEY_LAST + 1,
++    WINDOW_INPUT_MOUSE_BUTTONS_SIZE = GLFW_MOUSE_BUTTON_LAST + 1,
++};
++
+ struct cls_input {
+     bool keys[WINDOW_INPUT_KEYS_SIZE];
+     bool last_keys[WINDOW_INPUT_KEYS_SIZE];
+@@ -47,7 +51,7 @@ static void window_size_callback(GLFWwindow *glfw_window, int width,
+ 
+     if (!window) {
+         CLS_LOGGER_LOG_ERROR(CLS_LOGGER_ERROR, CLS_GLFW, "%s",
+-                             "GLFW framebuffer resize failed");
++                             "GLFW window resize failed");
+         return;
+     }
+ 
+@@ -169,7 +173,7 @@ static int timing_create(struct cls_timing **t, struct cls_mem *alloc) {
+ int cls_window_create(struct cls_window **win, struct cls_mem *mem_persistant,
+                       struct cls_mem *mem_frame, struct cls_gfx_api *api,
+                       ivec2 size, const char *title, bool vsync,
+-                      ivec4 bg_color) {
++                      const ivec4 bg_color) {
+     if (!win || !mem_persistant || !mem_frame || !title)
+         return CLS_NULLPTR;
+ 
+@@ -255,6 +259,15 @@ void cls_window_destroy(struct cls_window *win) {
+     cls_renderer_destroy(win->renderer);
+ }
+ 
++int cls_window_renderer_get(struct cls_renderer **rend,
++                            struct cls_window *win) {
++    if (!rend || !win)
++        return CLS_NULLPTR;
++
++    *rend = win->renderer;
++    return CLS_SUCCESS;
++}
++
+ int cls_window_update(bool *should_close, struct cls_window *win) {
+     int error = cls_window_should_close(should_close, win);
+     if (error)
+diff --git a/src/ecs/component/camera.c b/src/ecs/component/camera.c
+index 128b0af..db9be60 100644
+--- a/src/ecs/component/camera.c
++++ b/src/ecs/component/camera.c
+@@ -40,7 +40,6 @@ int camera_update(struct camera *cam, struct transform *tf) {
+     }
+     }
+ 
+-    cam->update = false;
+     return CLS_SUCCESS;
+ }
+ 
+@@ -48,7 +47,7 @@ void camera_resize(struct camera *cam, ivec2 size) {
+     if (!cam)
+         return;
+ 
+-    cam->update = true;
++    cam->dirty = true;
+ 
+     switch (cam->type) {
+     case CAMERA_PERSP:
+diff --git a/src/ecs/ecs.c b/src/ecs/ecs.c
+index 974c170..0ea1f6f 100644
+--- a/src/ecs/ecs.c
++++ b/src/ecs/ecs.c
+@@ -14,57 +14,42 @@
+ #include <stdio.h>
+ #include <stdlib.h>
+ 
+-#define CLS_ECS_WORLD_START_CAPACITY 4
+-#define CLS_ECS_WORLD_ENTITY_START_CAPACITY 32
+-#define CLS_ECS_SCENE_FILE_SIG 0xE7EFD7A7 // çï×§ (cyclecs scene)
+-#define CLS_ECS_SCENE_FILE_VER 1
++static const size_t CLS_ECS_WORLD_START_CAPACITY = 4;
++static const size_t CLS_ECS_WORLD_ENTITY_START_CAPACITY = 32;
+ 
+ struct cls_ecs {
+     struct cls_table *worlds;
+ };
+ 
+-struct cls_ecs_scene {
+-    const char *id;
+-    struct cls_array *entities;
+-};
+-
+-struct cls_ecs_scene_entity {
+-    struct cls_array *components; // cls_entity can have more than one component
+-};
+-
+-// TODO: Naive approach. Would be better to make a specific data structure for
+-// more efficient serialization
+-struct cls_ecs_comp_serialized {
+-    u32 id;
+-    size_t size;
+-    void *comp;
+-};
+-
+ struct cls_ecs_world_query {
+     struct cls_array *sets;
+     struct cls_array *comp_ids;
+-    struct cls_ecs_world_sparse_set *min_set;
++    struct cls_ecs_world_sparse_set *smallest_set;
+     struct cls_ecs_world *world;
+-    size_t arg_count;
+-    size_t current_index;
++    size_t current_idx;
+ };
+ 
+ struct cls_ecs_world_system {
+     cls_ecs_world_system_fn system;
+     struct cls_ecs_world_query *query;
+-    void *user_data;
++    float tick_rate;
++    float tick_amount;
++};
++
++struct cls_ecs_singleton {
++    void *data;
++    size_t size;
+ };
+ 
+ struct cls_ecs_world {
+     struct cls_array *entities;
+     struct cls_array *free_entities;
+     struct cls_array *pending_deletions;
++    struct cls_array *queries;
+     struct cls_table *components;
+     struct cls_table *systems;
++    struct cls_table *singletons;
+     u32 next_entity_id;
+-    int priority;
+-    float tick_rate;
+-    float tick_amount;
+     bool should_update;
+ };
+ 
+@@ -75,7 +60,7 @@ struct cls_ecs_world_sparse_set {
+     size_t component_size;
+ };
+ 
+-static void cls_ecs_world_destroy(struct cls_ecs_world *world) {
++static void world_destroy(struct cls_ecs_world *world) {
+     if (!world)
+         return;
+ 
+@@ -84,20 +69,20 @@ static void cls_ecs_world_destroy(struct cls_ecs_world *world) {
+     if (error)
+         return;
+ 
+-    bool comp_iter_next = false;
+-    while (cls_table_iterator_next(&comp_iter_next, comp_iter) == CLS_SUCCESS &&
+-           comp_iter_next) {
++    bool next = false;
++    while (cls_table_iterator_next(&next, comp_iter) == CLS_SUCCESS && next) {
+         void *set_ptr = NULL;
+         error = cls_table_iterator_value_get(&set_ptr, comp_iter);
+         if (error)
+             continue;
+ 
+         struct cls_ecs_world_sparse_set *set = set_ptr;
+-        if (set) {
+-            cls_array_destroy(set->sparse);
+-            cls_array_destroy(set->dense);
+-            cls_array_destroy(set->data);
+-        }
++        if (!set)
++            continue;
++
++        cls_array_destroy(set->sparse);
++        cls_array_destroy(set->dense);
++        cls_array_destroy(set->data);
+     }
+ 
+     cls_table_iterator_destroy(comp_iter);
+@@ -107,29 +92,46 @@ static void cls_ecs_world_destroy(struct cls_ecs_world *world) {
+     if (error)
+         return;
+ 
+-    bool sys_iter_next = false;
+-    while (cls_table_iterator_next(&sys_iter_next, sys_iter) == CLS_SUCCESS &&
+-           sys_iter_next) {
++    next = false;
++    while (cls_table_iterator_next(&next, sys_iter) == CLS_SUCCESS && next) {
+         void *system_ptr = NULL;
+         error = cls_table_iterator_value_get(&system_ptr, sys_iter);
+         if (error)
+             continue;
+ 
+         struct cls_ecs_world_system *system = system_ptr;
+-        if (system) {
+-            if (system->user_data)
+-                free(system->user_data);
+-
++        if (system)
+             cls_ecs_world_query_destroy(system->query);
+-        }
+     }
+ 
+     cls_table_iterator_destroy(sys_iter);
++
++    struct cls_table_iterator *singleton_iter = NULL;
++    error = cls_table_iterator_create(&singleton_iter, world->singletons);
++    if (error)
++        return;
++
++    next = false;
++    while (cls_table_iterator_next(&next, singleton_iter) == CLS_SUCCESS &&
++           next) {
++        void *slot = NULL;
++        error = cls_table_iterator_value_get(&slot, singleton_iter);
++        if (error)
++            continue;
++
++        if (slot)
++            free(((struct cls_ecs_singleton *)slot)->data);
++    }
++
++    cls_table_iterator_destroy(singleton_iter);
++
+     cls_array_destroy(world->entities);
+     cls_array_destroy(world->free_entities);
+     cls_array_destroy(world->pending_deletions);
++    cls_array_destroy(world->queries);
+     cls_table_destroy(world->components);
+     cls_table_destroy(world->systems);
++    cls_table_destroy(world->singletons);
+ }
+ 
+ static int add_default_component_types(struct cls_ecs_world *world) {
+@@ -178,11 +180,6 @@ static int add_default_component_types(struct cls_ecs_world *world) {
+     if (error)
+         return error;
+ 
+-    error = cls_ecs_world_component_type_add(world, CLS_COMP_LABEL_GROUP,
+-                                             sizeof(struct label_group));
+-    if (error)
+-        return error;
+-
+     error = cls_ecs_world_component_type_add(world, CLS_COMP_PROGRESS_BAR,
+                                              sizeof(struct progress_bar));
+     if (error)
+@@ -191,14 +188,11 @@ static int add_default_component_types(struct cls_ecs_world *world) {
+     return CLS_SUCCESS;
+ }
+ 
+-static int cls_ecs_world_init(struct cls_ecs_world *world, float tick_rate,
+-                              int priority, bool should_update) {
++static int world_init(struct cls_ecs_world *world, bool should_update) {
+     if (!world)
+         return CLS_NULLPTR;
+ 
+     *world = (struct cls_ecs_world){.next_entity_id = 0,
+-                                    .tick_rate = tick_rate,
+-                                    .priority = priority,
+                                     .should_update = should_update};
+ 
+     int error = cls_array_create(&world->entities, CLS_ECS_WORLD_START_CAPACITY,
+@@ -216,6 +210,11 @@ static int cls_ecs_world_init(struct cls_ecs_world *world, float tick_rate,
+     if (error)
+         goto cleanup;
+ 
++    error = cls_array_create(&world->queries, CLS_ECS_WORLD_START_CAPACITY,
++                             sizeof(struct cls_ecs_world_query));
++    if (error)
++        goto cleanup;
++
+     error =
+         cls_table_create(&world->components, CLS_ECS_WORLD_START_CAPACITY,
+                          sizeof(u32), sizeof(struct cls_ecs_world_sparse_set));
+@@ -227,134 +226,36 @@ static int cls_ecs_world_init(struct cls_ecs_world *world, float tick_rate,
+     if (error)
+         goto cleanup;
+ 
+-    error = add_default_component_types(world);
++    error = cls_table_create(&world->singletons, CLS_ECS_WORLD_START_CAPACITY,
++                             sizeof(u32), sizeof(struct cls_ecs_singleton));
+     if (error)
+         goto cleanup;
+ 
+-    return CLS_SUCCESS;
+-
+-cleanup:
+-    cls_ecs_world_destroy(world);
+-    return error;
+-}
+-
+-static void cls_ecs_scene_entity_destroy(struct cls_ecs_scene_entity *e) {
+-    if (!e || !e->components)
+-        return;
+-
+-    size_t comp_length = 0;
+-    cls_array_length_get(&comp_length, e->components);
+-
+-    for (size_t i = 0; i < comp_length; ++i) {
+-        void *comp_ptr = NULL;
+-        cls_array_elem_get(&comp_ptr, e->components, i);
+-        struct cls_ecs_comp_serialized *comp = comp_ptr;
+-        if (comp && comp->comp)
+-            free(comp->comp);
+-    }
+-
+-    cls_array_destroy(e->components);
+-}
+-
+-static int cls_ecs_scene_entity_create(struct cls_ecs_scene_entity *scene_e,
+-                                       const struct cls_ecs_world *world,
+-                                       cls_entity e) {
+-    if (!scene_e || !world)
+-        return CLS_NULLPTR;
+-
+-    int error = cls_array_create(&scene_e->components, 8,
+-                                 sizeof(struct cls_ecs_comp_serialized));
+-    if (error)
+-        return error;
+-
+-    struct cls_table_iterator *iter = NULL;
+-    error = cls_table_iterator_create(&iter, world->components);
++    error = add_default_component_types(world);
+     if (error)
+         goto cleanup;
+ 
+-    bool iter_next = false;
+-    while (cls_table_iterator_next(&iter_next, iter) == CLS_SUCCESS &&
+-           iter_next) {
+-        void *id_ptr = NULL;
+-        error = cls_table_iterator_key_get(&id_ptr, iter);
+-        if (error)
+-            continue;
+-
+-        u32 *id = id_ptr;
+-
+-        void *set_ptr = NULL;
+-        error = cls_table_iterator_value_get(&set_ptr, iter);
+-        if (error)
+-            continue;
+-
+-        const struct cls_ecs_world_sparse_set *set = set_ptr;
+-        if (!set)
+-            continue;
+-
+-        size_t sparse_length = 0;
+-        error = cls_array_length_get(&sparse_length, set->sparse);
+-        if (error)
+-            continue;
+-
+-        u32 dense_index = 0;
+-        error = cls_array_elem_get_cpy(&dense_index, set->sparse, e);
+-        if (error)
+-            continue;
+-
+-        size_t dense_length = 0;
+-        error = cls_array_length_get(&dense_length, set->dense);
+-        if (error || dense_index >= dense_length)
+-            continue;
+-
+-        cls_entity check_entity = 0;
+-        error = cls_array_elem_get_cpy(&check_entity, set->dense, dense_index);
+-        if (error || check_entity != e)
+-            continue;
+-
+-        void *comp = NULL;
+-        error = cls_array_elem_get(&comp, set->data, dense_index);
+-        if (error)
+-            continue;
+-
+-        // TODO: Use arena alloc
+-        void *comp_cpy = malloc(set->component_size);
+-        if (!comp_cpy)
+-            goto cleanup;
+-
+-        memcpy(comp_cpy, comp, set->component_size);
+-
+-        struct cls_ecs_comp_serialized saved = {
+-            .id = *id, .size = set->component_size, .comp = comp_cpy};
+-
+-        error = cls_array_push(&scene_e->components, &saved);
+-        if (error)
+-            goto cleanup;
+-    }
+-
+-    cls_table_iterator_destroy(iter);
+     return CLS_SUCCESS;
+ 
+ cleanup:
+-    cls_ecs_scene_entity_destroy(scene_e);
+-    cls_table_iterator_destroy(iter);
++    world_destroy(world);
+     return error;
+ }
+ 
+-static int cls_ecs_world_component_add_by_id(struct cls_ecs_world *world,
+-                                             cls_entity e, u32 id,
+-                                             const void *comp) {
++static int world_component_add_by_id(struct cls_ecs_world *world, cls_entity e,
++                                     u32 id, const void *comp) {
+     if (!world || !comp)
+         return CLS_NULLPTR;
+ 
+     if (e == CLS_ENTITY_MAX)
+         return CLS_INVALID_ARG;
+ 
+-    size_t entities_length = 0;
+-    int error = cls_array_length_get(&entities_length, world->entities);
++    size_t entities_len = 0;
++    int error = cls_array_length_get(&entities_len, world->entities);
+     if (error)
+         return error;
+ 
+-    if (e >= entities_length)
++    if (e >= entities_len)
+         return CLS_INVALID_ARG;
+ 
+     void *set_ptr = NULL;
+@@ -366,28 +267,28 @@ static int cls_ecs_world_component_add_by_id(struct cls_ecs_world *world,
+     if (!set)
+         return CLS_INVALID_ARG;
+ 
+-    size_t sparse_length = 0;
+-    error = cls_array_length_get(&sparse_length, set->sparse);
++    size_t sparse_len = 0;
++    error = cls_array_length_get(&sparse_len, set->sparse);
+     if (error)
+         return error;
+ 
+-    while (sparse_length <= e) {
++    while (sparse_len <= e) {
+         cls_entity invalid_e = CLS_ENTITY_MAX;
+         error = cls_array_push(&set->sparse, &invalid_e);
+         if (error)
+             return error;
+ 
+-        error = cls_array_length_get(&sparse_length, set->sparse);
++        error = cls_array_length_get(&sparse_len, set->sparse);
+         if (error)
+             return error;
+     }
+ 
+-    size_t dense_length = 0;
+-    error = cls_array_length_get(&dense_length, set->dense);
++    size_t dense_len = 0;
++    error = cls_array_length_get(&dense_len, set->dense);
+     if (error)
+         return error;
+ 
+-    error = cls_array_elem_set(set->sparse, (size_t)e, &dense_length);
++    error = cls_array_elem_set(set->sparse, (size_t)e, &dense_len);
+     if (error)
+         return error;
+ 
+@@ -398,10 +299,9 @@ static int cls_ecs_world_component_add_by_id(struct cls_ecs_world *world,
+     return cls_array_push(&set->data, comp);
+ }
+ 
+-static int
+-cls_ecs_world_entity_remove_component_by_id(struct cls_ecs_world *world,
+-                                            cls_entity e, u32 id) {
+-    if (!world || !id)
++static int world_entity_remove_component_by_id(struct cls_ecs_world *world,
++                                               cls_entity e, u32 id) {
++    if (!world)
+         return CLS_NULLPTR;
+ 
+     void *set_ptr = NULL;
+@@ -411,55 +311,55 @@ cls_ecs_world_entity_remove_component_by_id(struct cls_ecs_world *world,
+ 
+     const struct cls_ecs_world_sparse_set *set = set_ptr;
+ 
+-    size_t dense_length = 0;
+-    error = cls_array_length_get(&dense_length, set->dense);
++    size_t dense_len = 0;
++    error = cls_array_length_get(&dense_len, set->dense);
+     if (error)
+         return error;
+ 
+-    if (dense_length == 0)
++    if (dense_len == 0)
+         return CLS_SUCCESS;
+ 
+-    u32 dense_index = 0;
+-    error = cls_array_elem_get_cpy(&dense_index, set->sparse, e);
++    u32 dense_idx = 0;
++    error = cls_array_elem_get_cpy(&dense_idx, set->sparse, e);
+     if (error)
+         return error;
+ 
+-    if (dense_index >= dense_length)
++    if (dense_idx >= dense_len)
+         return CLS_INVALID_ARG;
+ 
+     u32 check_entity = CLS_ENTITY_MAX;
+-    error = cls_array_elem_get_cpy(&check_entity, set->dense, dense_index);
++    error = cls_array_elem_get_cpy(&check_entity, set->dense, dense_idx);
+     if (error)
+         return error;
+ 
+     if (check_entity != e)
+         return CLS_INVALID_ARG;
+ 
+-    size_t last_index = dense_length - 1;
+-    if (dense_index != last_index) {
++    size_t last_idx = dense_len - 1;
++    if (dense_idx != last_idx) {
+         cls_entity last_entity = 0;
+ 
+-        error = cls_array_elem_get_cpy(&last_entity, set->dense, last_index);
++        error = cls_array_elem_get_cpy(&last_entity, set->dense, last_idx);
+         if (error)
+             return error;
+ 
+         void *last_data = NULL;
+-        error = cls_array_elem_get(&last_data, set->data, last_index);
++        error = cls_array_elem_get(&last_data, set->data, last_idx);
+         if (error)
+             return error;
+ 
+         void *current_data = NULL;
+-        error = cls_array_elem_get(&current_data, set->data, dense_index);
++        error = cls_array_elem_get(&current_data, set->data, dense_idx);
+         if (error)
+             return error;
+ 
+-        error = cls_array_elem_set(set->dense, dense_index, &last_entity);
++        error = cls_array_elem_set(set->dense, dense_idx, &last_entity);
+         if (error)
+             return error;
+ 
+         memcpy(current_data, last_data, set->component_size);
+ 
+-        error = cls_array_elem_set(set->sparse, last_entity, &dense_index);
++        error = cls_array_elem_set(set->sparse, last_entity, &dense_idx);
+         if (error)
+             return error;
+     }
+@@ -476,112 +376,17 @@ cls_ecs_world_entity_remove_component_by_id(struct cls_ecs_world *world,
+     return cls_array_elem_set(set->sparse, e, &invalid_e);
+ }
+ 
+-static int
+-cls_ecs_world_query_create_from_va_list(struct cls_ecs_world_query **query,
+-                                        struct cls_ecs_world *world,
+-                                        size_t arg_count, va_list args) {
+-    if (!query || !world || arg_count == 0)
+-        return CLS_INVALID_ARG;
+-
+-    struct cls_ecs_world_query *instance =
+-        malloc(sizeof(struct cls_ecs_world_query));
+-    if (!instance)
+-        return CLS_OUT_OF_MEMORY;
+-
+-    instance->world = world;
+-    instance->arg_count = arg_count;
+-    instance->min_set = NULL;
+-    instance->current_index = 0;
+-
+-    int error = cls_array_create(&instance->comp_ids, arg_count, sizeof(u32));
+-    if (error)
+-        goto cleanup;
+-
+-    error = cls_array_create(&instance->sets, arg_count,
+-                             sizeof(struct cls_ecs_world_sparse_set *));
+-    if (error)
+-        goto cleanup;
+-
+-    for (size_t i = 0; i < arg_count; ++i) {
+-        const char *id = va_arg(args, const char *);
+-        u32 hash = 0;
+-        error = cls_xxhash32(&hash, id, strlen(id), 0);
+-        if (error)
+-            return error;
+-
+-        error = cls_array_push(&instance->comp_ids, &hash);
+-        if (error)
+-            continue;
+-
+-        void *set_ptr = NULL;
+-        error = cls_table_find(&set_ptr, world->components, &hash);
+-        if (error)
+-            continue;
+-
+-        if (!set_ptr)
+-            continue;
+-
+-        error = cls_array_push(&instance->sets, (const void *)&set_ptr);
+-        if (error)
+-            continue;
+-    }
+-
+-    void *set_ptr = NULL;
+-    error = cls_array_elem_get(&set_ptr, instance->sets, 0);
+-    if (error)
+-        goto cleanup;
+-
+-    struct cls_ecs_world_sparse_set *first_set =
+-        *(struct cls_ecs_world_sparse_set **)set_ptr;
+-    if (!first_set) {
+-        error = CLS_INVALID_ARG;
+-        goto cleanup;
+-    }
+-
+-    instance->min_set = first_set;
+-
+-    size_t min_dense_length = 0;
+-    error = cls_array_length_get(&min_dense_length, instance->min_set->dense);
+-    if (error)
+-        goto cleanup;
+-
+-    size_t set_count = 0;
+-    error = cls_array_length_get(&set_count, instance->sets);
+-    if (error)
+-        goto cleanup;
+-
+-    for (size_t i = 1; i < arg_count; ++i) {
+-        struct cls_ecs_world_sparse_set *current_set = NULL;
+-        error = cls_array_elem_get_cpy((void *)&current_set, instance->sets, i);
+-        if (error)
+-            continue;
+-
+-        size_t dense_length = 0;
+-        error = cls_array_length_get(&dense_length, current_set->dense);
+-        if (error)
+-            continue;
+-
+-        if (dense_length < min_dense_length) {
+-            instance->min_set = current_set;
+-            min_dense_length = dense_length;
+-        }
+-    }
+-
+-    *query = instance;
+-    return CLS_SUCCESS;
+-
+-cleanup:
+-    cls_ecs_world_query_destroy(instance);
+-    return error;
+-}
+-
+-static int cls_ecs_world_run_systems(struct cls_ecs_world *world,
+-                                     struct cls_app *app) {
++static int world_run_systems(struct cls_ecs_world *world, struct cls_app *app) {
+     struct cls_table_iterator *iter = NULL;
+     int error = cls_table_iterator_create(&iter, world->systems);
+     if (error)
+         return error;
+ 
++    float dt = 0;
++    error = cls_window_timing_dt_get(&dt, app->window);
++    if (error)
++        return error;
++
+     bool iter_next = false;
+     while (cls_table_iterator_next(&iter_next, iter) == CLS_SUCCESS &&
+            iter_next) {
+@@ -594,31 +399,49 @@ static int cls_ecs_world_run_systems(struct cls_ecs_world *world,
+         if (!system || !system->system)
+             continue;
+ 
+-        system->query->current_index = 0;
++        // Fix spiral of death
++        if (system->tick_rate > 0.0f) {
++            system->tick_amount += dt;
+ 
+-        error = system->system(system->query, app, system->user_data);
+-        if (error)
+-            return error;
++            if (system->tick_amount > 0.25f)
++                system->tick_amount = 0.25f;
++
++            float tick_interval = 1.0f / system->tick_rate;
++            if (system->tick_amount < tick_interval)
++                continue;
++
++            while (system->tick_amount >= tick_interval) {
++                system->tick_amount -= tick_interval;
++                system->query->current_idx = 0;
++                error = system->system(system->query, app);
++                if (error)
++                    return error;
++            }
++        } else {
++            system->query->current_idx = 0;
++            error = system->system(system->query, app);
++            if (error)
++                return error;
++        }
+     }
+ 
+     cls_table_iterator_destroy(iter);
+     return CLS_SUCCESS;
+ }
+ 
+-static int cls_ecs_world_entity_remove_now(struct cls_ecs_world *world,
+-                                           cls_entity e) {
++static int world_entity_remove(struct cls_ecs_world *world, cls_entity e) {
+     if (!world)
+         return CLS_NULLPTR;
+ 
+     if (e == CLS_ENTITY_MAX)
+         return CLS_INVALID_ARG;
+ 
+-    size_t entities_length = 0;
+-    int error = cls_array_length_get(&entities_length, world->entities);
++    size_t entities_len = 0;
++    int error = cls_array_length_get(&entities_len, world->entities);
+     if (error)
+         return error;
+ 
+-    if (e >= entities_length)
++    if (e >= entities_len)
+         return CLS_INVALID_ARG;
+ 
+     struct cls_table_iterator *iter = NULL;
+@@ -638,29 +461,29 @@ static int cls_ecs_world_entity_remove_now(struct cls_ecs_world *world,
+         if (!set)
+             continue;
+ 
+-        size_t sparse_length = 0;
+-        error = cls_array_length_get(&sparse_length, set->sparse);
++        size_t sparse_len = 0;
++        error = cls_array_length_get(&sparse_len, set->sparse);
+         if (error)
+             return error;
+ 
+-        if (e >= sparse_length)
++        if (e >= sparse_len)
+             continue;
+ 
+-        u32 dense_index = 0;
+-        error = cls_array_elem_get_cpy(&dense_index, set->sparse, e);
++        u32 dense_idx = 0;
++        error = cls_array_elem_get_cpy(&dense_idx, set->sparse, e);
+         if (error)
+             continue;
+ 
+-        size_t dense_length = 0;
+-        error = cls_array_length_get(&dense_length, set->dense);
++        size_t dense_len = 0;
++        error = cls_array_length_get(&dense_len, set->dense);
+         if (error)
+             return error;
+ 
+-        if (dense_index >= dense_length)
++        if (dense_idx >= dense_len)
+             continue;
+ 
+         cls_entity check_entity = CLS_ENTITY_MAX;
+-        error = cls_array_elem_get_cpy(&check_entity, set->dense, dense_index);
++        error = cls_array_elem_get_cpy(&check_entity, set->dense, dense_idx);
+         if (error || check_entity != e)
+             continue;
+ 
+@@ -670,7 +493,7 @@ static int cls_ecs_world_entity_remove_now(struct cls_ecs_world *world,
+             continue;
+ 
+         u32 *key = key_ptr;
+-        error = cls_ecs_world_entity_remove_component_by_id(world, e, *key);
++        error = world_entity_remove_component_by_id(world, e, *key);
+         if (error)
+             return error;
+     }
+@@ -678,33 +501,6 @@ static int cls_ecs_world_entity_remove_now(struct cls_ecs_world *world,
+     cls_table_iterator_destroy(iter);
+     return cls_array_push(&world->free_entities, &e);
+ }
+-
+-static int cls_ecs_world_delete_entities(struct cls_ecs_world *world) {
+-    if (!world)
+-        return CLS_NULLPTR;
+-
+-    size_t pending_deletions_length = 0;
+-    int error = cls_array_length_get(&pending_deletions_length,
+-                                     world->pending_deletions);
+-    if (error)
+-        return error;
+-
+-    for (size_t i = 0; i < pending_deletions_length; ++i) {
+-        cls_entity e = CLS_ENTITY_MAX;
+-        error = cls_array_elem_get_cpy(&e, world->pending_deletions, i);
+-        if (error)
+-            continue;
+-
+-        error = cls_ecs_world_entity_remove_now(world, e);
+-        if (error)
+-            CLS_LOGGER_LOG(CLS_LOGGER_ERROR, "Failed to delete cls_entity %u",
+-                           e);
+-    }
+-
+-    cls_array_clear(world->pending_deletions);
+-    return CLS_SUCCESS;
+-}
+-
+ int cls_ecs_create(struct cls_ecs **ecs, struct cls_mem *mem) {
+     if (!ecs || !mem)
+         return CLS_NULLPTR;
+@@ -736,434 +532,34 @@ void cls_ecs_destroy(struct cls_ecs *ecs) {
+     if (!ecs)
+         return;
+ 
+-    struct cls_table_iterator *iter = NULL;
+-    int error = cls_table_iterator_create(&iter, ecs->worlds);
+-    if (error)
+-        return;
+-
+-    bool iter_next = false;
+-    while (cls_table_iterator_next(&iter_next, iter) == CLS_SUCCESS &&
+-           iter_next) {
+-        void *world_ptr = NULL;
+-        error = cls_table_iterator_value_get(&world_ptr, iter);
+-        if (error)
+-            continue;
+-
+-        struct cls_ecs_world *world = world_ptr;
+-        cls_ecs_world_destroy(world);
+-    }
+-
+-    cls_table_iterator_destroy(iter);
+-    cls_table_destroy(ecs->worlds);
+-}
+-
+-int cls_ecs_scene_create_from_world(struct cls_ecs_scene **scene,
+-                                    const struct cls_ecs_world *world,
+-                                    const char *scene_id) {
+-    if (!scene || !world || !scene_id)
+-        return CLS_NULLPTR;
+-
+-    struct cls_ecs_scene *instance = malloc(sizeof(struct cls_ecs_scene));
+-    if (!scene)
+-        return CLS_OUT_OF_MEMORY;
+-
+-    instance->id = scene_id;
+-
+-    int error = cls_array_create(&instance->entities, 32,
+-                                 sizeof(struct cls_ecs_scene_entity));
+-    if (error)
+-        goto cleanup;
+-
+-    size_t e_length = 0;
+-    error = cls_ecs_world_entities_length_get(&e_length, world);
+-    if (error)
+-        goto cleanup;
+-
+-    for (size_t i = 0; i < e_length; ++i) {
+-        cls_entity e = 0;
+-        error = cls_array_elem_get_cpy(&e, world->entities, i);
+-        if (error)
+-            continue;
+-
+-        struct cls_ecs_scene_entity scene_entity = {0};
+-        error = cls_ecs_scene_entity_create(&scene_entity, world, e);
+-        if (error) {
+-            CLS_LOGGER_LOG(
+-                CLS_LOGGER_WARN,
+-                "Saving cls_entity (%u) to scene (%s) from world failed", e,
+-                scene_id);
+-            continue;
+-        }
+-
+-        error = cls_array_push(&instance->entities, &scene_entity);
+-        if (error) {
+-            cls_ecs_scene_entity_destroy(&scene_entity);
+-            continue;
+-        }
+-    }
+-
+-    *scene = instance;
+-    return CLS_SUCCESS;
+-
+-cleanup:
+-    cls_array_destroy(instance->entities);
+-
+-    if (instance)
+-        free(instance);
+-
+-    return error;
+-}
+-
+-int cls_ecs_scene_create_from_query(struct cls_ecs_scene **scene,
+-                                    struct cls_ecs_world_query *query,
+-                                    const char *scene_id) {
+-    if (!scene || !query || !scene_id)
+-        return CLS_NULLPTR;
+-
+-    struct cls_ecs_scene *instance = malloc(sizeof(struct cls_ecs_scene));
+-    if (!scene)
+-        return CLS_OUT_OF_MEMORY;
+-
+-    instance->id = scene_id;
+-
+-    int error = cls_array_create(&instance->entities, 32,
+-                                 sizeof(struct cls_ecs_scene_entity));
+-    if (error)
+-        goto cleanup;
+-
+-    query->current_index = 0;
+-
+-    cls_entity e = CLS_ENTITY_MAX;
+-    while (cls_ecs_world_query_next(&e, query) == CLS_SUCCESS &&
+-           e != CLS_ENTITY_MAX) {
+-        struct cls_ecs_scene_entity scene_entity = {0};
+-        error = cls_ecs_scene_entity_create(&scene_entity, query->world, e);
+-        if (error) {
+-            CLS_LOGGER_LOG(
+-                CLS_LOGGER_WARN,
+-                "Saving cls_entity (%u) to scene (%s) from query failed", e,
+-                scene_id);
+-            continue;
+-        }
+-
+-        error = cls_array_push(&instance->entities, &scene_entity);
+-        if (error) {
+-            cls_ecs_scene_entity_destroy(&scene_entity);
+-            continue;
+-        }
+-    }
+-
+-    *scene = instance;
+-    return CLS_SUCCESS;
+-
+-cleanup:
+-    cls_array_destroy(instance->entities);
+-
+-    if (instance)
+-        free(instance);
+-
+-    return error;
+-}
+-
+-void cls_ecs_scene_destroy(struct cls_ecs_scene *scene) {
+-    if (!scene)
+-        return;
+-
+-    if (scene->entities) {
+-        size_t entity_count = 0;
+-        cls_array_length_get(&entity_count, scene->entities);
+-
+-        for (size_t i = 0; i < entity_count; ++i) {
+-            void *e_ptr = NULL;
+-            cls_array_elem_get(&e_ptr, scene->entities, i);
+-            struct cls_ecs_scene_entity *e = e_ptr;
+-            if (!e || !e->components)
+-                continue;
+-
+-            cls_ecs_scene_entity_destroy(e);
+-        }
+-
+-        cls_array_destroy(scene->entities);
+-    }
+-
+-    free(scene);
+-}
+-
+-int cls_ecs_scene_spawn(const struct cls_ecs_scene *scene,
+-                        struct cls_ecs_world *world) {
+-    if (!scene || !world)
+-        return CLS_NULLPTR;
+-
+-    size_t entities_length = 0;
+-    int error = cls_array_length_get(&entities_length, scene->entities);
+-    if (error)
+-        return error;
+-
+-    for (size_t e_index = 0; e_index < entities_length; ++e_index) {
+-        void *entity_ptr = NULL;
+-        error = cls_array_elem_get(&entity_ptr, scene->entities, e_index);
+-        if (error)
+-            continue;
+-
+-        const struct cls_ecs_scene_entity *scene_entity = entity_ptr;
+-        if (!scene_entity || !scene_entity->components)
+-            continue;
+-
+-        cls_entity e = 0;
+-        error = cls_ecs_world_entity_add(&e, world);
+-        if (error) {
+-            CLS_LOGGER_LOG_ERROR(
+-                CLS_LOGGER_ERROR, error,
+-                "Creating cls_entity while spawning scene failed", "%s");
+-            continue;
+-        }
+-
+-        size_t comp_length = 0;
+-        error = cls_array_length_get(&comp_length, scene_entity->components);
+-        if (error)
+-            continue;
+-
+-        for (size_t comp_index = 0; comp_index < comp_length; ++comp_index) {
+-            void *comp_ptr = NULL;
+-            error = cls_array_elem_get(&comp_ptr, scene_entity->components,
+-                                       comp_index);
+-            if (error)
+-                continue;
+-
+-            const struct cls_ecs_comp_serialized *comp = comp_ptr;
+-            if (!comp || !comp->comp)
+-                continue;
+-
+-            error = cls_ecs_world_component_add_by_id(world, e, comp->id,
+-                                                      comp->comp);
+-            if (error) {
+-                CLS_LOGGER_LOG_ERROR(
+-                    CLS_LOGGER_ERROR, error,
+-                    "Adding component (%u) to cls_entity (%u) failed", comp->id,
+-                    e);
+-            }
+-        }
+-    }
+-
+-    return CLS_SUCCESS;
+-}
+-
+-int cls_ecs_scene_save(const struct cls_ecs_scene *scene, const char *path) {
+-    if (!scene || !path)
+-        return CLS_NULLPTR;
+-
+-    FILE *file = fopen(path, "wb");
+-    if (!file) {
+-        CLS_LOGGER_LOG_ERROR(CLS_LOGGER_ERROR, CLS_FILE_NOT_FOUND,
+-                             "Opening scene file for writing failed: %s", path);
+-        return CLS_FILE_NOT_FOUND;
+-    }
+-
+-    const u32 sig = CLS_ECS_SCENE_FILE_SIG;
+-    const u32 ver = CLS_ECS_SCENE_FILE_VER;
+-    (void)fwrite(&sig, sizeof(u32), 1, file);
+-    (void)fwrite(&ver, sizeof(u32), 1, file);
+-
+-    size_t e_length = 0;
+-    int error = cls_array_length_get(&e_length, scene->entities);
+-    if (error)
+-        goto cleanup;
+-
+-    u32 write_e_length = (u32)e_length;
+-    (void)fwrite(&write_e_length, sizeof(u32), 1, file);
+-
+-    for (size_t e_index = 0; e_index < e_length; ++e_index) {
+-        void *e_ptr = NULL;
+-        error = cls_array_elem_get(&e_ptr, scene->entities, e_index);
+-        if (error)
+-            continue;
+-
+-        const struct cls_ecs_scene_entity *e = e_ptr;
+-        if (!e || !e->components)
+-            continue;
+-
+-        size_t comp_length = 0;
+-        error = cls_array_length_get(&comp_length, e->components);
+-        if (error)
+-            continue;
+-
+-        u32 write_comp_length = (u32)comp_length;
+-        (void)fwrite(&write_comp_length, sizeof(u32), 1, file);
+-
+-        for (size_t comp_index = 0; comp_index < comp_length; ++comp_index) {
+-            void *comp_ptr = NULL;
+-            error = cls_array_elem_get(&comp_ptr, e->components, comp_index);
+-            if (error)
+-                continue;
+-
+-            const struct cls_ecs_comp_serialized *comp = comp_ptr;
+-            if (!comp || !comp->comp)
+-                continue;
+-
+-            (void)fwrite(&comp->id, sizeof(u32), 1, file);
+-            u32 write_size = (u32)comp->size;
+-            (void)fwrite(&write_size, sizeof(u32), 1, file);
+-            (void)fwrite(comp->comp, comp->size, 1, file);
+-        }
+-    }
+-
+-    (void)fclose(file);
+-    return CLS_SUCCESS;
+-
+-cleanup:
+-    if (file)
+-        (void)fclose(file);
+-
+-    return error;
+-}
+-
+-int cls_ecs_scene_load(struct cls_ecs_scene **scene, const char *scene_id,
+-                       const char *path) {
+-    if (!scene || !scene_id || !path)
+-        return CLS_NULLPTR;
+-
+-    int error = CLS_SUCCESS;
+-    struct cls_ecs_scene *instance = calloc(1, sizeof(struct cls_ecs_scene));
+-    FILE *file = fopen(path, "rb");
+-
+-    if (!scene) {
+-        error = CLS_OUT_OF_MEMORY;
+-        goto cleanup;
+-    }
+-
+-    instance->id = scene_id;
+-
+-    if (!file) {
+-        CLS_LOGGER_LOG_ERROR(CLS_LOGGER_ERROR, CLS_FILE_NOT_FOUND,
+-                             "Opening scene file for reading failed: %s", path);
+-        error = CLS_FILE_NOT_FOUND;
+-        goto cleanup;
+-    }
+-
+-    u32 sig = 0;
+-    if (fread(&sig, sizeof(u32), 1, file) != 1 ||
+-        sig != CLS_ECS_SCENE_FILE_SIG) {
+-        CLS_LOGGER_LOG_ERROR(CLS_LOGGER_ERROR, CLS_INVALID_ARG,
+-                             "Tried to load invalid scene file format: %s",
+-                             path);
+-        error = CLS_FILE_CORRUPT;
+-        goto cleanup;
+-    }
+-
+-    u32 ver = 0;
+-    if (fread(&ver, sizeof(u32), 1, file) != 1) {
+-        error = CLS_FILE_CORRUPT;
+-        goto cleanup;
+-    }
+-
+-    if (ver != CLS_ECS_SCENE_FILE_VER) {
+-        if (ver < CLS_ECS_SCENE_FILE_VER)
+-            CLS_LOGGER_LOG_ERROR(
+-                CLS_LOGGER_ERROR, CLS_INVALID_ARG,
+-                "Scene file version (%u) is too old (unsupported): %s", ver,
+-                path);
+-
+-        if (ver > CLS_ECS_SCENE_FILE_VER)
+-            CLS_LOGGER_LOG_ERROR(
+-                CLS_LOGGER_ERROR, CLS_INVALID_ARG,
+-                "Scene file version (%u) is too new (unsupported): %s", ver,
+-                path);
+-
+-        error = CLS_FILE_CORRUPT;
+-        goto cleanup;
+-    }
+-
+-    error = cls_array_create(&instance->entities, 32,
+-                             sizeof(struct cls_ecs_scene_entity));
+-    if (error)
+-        goto cleanup;
+-
+-    cls_entity e_length = 0;
+-    if (fread(&e_length, sizeof(u32), 1, file) != 1) {
+-        error = CLS_FILE_CORRUPT;
+-        goto cleanup;
+-    }
+-
+-    for (cls_entity e_index = 0; e_index < e_length; ++e_index) {
+-        struct cls_ecs_scene_entity e = {0};
+-        error = cls_array_create(&e.components, 8,
+-                                 sizeof(struct cls_ecs_comp_serialized));
+-        if (error)
+-            goto cleanup;
+-
+-        u32 comp_length = 0;
+-        if (fread(&comp_length, sizeof(u32), 1, file) != 1) {
+-            cls_array_destroy(e.components);
+-            error = CLS_FILE_CORRUPT;
+-            goto cleanup;
+-        }
+-
+-        for (u32 comp_index = 0; comp_index < comp_length; ++comp_index) {
+-            struct cls_ecs_comp_serialized comp = {0};
+-
+-            if (fread(&comp.id, sizeof(u32), 1, file) != 1) {
+-                cls_array_destroy(e.components);
+-                error = CLS_FILE_CORRUPT;
+-                goto cleanup;
+-            }
+-
+-            u32 read_size = 0;
+-            if (fread(&read_size, sizeof(u32), 1, file) != 1) {
+-                cls_array_destroy(e.components);
+-                error = CLS_FILE_CORRUPT;
+-                goto cleanup;
+-            }
+-
+-            comp.size = (size_t)read_size;
+-            comp.comp = malloc(comp.size);
+-            if (!comp.comp) {
+-                cls_array_destroy(e.components);
+-                error = CLS_OUT_OF_MEMORY;
+-                goto cleanup;
+-            }
+-
+-            if (fread(comp.comp, comp.size, 1, file) != 1) {
+-                free(comp.comp);
+-                cls_array_destroy(e.components);
+-                error = CLS_FILE_CORRUPT;
+-                goto cleanup;
+-            }
+-
+-            error = cls_array_push(&e.components, &comp);
+-            if (error) {
+-                free(comp.comp);
+-                cls_array_destroy(e.components);
+-                goto cleanup;
+-            }
+-        }
+-
+-        error = cls_array_push(&instance->entities, &e);
+-        if (error) {
+-            cls_array_destroy(e.components);
+-            goto cleanup;
+-        }
+-    }
+-
+-    (void)fclose(file);
+-    *scene = instance;
+-    return CLS_SUCCESS;
++    struct cls_table_iterator *iter = NULL;
++    int error = cls_table_iterator_create(&iter, ecs->worlds);
++    if (error)
++        return;
+ 
+-cleanup:
+-    cls_ecs_scene_destroy(instance);
++    bool iter_next = false;
++    while (cls_table_iterator_next(&iter_next, iter) == CLS_SUCCESS &&
++           iter_next) {
++        void *world_ptr = NULL;
++        error = cls_table_iterator_value_get(&world_ptr, iter);
++        if (error)
++            continue;
+ 
+-    if (file)
+-        (void)fclose(file);
++        struct cls_ecs_world *world = world_ptr;
++        world_destroy(world);
++    }
+ 
+-    return error;
++    cls_table_iterator_destroy(iter);
++    cls_table_destroy(ecs->worlds);
+ }
+ 
+-int cls_ecs_world_add(struct cls_ecs *ecs, const char *id, float tick_rate,
+-                      int priority, bool should_update) {
++int cls_ecs_world_add(struct cls_ecs_world **world, struct cls_ecs *ecs,
++                      const char *id, bool should_update) {
+     if (!ecs || !id)
+         return CLS_NULLPTR;
+ 
+-    struct cls_ecs_world world = {0};
+-    int error = cls_ecs_world_init(&world, tick_rate, priority, should_update);
++    struct cls_ecs_world w = {0};
++    int error = world_init(&w, should_update);
+     if (error)
+         return error;
+ 
+@@ -1172,7 +568,19 @@ int cls_ecs_world_add(struct cls_ecs *ecs, const char *id, float tick_rate,
+     if (error)
+         return error;
+ 
+-    return cls_table_insert(ecs->worlds, &hash, &world);
++    error = cls_table_insert(ecs->worlds, &hash, &w);
++    if (error)
++        return error;
++
++    void *find_ptr = NULL;
++    error = cls_table_find(&find_ptr, ecs->worlds, &hash);
++    if (error)
++        return error;
++
++    if (world)
++        *world = find_ptr;
++
++    return CLS_SUCCESS;
+ }
+ 
+ int cls_ecs_world_remove(struct cls_ecs *ecs, const char *id) {
+@@ -1190,7 +598,7 @@ int cls_ecs_world_remove(struct cls_ecs *ecs, const char *id) {
+         return error;
+ 
+     struct cls_ecs_world *world = world_ptr;
+-    cls_ecs_world_destroy(world);
++    world_destroy(world);
+     return cls_table_remove(NULL, ecs->worlds, &hash);
+ }
+ 
+@@ -1213,15 +621,6 @@ int cls_ecs_world_get(struct cls_ecs_world **world, const struct cls_ecs *ecs,
+     return CLS_SUCCESS;
+ }
+ 
+-int cls_ecs_world_get_all(struct cls_table **worlds,
+-                          const struct cls_ecs *ecs) {
+-    if (!worlds || !ecs)
+-        return CLS_NULLPTR;
+-
+-    *worlds = ecs->worlds;
+-    return CLS_SUCCESS;
+-}
+-
+ int cls_ecs_world_update_all(struct cls_ecs *ecs, struct cls_app *app) {
+     if (!ecs)
+         return CLS_NULLPTR;
+@@ -1292,20 +691,45 @@ int cls_ecs_world_iter_all(struct cls_ecs *in, cls_ecs_world_iter_fn fn,
+     return CLS_SUCCESS;
+ }
+ 
++int cls_ecs_world_flush(struct cls_ecs_world *world) {
++    if (!world)
++        return CLS_NULLPTR;
++
++    size_t pending_deletions_len = 0;
++    int error =
++        cls_array_length_get(&pending_deletions_len, world->pending_deletions);
++    if (error)
++        return error;
++
++    for (size_t i = 0; i < pending_deletions_len; ++i) {
++        cls_entity e = CLS_ENTITY_MAX;
++        error = cls_array_elem_get_cpy(&e, world->pending_deletions, i);
++        if (error)
++            continue;
++
++        error = world_entity_remove(world, e);
++        if (error)
++            CLS_LOGGER_LOG(CLS_LOGGER_ERROR, "Failed to delete cls_entity %u",
++                           e);
++    }
++
++    cls_array_clear(world->pending_deletions);
++    return CLS_SUCCESS;
++}
++
+ int cls_ecs_world_entity_add(cls_entity *e, struct cls_ecs_world *world) {
+     if (!e || !world)
+         return CLS_NULLPTR;
+ 
+-    size_t free_entities_length = 0;
+-    int error =
+-        cls_array_length_get(&free_entities_length, world->free_entities);
++    size_t free_entities_len = 0;
++    int error = cls_array_length_get(&free_entities_len, world->free_entities);
+     if (error)
+         return error;
+ 
+     cls_entity instance = CLS_ENTITY_MAX;
+-    if (free_entities_length > 0) {
++    if (free_entities_len > 0) {
+         error = cls_array_elem_get_cpy(&instance, world->free_entities,
+-                                       free_entities_length - 1);
++                                       free_entities_len - 1);
+         if (error)
+             return error;
+         error = cls_array_pop(NULL, world->free_entities);
+@@ -1330,13 +754,13 @@ int cls_ecs_world_entity_remove(struct cls_ecs_world *world, cls_entity e) {
+     if (e == CLS_ENTITY_MAX)
+         return CLS_INVALID_ARG;
+ 
+-    size_t pending_deletions_length = 0;
+-    int error = cls_array_length_get(&pending_deletions_length,
+-                                     world->pending_deletions);
++    size_t pending_deletions_len = 0;
++    int error =
++        cls_array_length_get(&pending_deletions_len, world->pending_deletions);
+     if (error)
+         return error;
+ 
+-    for (size_t i = 0; i < pending_deletions_length; ++i) {
++    for (size_t i = 0; i < pending_deletions_len; ++i) {
+         cls_entity pending = CLS_ENTITY_MAX;
+         error = cls_array_elem_get_cpy(&pending, world->pending_deletions, i);
+         if (error)
+@@ -1350,11 +774,11 @@ int cls_ecs_world_entity_remove(struct cls_ecs_world *world, cls_entity e) {
+ }
+ 
+ int cls_ecs_world_component_type_add(struct cls_ecs_world *world,
+-                                     const char *id, size_t component_size) {
++                                     const char *id, size_t comp_size) {
+     if (!world)
+         return CLS_NULLPTR;
+ 
+-    struct cls_ecs_world_sparse_set set = {.component_size = component_size,
++    struct cls_ecs_world_sparse_set set = {.component_size = comp_size,
+                                            .sparse = NULL,
+                                            .dense = NULL,
+                                            .data = NULL};
+@@ -1369,14 +793,14 @@ int cls_ecs_world_component_type_add(struct cls_ecs_world *world,
+         goto cleanup;
+ 
+     error = cls_array_create(&set.data, CLS_ECS_WORLD_ENTITY_START_CAPACITY,
+-                             component_size);
++                             comp_size);
+     if (error)
+         goto cleanup;
+ 
+     u32 hash = 0;
+     error = cls_xxhash32(&hash, id, strlen(id), 0);
+     if (error)
+-        return error;
++        goto cleanup;
+ 
+     error = cls_table_insert(world->components, &hash, &set);
+     if (error)
+@@ -1423,7 +847,7 @@ int cls_ecs_world_component_add(struct cls_ecs_world *world, cls_entity e,
+     if (error)
+         return error;
+ 
+-    return cls_ecs_world_component_add_by_id(world, e, hash, comp);
++    return world_component_add_by_id(world, e, hash, comp);
+ }
+ 
+ int cls_ecs_world_component_remove(struct cls_ecs_world *world, cls_entity e,
+@@ -1434,12 +858,12 @@ int cls_ecs_world_component_remove(struct cls_ecs_world *world, cls_entity e,
+     if (e == CLS_ENTITY_MAX)
+         return CLS_INVALID_ARG;
+ 
+-    size_t entities_length = 0;
+-    int error = cls_array_length_get(&entities_length, world->entities);
++    size_t entities_len = 0;
++    int error = cls_array_length_get(&entities_len, world->entities);
+     if (error)
+         return error;
+ 
+-    if (e > entities_length)
++    if (e >= entities_len)
+         return CLS_INVALID_ARG;
+ 
+     u32 hash = 0;
+@@ -1447,7 +871,7 @@ int cls_ecs_world_component_remove(struct cls_ecs_world *world, cls_entity e,
+     if (error)
+         return error;
+ 
+-    return cls_ecs_world_entity_remove_component_by_id(world, e, hash);
++    return world_entity_remove_component_by_id(world, e, hash);
+ }
+ 
+ int cls_ecs_world_component_get(void **comp, const struct cls_ecs_world *world,
+@@ -1476,52 +900,137 @@ int cls_ecs_world_component_get(void **comp, const struct cls_ecs_world *world,
+         return CLS_INVALID_ARG;
+     }
+ 
+-    size_t sparse_length = 0;
+-    error = cls_array_length_get(&sparse_length, set->sparse);
++    size_t sparse_len = 0;
++    error = cls_array_length_get(&sparse_len, set->sparse);
+     if (error)
+         return error;
+ 
+-    if (e >= sparse_length)
++    if (e >= sparse_len)
+         return CLS_INVALID_ARG;
+ 
+-    u32 dense_index = 0;
+-    error = cls_array_elem_get_cpy(&dense_index, set->sparse, e);
++    u32 dense_idx = 0;
++    error = cls_array_elem_get_cpy(&dense_idx, set->sparse, e);
+     if (error)
+         return error;
+ 
+-    size_t dense_length = 0;
+-    error = cls_array_length_get(&dense_length, set->dense);
++    size_t dense_len = 0;
++    error = cls_array_length_get(&dense_len, set->dense);
+     if (error)
+         return error;
+ 
+-    if (dense_index >= dense_length)
++    if (dense_idx >= dense_len)
+         return CLS_INVALID_ARG;
+ 
+     cls_entity check_entity = CLS_ENTITY_MAX;
+-    error = cls_array_elem_get_cpy(&check_entity, set->dense, dense_index);
++    error = cls_array_elem_get_cpy(&check_entity, set->dense, dense_idx);
+     if (error)
+         return error;
+ 
+     if (check_entity != e)
+         return CLS_INVALID_ARG;
+ 
+-    return cls_array_elem_get(comp, set->data, dense_index);
++    return cls_array_elem_get(comp, set->data, dense_idx);
+ }
+ 
+ int cls_ecs_world_query_create(struct cls_ecs_world_query **query,
+-                               struct cls_ecs_world *world, size_t count, ...) {
+-    if (!query || !world)
++                               struct cls_ecs_world *world, size_t comp_count,
++                               const char *ids[]) {
++    if (!query || !world || !ids)
+         return CLS_NULLPTR;
+ 
+-    va_list args;
+-    va_start(args, count);
+-    int error =
+-        cls_ecs_world_query_create_from_va_list(query, world, count, args);
+-    va_end(args);
++    if (comp_count == 0)
++        return CLS_INVALID_ARG;
++
++    struct cls_ecs_world_query *instance =
++        malloc(sizeof(struct cls_ecs_world_query));
++    if (!instance)
++        return CLS_OUT_OF_MEMORY;
++
++    instance->world = world;
++    instance->smallest_set = NULL;
++    instance->current_idx = 0;
++
++    int error = cls_array_create(&instance->comp_ids, comp_count, sizeof(u32));
+     if (error)
+-        return error;
++        goto cleanup;
++
++    error = cls_array_create(&instance->sets, comp_count,
++                             sizeof(struct cls_ecs_world_sparse_set *));
++    if (error)
++        goto cleanup;
++
++    for (size_t i = 0; i < comp_count; ++i) {
++        const char *id = ids[i];
++
++        u32 hash = 0;
++        error = cls_xxhash32(&hash, id, strlen(id), 0);
++        if (error)
++            continue;
++
++        error = cls_array_push(&instance->comp_ids, &hash);
++        if (error)
++            continue;
++
++        void *set_ptr = NULL;
++        error = cls_table_find(&set_ptr, world->components, &hash);
++        if (error)
++            continue;
++
++        if (!set_ptr)
++            continue;
++
++        error = cls_array_push(&instance->sets, (const void *)&set_ptr);
++        if (error)
++            continue;
++    }
++
++    void *set_ptr = NULL;
++    error = cls_array_elem_get(&set_ptr, instance->sets, 0);
++    if (error)
++        goto cleanup;
++
++    struct cls_ecs_world_sparse_set *first_set =
++        *(struct cls_ecs_world_sparse_set **)set_ptr;
++    if (!first_set) {
++        error = CLS_INVALID_ARG;
++        goto cleanup;
++    }
++
++    instance->smallest_set = first_set;
++
++    size_t min_dense_len = 0;
++    error = cls_array_length_get(&min_dense_len, instance->smallest_set->dense);
++    if (error)
++        goto cleanup;
++
++    size_t set_count = 0;
++    error = cls_array_length_get(&set_count, instance->sets);
++    if (error)
++        goto cleanup;
++
++    for (size_t i = 1; i < set_count; ++i) {
++        struct cls_ecs_world_sparse_set *current_set = NULL;
++        error = cls_array_elem_get_cpy((void *)&current_set, instance->sets, i);
++        if (error)
++            continue;
+ 
++        size_t dense_len = 0;
++        error = cls_array_length_get(&dense_len, current_set->dense);
++        if (error)
++            continue;
++
++        if (dense_len < min_dense_len) {
++            instance->smallest_set = current_set;
++            min_dense_len = dense_len;
++        }
++    }
++
++    *query = instance;
+     return CLS_SUCCESS;
++
++cleanup:
++    cls_ecs_world_query_destroy(instance);
++    return error;
+ }
+ 
+ void cls_ecs_world_query_destroy(struct cls_ecs_world_query *query) {
+@@ -1542,65 +1051,68 @@ int cls_ecs_world_query_world_get(struct cls_ecs_world **world,
+     return CLS_SUCCESS;
+ }
+ 
+-int cls_ecs_world_query_next(cls_entity *e, struct cls_ecs_world_query *query) {
+-    if (!e || !query || !query->min_set)
++int cls_ecs_world_query_clear(struct cls_ecs_world_query *query) {
++    if (!query)
++        return CLS_NULLPTR;
++
++    query->current_idx = 0;
++    return CLS_SUCCESS;
++}
++
++int cls_ecs_world_query_next(cls_entity *e, void **comps,
++                             struct cls_ecs_world_query *query) {
++    if (!e || !query || !query->smallest_set)
+         return CLS_INVALID_ARG;
+ 
+     *e = CLS_ENTITY_MAX;
+ 
+-    size_t min_dense_length = 0;
+-    int error = cls_array_length_get(&min_dense_length, query->min_set->dense);
++    size_t min_dense_len = 0;
++    int error =
++        cls_array_length_get(&min_dense_len, query->smallest_set->dense);
+     if (error)
+         return error;
+ 
+-    cls_entity current_e = CLS_ENTITY_MAX;
+-    while (query->current_index < min_dense_length) {
+-        error = cls_array_elem_get_cpy(&current_e, query->min_set->dense,
+-                                       query->current_index++);
+-        if (error != CLS_SUCCESS)
++    while (query->current_idx < min_dense_len) {
++        cls_entity current_e = CLS_ENTITY_MAX;
++        error = cls_array_elem_get_cpy(&current_e, query->smallest_set->dense,
++                                       query->current_idx++);
++        if (error)
+             return error;
+ 
++        size_t len = 0;
++        cls_array_length_get(&len, query->comp_ids);
++
+         bool match = true;
+-        for (size_t i = 0; i < query->arg_count; ++i) {
++        for (size_t i = 0; i < len; ++i) {
+             struct cls_ecs_world_sparse_set *set = NULL;
+-            error = cls_array_elem_get_cpy((void *)&set, query->sets, i);
+-            if (error != CLS_SUCCESS) {
+-                match = false;
+-                break;
+-            }
+-
+-            if (set == query->min_set)
+-                continue;
+-
+-            size_t sparse_length = 0;
+-            error = cls_array_length_get(&sparse_length, set->sparse);
+-            if (error)
+-                return error;
++            cls_array_elem_get_cpy((void *)&set, query->sets, i);
+ 
+-            if (current_e >= sparse_length) {
++            size_t sparse_len = 0;
++            cls_array_length_get(&sparse_len, set->sparse);
++            if (current_e >= sparse_len) {
+                 match = false;
+                 break;
+             }
+ 
+-            size_t dense_length = 0;
+-            error = cls_array_length_get(&dense_length, set->dense);
+-            if (error)
+-                return error;
++            u32 dense_idx = 0;
++            cls_array_elem_get_cpy(&dense_idx, set->sparse, current_e);
+ 
+-            u32 dense_index = 0;
+-            error =
+-                cls_array_elem_get_cpy(&dense_index, set->sparse, current_e);
+-            if (error != CLS_SUCCESS || dense_index >= dense_length) {
++            size_t dense_len = 0;
++            cls_array_length_get(&dense_len, set->dense);
++            if (dense_idx >= dense_len) {
+                 match = false;
+                 break;
+             }
+ 
+             u32 check = 0;
+-            error = cls_array_elem_get_cpy(&check, set->dense, dense_index);
+-            if (error != CLS_SUCCESS || check != current_e) {
++            cls_array_elem_get_cpy(&check, set->dense, dense_idx);
++            if (check != current_e) {
+                 match = false;
+                 break;
+             }
++
++            if (comps)
++                cls_array_elem_get(&comps[i], set->data, dense_idx);
+         }
+ 
+         if (match) {
+@@ -1612,91 +1124,25 @@ int cls_ecs_world_query_next(cls_entity *e, struct cls_ecs_world_query *query) {
+     return CLS_SUCCESS;
+ }
+ 
+-int cls_ecs_world_query_component_get(void **comp,
+-                                      const struct cls_ecs_world_query *query,
+-                                      cls_entity e, const char *id) {
+-    if (!comp || !query)
+-        return CLS_NULLPTR;
+-
+-    u32 hash = 0;
+-    int error = cls_xxhash32(&hash, id, strlen(id), 0);
+-    if (error)
+-        return error;
+-
+-    for (size_t i = 0; i < query->arg_count; ++i) {
+-        u32 stored_id = 0;
+-        error = cls_array_elem_get_cpy(&stored_id, query->comp_ids, i);
+-        if (error)
+-            continue;
+-
+-        if (hash == stored_id) {
+-            struct cls_ecs_world_sparse_set *set = NULL;
+-            error = cls_array_elem_get_cpy((void *)&set, query->sets, i);
+-            if (error)
+-                return error;
+-
+-            size_t sparse_length = 0;
+-            error = cls_array_length_get(&sparse_length, set->sparse);
+-            if (error)
+-                return error;
+-
+-            if (e >= sparse_length)
+-                return CLS_INVALID_ARG;
+-
+-            u32 dense_index = 0;
+-            error = cls_array_elem_get_cpy(&dense_index, set->sparse, e);
+-            if (error)
+-                return error;
+-
+-            size_t data_length = 0;
+-            error = cls_array_length_get(&data_length, set->data);
+-            if (error)
+-                return error;
+-
+-            if (dense_index >= data_length)
+-                return CLS_INVALID_ARG;
+-
+-            error = cls_array_elem_get(comp, set->data, dense_index);
+-            if (error)
+-                return error;
+-
+-            return CLS_SUCCESS;
+-        }
+-    }
+-
+-    return CLS_SUCCESS;
+-}
+-
+ int cls_ecs_world_system_add(struct cls_ecs_world *world, const char *id,
+-                             cls_ecs_world_system_fn system, void *user_data,
+-                             size_t user_data_size, size_t query_count, ...) {
++                             cls_ecs_world_system_fn system, float tick_rate,
++                             size_t comp_count, const char *ids[]) {
+     if (!world)
+         return CLS_NULLPTR;
+ 
+-    struct cls_ecs_world_system new_system = {.system = system,
+-                                              .user_data = NULL};
+-    if (user_data && user_data_size > 0) {
+-        new_system.user_data = malloc(user_data_size);
+-        if (!new_system.user_data)
+-            return CLS_OUT_OF_MEMORY;
+-
+-        memcpy(new_system.user_data, user_data, user_data_size);
+-    }
++    struct cls_ecs_world_system new_system = {
++        .system = system, .tick_rate = tick_rate, .tick_amount = 0};
+ 
+     u32 hash = 0;
+     int error = cls_xxhash32(&hash, id, strlen(id), 0);
+     if (error)
+-        goto cleanup;
+-
+-    if (query_count > 0) {
+-        va_list args;
+-        va_start(args, query_count);
+-        error = cls_ecs_world_query_create_from_va_list(
+-            &new_system.query, world, query_count, args);
+-        va_end(args);
++        return error;
+ 
++    if (comp_count > 0) {
++        error = cls_ecs_world_query_create(&new_system.query, world, comp_count,
++                                           ids);
+         if (error)
+-            goto cleanup;
++            return error;
+     } else {
+         new_system.query = NULL;
+     }
+@@ -1706,16 +1152,10 @@ int cls_ecs_world_system_add(struct cls_ecs_world *world, const char *id,
+         if (new_system.query)
+             cls_ecs_world_query_destroy(new_system.query);
+ 
+-        goto cleanup;
++        return error;
+     }
+ 
+     return CLS_SUCCESS;
+-
+-cleanup:
+-    if (new_system.user_data)
+-        free(new_system.user_data);
+-
+-    return error;
+ }
+ 
+ int cls_ecs_world_system_remove(struct cls_ecs_world *world, const char *id) {
+@@ -1736,52 +1176,109 @@ int cls_ecs_world_system_remove(struct cls_ecs_world *world, const char *id) {
+     if (!system)
+         return CLS_NULLPTR;
+ 
+-    free(system->user_data);
+     cls_ecs_world_query_destroy(system->query);
+     return cls_table_remove(NULL, world->systems, &hash);
+ }
+ 
+-int cls_ecs_world_update(struct cls_ecs_world *world, struct cls_app *app) {
+-    if (!world || !app)
++int cls_ecs_world_singleton_add(struct cls_ecs_world *world, const char *id,
++                                const void *data, size_t size) {
++    if (!world || !id || !data)
+         return CLS_NULLPTR;
+ 
+-    if (!world->should_update)
+-        return CLS_SUCCESS;
++    u32 hash = 0;
++    int error = cls_xxhash32(&hash, id, strlen(id), 0);
++    if (error)
++        return error;
++
++    void *slot = NULL;
++    if (cls_table_find(&slot, world->singletons, &hash) == CLS_SUCCESS &&
++        slot) {
++        struct cls_ecs_singleton *existing = slot;
++        if (existing->size != size) {
++            void *new_data = realloc(existing->data, size);
++            if (!new_data)
++                return CLS_OUT_OF_MEMORY;
++            existing->data = new_data;
++            existing->size = size;
++        }
+ 
+-    if (world->tick_rate < 0.0f)
++        memcpy(existing->data, data, size);
+         return CLS_SUCCESS;
++    }
+ 
+-    if (world->tick_rate < 0.00001f) {
+-        int error = cls_ecs_world_run_systems(world, app);
+-        if (error)
+-            return error;
++    void *copy = malloc(size);
++    if (!copy)
++        return CLS_OUT_OF_MEMORY;
+ 
+-        return cls_ecs_world_delete_entities(world);
++    memcpy(copy, data, size);
++
++    struct cls_ecs_singleton singleton = {.data = copy, .size = size};
++    error = cls_table_insert(world->singletons, &hash, &singleton);
++    if (error) {
++        free(copy);
++        return error;
+     }
+ 
+-    float dt = 0;
+-    int error = cls_window_timing_dt_get(&dt, app->window);
++    return CLS_SUCCESS;
++}
++
++int cls_ecs_world_singleton_remove(struct cls_ecs_world *world,
++                                   const char *id) {
++    if (!world || !id)
++        return CLS_NULLPTR;
++
++    u32 hash = 0;
++    int error = cls_xxhash32(&hash, id, strlen(id), 0);
+     if (error)
+         return error;
+ 
+-    float tick_interval = 1.0f / world->tick_rate;
+-    world->tick_amount += dt;
++    void *slot = NULL;
++    error = cls_table_find(&slot, world->singletons, &hash);
++    if (error)
++        return error;
+ 
+-    while (world->tick_amount >= tick_interval) {
+-        error = cls_ecs_world_run_systems(world, app);
+-        if (error)
+-            return error;
++    if (slot)
++        free(((struct cls_ecs_singleton *)slot)->data);
+ 
+-        error = cls_ecs_world_delete_entities(world);
+-        if (error)
+-            return error;
++    return cls_table_remove(NULL, world->singletons, &hash);
++}
+ 
+-        world->tick_amount -= tick_interval;
+-    }
++int cls_ecs_world_singleton_get(void **out, const struct cls_ecs_world *world,
++                                const char *id) {
++    if (!out || !world || !id)
++        return CLS_NULLPTR;
++
++    u32 hash = 0;
++    int error = cls_xxhash32(&hash, id, strlen(id), 0);
++    if (error)
++        return error;
++
++    void *slot = NULL;
++    error = cls_table_find(&slot, world->singletons, &hash);
++    if (error)
++        return error;
++
++    if (!slot)
++        return CLS_INVALID_ARG;
+ 
++    *out = ((struct cls_ecs_singleton *)slot)->data;
+     return CLS_SUCCESS;
+ }
+ 
++int cls_ecs_world_update(struct cls_ecs_world *world, struct cls_app *app) {
++    if (!world || !app)
++        return CLS_NULLPTR;
++
++    if (!world->should_update)
++        return CLS_SUCCESS;
++
++    int error = world_run_systems(world, app);
++    if (error)
++        return error;
++
++    return cls_ecs_world_flush(world);
++}
++
+ int cls_ecs_world_entities_length_get(size_t *len,
+                                       const struct cls_ecs_world *world) {
+     if (!len || !world)
+diff --git a/src/ecs/preset/presets.c b/src/ecs/preset/presets.c
+index 6efe0cf..2c12528 100644
+--- a/src/ecs/preset/presets.c
++++ b/src/ecs/preset/presets.c
+@@ -1,3 +1,4 @@
++#include "cls/ecs/component/components.h"
+ #include <cglm/ivec4.h>
+ #include <cglm/vec2.h>
+ #include <cls/app/assets.h>
+@@ -12,17 +13,15 @@
+ #include <stdio.h>
+ 
+ int cls_preset_group_despawn(cls_entity e, struct cls_ecs_world *world) {
+-    struct group *g = NULL;
+-    int error =
+-        cls_ecs_world_component_get((void **)&g, world, e, CLS_COMP_GROUP);
++    void *g_ptr = NULL;
++    int error = cls_ecs_world_component_get(&g_ptr, world, e, CLS_COMP_GROUP);
+     if (error)
+         return error;
+ 
+-    if (!g)
+-        return CLS_NULLPTR;
+-
++    struct group *g = g_ptr;
+     struct cls_ecs_world_query *query = NULL;
+-    error = cls_ecs_world_query_create(&query, world, 1, CLS_COMP_GROUP);
++    error = cls_ecs_world_query_create(&query, world, 1,
++                                       (const char *[]){CLS_COMP_GROUP});
+     if (error)
+         return error;
+ 
+@@ -31,17 +30,12 @@ int cls_preset_group_despawn(cls_entity e, struct cls_ecs_world *world) {
+ 
+     u32 id = g->grp_id;
+     cls_entity e_next = CLS_ENTITY_MAX;
+-    while (cls_ecs_world_query_next(&e_next, query) == CLS_SUCCESS &&
+-           e_next != U32_MAX) {
++    void *comps[1] = {NULL};
++    while (cls_ecs_world_query_next(&e_next, comps, query) == CLS_SUCCESS &&
++           e_next != CLS_ENTITY_MAX) {
+         // TODO: Need to cache the deleted entities or something to prevent
+         // deleting entities on error (delete then error problem)
+-        void *grp_ptr = NULL;
+-        error = cls_ecs_world_query_component_get(&grp_ptr, query, e_next,
+-                                                  CLS_COMP_GROUP);
+-        if (error)
+-            continue;
+-
+-        struct group *grp = grp_ptr;
++        struct group *grp = comps[0];
+         if (!grp)
+             continue;
+ 
+@@ -72,8 +66,8 @@ int cls_preset_camera_ortho_spawn(cls_entity *camera,
+                               .near_clip = near_clip,
+                               .far_clip = far_clip,
+                               .layer = layer,
+-                              .update = true};
+-    struct transform tf = {.pos = {pos[0], pos[1], pos[2]}};
++                              .dirty = true};
++    struct transform tf = {.pos = {pos[0], pos[1], pos[2]}, .dirty = true};
+ 
+     glm_mat4_identity(cam_comp.view);
+     glm_mat4_identity(cam_comp.projection);
+@@ -130,7 +124,8 @@ int cls_preset_renderable_spawn(cls_entity *ren, struct cls_ecs_world *world,
+     struct transform tf = {.pos = {pos[0], pos[1], pos[2]},
+                            .scale = {scale[0], scale[1], scale[2]},
+                            .rot_axis = {0.0f, 0.0f, 1.0f},
+-                           .rot_angle = rot_angle};
++                           .rot_angle = rot_angle,
++                           .dirty = true};
+ 
+     glm_ivec4_copy(tint, ren_comp.tint);
+ 
+@@ -166,7 +161,7 @@ int cls_preset_renderable_spawn(cls_entity *ren, struct cls_ecs_world *world,
+ 
+     return CLS_SUCCESS;
+ cleanup:
+-    if (root != U32_MAX)
++    if (root != CLS_ENTITY_MAX)
+         cls_ecs_world_entity_remove(world, root);
+ 
+     return error;
+@@ -190,7 +185,7 @@ int cls_preset_sprite_spawn(cls_entity *sprite, struct cls_ecs_world *world,
+     return cls_preset_renderable_spawn(
+         sprite, world, "quad", "sprite", texture2d_id,
+         (vec3){pos[0], pos[1], z_index}, (vec3){scale[0], scale[1], 1.0f},
+-        rot_angle, uv_offset, uv_scale, tint, visible, false, false, true,
++        rot_angle, uv_offset, uv_scale, tint, visible, true, false, true,
+         GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+ }
+ 
+@@ -274,14 +269,14 @@ cleanup:
+ }
+ 
+ int cls_preset_label_spawn(cls_entity *label, struct cls_ecs_world *world,
+-                           struct cls_assets *assets, const char *id, vec2 pos,
+-                           float z_index, const char *text, int font_size,
+-                           const char *font_id, bool visible, ivec4 tint) {
+-    struct ui ui = {.interactable = false};
+-    struct label label_comp = {.font_size = font_size};
+-    struct transform tf = {.pos = {pos[0], pos[1], z_index},
+-                           .rot_axis = {0.0f, 0.0f, 1.0f},
+-                           .rot_angle = 0.0f};
++                           const char *id, vec2 pos, float z_index,
++                           const char *text, int font_size, const char *font_id,
++                           bool visible, ivec4 tint) {
++    if (!world || !id || !text || !font_id)
++        return CLS_NULLPTR;
++
++    struct label label_comp = {.font_size = font_size, .visible = visible};
++    glm_ivec4_copy((int *)tint, label_comp.tint);
+ 
+     int ret = snprintf(label_comp.text, sizeof(label_comp.text), "%s", text);
+     if (ret < 0)
+@@ -296,15 +291,10 @@ int cls_preset_label_spawn(cls_entity *label, struct cls_ecs_world *world,
+     if (error)
+         return error;
+ 
+-    const struct cls_font *f = NULL;
+-    error = cls_assets_font_get(&f, assets, label_comp.font_id);
+-    if (error)
+-        return error;
+-
+-    if (!f) {
+-        CLS_LOGGER_LOG(CLS_LOGGER_ERROR, "%s", "Missing font for ui label");
+-        return CLS_NULLPTR;
+-    }
++    struct transform tf = {.pos = {pos[0], pos[1], z_index},
++                           .scale = {1.0f, 1.0f, 1.0f},
++                           .rot_axis = {0.0f, 0.0f, 1.0f},
++                           .rot_angle = 0.0f};
+ 
+     cls_entity root = CLS_ENTITY_MAX;
+     error = cls_ecs_world_entity_add(&root, world);
+@@ -316,71 +306,14 @@ int cls_preset_label_spawn(cls_entity *label, struct cls_ecs_world *world,
+     if (error)
+         goto cleanup;
+ 
+-    error = cls_ecs_world_component_add(world, root, CLS_COMP_LABEL_GROUP,
+-                                        &(struct label_group){0});
+-    if (error)
+-        goto cleanup;
+-
+-    error = cls_ecs_world_component_add(world, root, CLS_COMP_UI, &ui);
+-    if (error)
+-        return error;
+-
+     error =
+         cls_ecs_world_component_add(world, root, CLS_COMP_LABEL, &label_comp);
+     if (error)
+-        return error;
+-
+-    float scale = (float)label_comp.font_size / (float)f->pixel_size;
+-    float cursor_x = tf.pos[0];
+-    float cursor_y = tf.pos[1];
+-    size_t text_length = strlen(label_comp.text);
+-
+-    for (size_t i = 0; i < text_length; ++i) {
+-        u8 c = (u8)label_comp.text[i];
+-        if (c < CLS_FONT_CHAR_START || c > CLS_FONT_CHAR_END)
+-            continue;
+-
+-        const struct cls_glyph *glyph_data =
+-            &f->glyphs[c - CLS_FONT_CHAR_START];
+-        if (glyph_data->width == 0 || glyph_data->height == 0) {
+-            cursor_x += (float)glyph_data->advance * scale;
+-            continue;
+-        }
+-
+-        float pos_x = cursor_x + (float)glyph_data->bearing_x * scale +
+-                      ((float)glyph_data->width * scale * 0.5f);
+-        float pos_y = cursor_y - (float)glyph_data->bearing_y * scale +
+-                      ((float)glyph_data->height * scale * 0.5f);
+-
+-        vec3 glyph_pos = {pos_x, pos_y, tf.pos[2]};
+-        vec3 glyph_scale = {(float)glyph_data->width * scale,
+-                            (float)glyph_data->height * scale, 1.0f};
+-
+-        cls_entity glyph = CLS_ENTITY_MAX;
+-        error = cls_preset_renderable_spawn(
+-            &glyph, world, "quad", "font", font_id, glyph_pos, glyph_scale,
+-            0.0f,
+-            (vec2){(float)glyph_data->atlas_x / (float)f->atlas_width,
+-                   (float)glyph_data->atlas_y / (float)f->atlas_height},
+-            (vec2){(float)glyph_data->width / (float)f->atlas_width,
+-                   (float)glyph_data->height / (float)f->atlas_height},
+-            tint, visible, false, false, true, GL_SRC_ALPHA,
+-            GL_ONE_MINUS_SRC_ALPHA);
+-        if (error)
+-            goto cleanup;
+-
+-        error = cls_ecs_world_component_add(world, glyph, CLS_COMP_GROUP,
+-                                            &(struct group){.grp_id = id_hash});
+-        if (error)
+-            goto cleanup;
+-
+-        error = cls_ecs_world_component_add(world, glyph, CLS_COMP_LABEL_GROUP,
+-                                            &(struct label_group){0});
+-        if (error)
+-            goto cleanup;
++        goto cleanup;
+ 
+-        cursor_x += (float)glyph_data->advance * scale;
+-    }
++    error = cls_ecs_world_component_add(world, root, CLS_COMP_TRANSFORM, &tf);
++    if (error)
++        goto cleanup;
+ 
+     if (label)
+         *label = root;
+@@ -388,8 +321,6 @@ int cls_preset_label_spawn(cls_entity *label, struct cls_ecs_world *world,
+     return CLS_SUCCESS;
+ 
+ cleanup:
+-    // TODO: Cleanup all entities, would need to make an array to keep track of
+-    // all characters and delete them later
+-    // Or use the built in group id component
++    cls_ecs_world_entity_remove(world, root);
+     return error;
+ }
+diff --git a/src/ecs/system/button.c b/src/ecs/system/button.c
+deleted file mode 100644
+index 99e8fe5..0000000
+--- a/src/ecs/system/button.c
++++ /dev/null
+@@ -1,109 +0,0 @@
+-#include <GLFW/glfw3.h>
+-#include <cls/app/app.h>
+-#include <cls/app/window.h>
+-#include <cls/ecs/component/camera.h>
+-#include <cls/ecs/component/components.h>
+-#include <cls/ecs/ecs.h>
+-#include <cls/util/error.h>
+-#include <cls/util/globals.h>
+-#include <cls/util/logger.h>
+-#include <stdio.h>
+-
+-int button_system(struct cls_ecs_world_query *query, struct cls_app *app,
+-                  void *user_data) {
+-    (void)user_data;
+-
+-    if (!query || !app)
+-        return CLS_NULLPTR;
+-
+-    struct camera *cam_data = NULL;
+-    cls_entity cam = CLS_ENTITY_MAX;
+-    struct cls_ecs_world *world = NULL;
+-    int error = cls_ecs_world_query_world_get(&world, query);
+-    if (error)
+-        return error;
+-
+-    struct cls_ecs_world_query *cam_query = NULL;
+-    error = cls_ecs_world_query_create(&cam_query, world, 2, CLS_COMP_CAMERA,
+-                                       CLS_COMP_CAMERA_ACTIVE);
+-    if (error)
+-        return error;
+-
+-    while (cls_ecs_world_query_next(&cam, cam_query) == CLS_SUCCESS &&
+-           cam != CLS_ENTITY_MAX) {
+-        void *cam_ptr = NULL;
+-        error = cls_ecs_world_query_component_get(&cam_ptr, cam_query, cam,
+-                                                  CLS_COMP_CAMERA);
+-        if (error)
+-            continue;
+-
+-        cam_data = cam_ptr;
+-        if (cam)
+-            break;
+-    }
+-
+-    cls_ecs_world_query_destroy(cam_query);
+-
+-    if (!cam)
+-        return CLS_NULLPTR;
+-
+-    u32 button = U32_MAX;
+-    while (cls_ecs_world_query_next(&button, query) == CLS_SUCCESS &&
+-           button != U32_MAX) {
+-        void *button_comp_ptr = NULL;
+-        error = cls_ecs_world_query_component_get(&button_comp_ptr, query,
+-                                                  button, CLS_COMP_BUTTON);
+-        if (error)
+-            continue;
+-
+-        struct button *button_comp = button_comp_ptr;
+-        if (!button_comp)
+-            continue;
+-
+-        void *tf_ptr = NULL;
+-        error = cls_ecs_world_query_component_get(&tf_ptr, query, button,
+-                                                  CLS_COMP_TRANSFORM);
+-        if (error)
+-            continue;
+-
+-        struct transform *tf = tf_ptr;
+-        if (!tf)
+-            continue;
+-
+-        float half_width = tf->scale[0] * 0.5f;
+-        float half_height = tf->scale[1] * 0.5f;
+-        float min_x = tf->pos[0] - half_width;
+-        float max_x = tf->pos[0] + half_width;
+-        float min_y = tf->pos[1] - half_height;
+-        float max_y = tf->pos[1] + half_height;
+-
+-        vec2 cursor_pos = {0};
+-        error = cls_window_input_cursor_pos_get(cursor_pos, app->window);
+-        if (error)
+-            return error;
+-
+-        ivec2 fb_size = {0};
+-        error = cls_window_fb_size_get(fb_size, app->window);
+-        if (error)
+-            return error;
+-
+-        vec2 cursor_world = {0};
+-        camera_screen_to_world(cursor_world, cam_data, cursor_pos, fb_size);
+-
+-        bool inside = cursor_world[0] >= min_x && cursor_world[0] <= max_x &&
+-                      cursor_world[1] >= min_y && cursor_world[1] <= max_y;
+-
+-        button_comp->hovering = inside;
+-
+-        if (inside) {
+-            cls_window_input_mouse_pressed(&button_comp->pressed, app->window,
+-                                           GLFW_MOUSE_BUTTON_LEFT);
+-            cls_window_input_mouse_released(&button_comp->released, app->window,
+-                                            GLFW_MOUSE_BUTTON_LEFT);
+-            cls_window_input_mouse_down(&button_comp->down, app->window,
+-                                        GLFW_MOUSE_BUTTON_LEFT);
+-        }
+-    }
+-
+-    return CLS_SUCCESS;
+-}
+diff --git a/src/gfx/gl/mesh.c b/src/gfx/gl/mesh.c
+index 40b3b4f..d379bad 100644
+--- a/src/gfx/gl/mesh.c
++++ b/src/gfx/gl/mesh.c
+@@ -1,8 +1,10 @@
++#include "cls/util/logger.h"
+ #include <cglm/types.h>
+ #include <cls/gfx/gl/mesh.h>
+ #include <cls/util/error.h>
+ #include <cls/util/types.h>
+ #include <stddef.h>
++#include <string.h>
+ 
+ int cls_gl_mesh_init(struct cls_gl_mesh *mesh,
+                      const struct cls_vertex *vertices, size_t vertex_count,
+@@ -61,19 +63,28 @@ int cls_gl_mesh_draw(const struct cls_gl_mesh *mesh) {
+ int cls_gl_mesh_draw_instanced(struct cls_gl_mesh *mesh,
+                                struct cls_gl_mesh_instance_data *instances,
+                                GLsizei instance_count) {
+-    if (!mesh || instance_count == 0)
++    if (!mesh)
+         return CLS_NULLPTR;
+ 
++    if (instance_count == 0)
++        return CLS_INVALID_ARG;
++
+     if (mesh->instance_vbo == 0) {
+         glGenBuffers(1, &mesh->instance_vbo);
+         glBindVertexArray(mesh->vao);
+         glBindBuffer(GL_ARRAY_BUFFER, mesh->instance_vbo);
+-        glBufferData(GL_ARRAY_BUFFER,
+-                     (GLsizeiptr)((size_t)instance_count *
+-                                  sizeof(struct cls_gl_mesh_instance_data)),
+-                     NULL, GL_DYNAMIC_DRAW);
++
++        glBufferData(
++            GL_ARRAY_BUFFER,
++            (GLsizeiptr)((GLsizeiptr)instance_count *
++                         (GLsizeiptr)sizeof(struct cls_gl_mesh_instance_data)),
++            NULL, GL_DYNAMIC_DRAW);
++        mesh->instance_capacity =
++            (GLsizeiptr)instance_count *
++            (GLsizeiptr)sizeof(struct cls_gl_mesh_instance_data);
+ 
+         GLsizei stride = sizeof(struct cls_gl_mesh_instance_data);
++
+         size_t offset_mvp = offsetof(struct cls_gl_mesh_instance_data, mvp);
+         for (GLuint i = 0; i < 4; ++i) {
+             glEnableVertexAttribArray(3 + i);
+@@ -102,21 +113,28 @@ int cls_gl_mesh_draw_instanced(struct cls_gl_mesh *mesh,
+         glVertexAttribPointer(9, 2, GL_FLOAT, GL_FALSE, stride,
+                               (const void *)offset_uv_scale);
+         glVertexAttribDivisor(9, 1);
++
++        glBindVertexArray(0);
++        glBindBuffer(GL_ARRAY_BUFFER, 0);
+     }
+ 
++    GLsizeiptr size = (GLsizeiptr)instance_count *
++                      (GLsizeiptr)sizeof(struct cls_gl_mesh_instance_data);
++
++    glBindVertexArray(mesh->vao);
+     glBindBuffer(GL_ARRAY_BUFFER, mesh->instance_vbo);
+-    GLsizeiptr size = (GLsizeiptr)((size_t)instance_count *
+-                                   sizeof(struct cls_gl_mesh_instance_data));
+ 
+-    if (size > mesh->instance_capacity) {
+-        glBufferData(GL_ARRAY_BUFFER, size, instances, GL_DYNAMIC_DRAW);
++    // Grow buffer if needed
++    if (size > (GLsizeiptr)mesh->instance_capacity) {
++        glBufferData(GL_ARRAY_BUFFER, size, NULL, GL_DYNAMIC_DRAW);
+         mesh->instance_capacity = size;
+-    } else {
+-        glBufferSubData(GL_ARRAY_BUFFER, 0, size, instances);
+     }
+ 
+-    glBindVertexArray(mesh->vao);
++    glBufferSubData(GL_ARRAY_BUFFER, 0, size, instances);
+     glDrawElementsInstanced(GL_TRIANGLES, mesh->index_count, GL_UNSIGNED_INT, 0,
+                             instance_count);
++
++    glBindBuffer(GL_ARRAY_BUFFER, 0);
++    glBindVertexArray(0);
+     return CLS_SUCCESS;
+ }
+diff --git a/src/gfx/gl/renderer.c b/src/gfx/gl/renderer.c
+index 578cd3f..22a3098 100644
+--- a/src/gfx/gl/renderer.c
++++ b/src/gfx/gl/renderer.c
+@@ -5,15 +5,15 @@
+ #include <cls/ecs/component/camera.h>
+ #include <cls/ecs/component/components.h>
+ #include <cls/gfx/batch.h>
+-#include <cls/gfx/cmd.h>
+ #include <cls/gfx/gl/mesh.h>
++#include <cls/gfx/renderer.h>
+ #include <cls/gfx/shader.h>
+ #include <cls/util/array.h>
+ #include <cls/util/error.h>
+ #include <cls/util/logger.h>
+ #include <cls/util/mem.h>
+ 
+-#if DEBUG
++#if NDEBUG
+ void GLAPIENTRY msg_callback(GLenum source, GLenum type, GLuint id,
+                              GLenum severity, GLsizei length,
+                              const GLchar *message, const void *user) {
+@@ -24,9 +24,9 @@ void GLAPIENTRY msg_callback(GLenum source, GLenum type, GLuint id,
+ 
+     if (severity == GL_DEBUG_SEVERITY_MEDIUM ||
+         severity == GL_DEBUG_SEVERITY_HIGH) {
+-        enum logger_level level = severity == GL_DEBUG_SEVERITY_HIGH
+-                                      ? CLS_LOGGER_ERROR
+-                                      : CLS_LOGGER_WARN;
++        enum cls_logger_level level = severity == GL_DEBUG_SEVERITY_HIGH
++                                          ? CLS_LOGGER_ERROR
++                                          : CLS_LOGGER_WARN;
+         CLS_LOGGER_LOG(level, "GL 0x%x: %s\n", type, message);
+     }
+ }
+@@ -36,7 +36,7 @@ int cls_gl_renderer_init(ivec4 bg_color) {
+     if (!gladLoadGL((GLADloadfunc)glfwGetProcAddress))
+         return CLS_GL;
+ 
+-#if DEBUG
++#if NDEBUG
+     glEnable(GL_DEBUG_OUTPUT);
+     glDebugMessageCallback(msg_callback, 0);
+ #endif
+@@ -79,7 +79,8 @@ static void apply_render_state(const struct render_state *state) {
+     }
+ }
+ 
+-static int render_batch(struct cls_app *app, struct cls_renderer_batch *batch) {
++static int render_batch(struct cls_app *app, struct cls_array *cmds,
++                        struct cls_renderer_batch *batch) {
+     struct cls_gl_mesh *mesh = NULL;
+     int error = cls_assets_mesh_get(&mesh, app->assets, batch->data.mesh_id);
+     if (error)
+@@ -110,69 +111,72 @@ static int render_batch(struct cls_app *app, struct cls_renderer_batch *batch) {
+         return error;
+ 
+     if (cmds_length > 1) {
+-        size_t instance_count = cmds_length;
+-        if (instance_count == 0)
+-            return CLS_SUCCESS;
+-
+-        struct cls_gl_mesh_instance_data *instances = NULL;
+-        error = cls_mem_alloc((void **)&instances, app->mem_frame,
++        void *instances_ptr = NULL;
++        error = cls_mem_alloc(&instances_ptr, app->mem_frame,
+                               sizeof(struct cls_gl_mesh_instance_data) *
+                                   cmds_length,
+                               alignof(struct cls_gl_mesh_instance_data));
+         if (error)
+             return error;
+ 
+-        for (size_t i = 0; i < instance_count; ++i) {
+-            void *cmd_ptr = NULL;
+-            error = cls_array_elem_get(&cmd_ptr, batch->cmds, i);
++        struct cls_gl_mesh_instance_data *instances = instances_ptr;
++        if (!instances)
++            return error;
++
++        for (size_t i = 0; i < cmds_length; ++i) {
++            size_t cmd_idx = 0;
++            error = cls_array_elem_get_cpy(&cmd_idx, batch->cmds, i);
+             if (error)
+                 continue;
+ 
+-            if (!cmd_ptr)
++            void *cmd_ptr = NULL;
++            error = cls_array_elem_get(&cmd_ptr, cmds, cmd_idx);
++            if (error)
+                 continue;
+ 
+-            struct cls_renderer_cmd *cmd = *(struct cls_renderer_cmd **)cmd_ptr;
++            struct cls_renderer_cmd *cmd = cmd_ptr;
+             if (!cmd)
+                 continue;
+ 
+-            glm_mat4_copy(cmd->mvp, instances[i].mvp);
+-            glm_vec4_copy((vec4){(float)cmd->ren->tint[0] / 255.0f,
+-                                 (float)cmd->ren->tint[1] / 255.0f,
+-                                 (float)cmd->ren->tint[2] / 255.0f,
+-                                 (float)cmd->ren->tint[3] / 255.0f},
++            glm_mat4_copy(cmd->ren.mvp, instances[i].mvp);
++            glm_vec4_copy((vec4){(float)cmd->ren.tint[0] / 255.0f,
++                                 (float)cmd->ren.tint[1] / 255.0f,
++                                 (float)cmd->ren.tint[2] / 255.0f,
++                                 (float)cmd->ren.tint[3] / 255.0f},
+                           instances[i].tint);
+-            glm_vec2_copy(cmd->ren->uv_offset, instances[i].uv_offset);
+-            glm_vec2_copy(cmd->ren->uv_scale, instances[i].uv_scale);
++            glm_vec2_copy(cmd->ren.uv_offset, instances[i].uv_offset);
++            glm_vec2_copy(cmd->ren.uv_scale, instances[i].uv_scale);
+         }
+ 
+         cls_gl_shader_set_bool(shader->gl.id, "u_use_instancing", GL_TRUE);
+-        cls_gl_mesh_draw_instanced((struct cls_gl_mesh *)mesh, instances,
+-                                   (GLsizei)instance_count);
++        cls_gl_mesh_draw_instanced(mesh, instances, (GLsizei)cmds_length);
+     } else {
+         for (size_t i = 0; i < cmds_length; ++i) {
+-            void *cmd_ptr = NULL;
+-            error = cls_array_elem_get(&cmd_ptr, batch->cmds, i);
++            size_t cmd_idx = 0;
++            error = cls_array_elem_get_cpy(&cmd_idx, batch->cmds, i);
+             if (error)
+                 continue;
+ 
+-            if (!cmd_ptr)
++            void *cmd_ptr = NULL;
++            error = cls_array_elem_get(&cmd_ptr, cmds, cmd_idx);
++            if (error)
+                 continue;
+ 
+-            struct cls_renderer_cmd *cmd = *(struct cls_renderer_cmd **)cmd_ptr;
++            struct cls_renderer_cmd *cmd = cmd_ptr;
+             if (!cmd)
+                 continue;
+ 
+-            vec4 tint = {(float)cmd->ren->tint[0] / 255.0f,
+-                         (float)cmd->ren->tint[1] / 255.0f,
+-                         (float)cmd->ren->tint[2] / 255.0f,
+-                         (float)cmd->ren->tint[3] / 255.0f};
++            vec4 tint = {(float)cmd->ren.tint[0] / 255.0f,
++                         (float)cmd->ren.tint[1] / 255.0f,
++                         (float)cmd->ren.tint[2] / 255.0f,
++                         (float)cmd->ren.tint[3] / 255.0f};
+ 
+-            cls_gl_shader_set_mat4(shader->gl.id, "u_mvp", &cmd->mvp);
++            cls_gl_shader_set_mat4(shader->gl.id, "u_mvp", &cmd->ren.mvp);
+             cls_gl_shader_set_vec4(shader->gl.id, "u_tint", &tint);
+             cls_gl_shader_set_vec2(shader->gl.id, "u_uv_offset",
+-                                   &cmd->ren->uv_offset);
++                                   &cmd->ren.uv_offset);
+             cls_gl_shader_set_vec2(shader->gl.id, "u_uv_scale",
+-                                   &cmd->ren->uv_scale);
++                                   &cmd->ren.uv_scale);
+             cls_gl_shader_set_bool(shader->gl.id, "u_use_instancing", GL_FALSE);
+             cls_gl_mesh_draw(mesh);
+         }
+@@ -204,7 +208,8 @@ void cls_gl_renderer_begin_frame(void) {
+     glDisable(GL_BLEND);
+ }
+ 
+-int cls_gl_renderer_draw_batches(struct cls_app *app, struct cls_array *batches,
++int cls_gl_renderer_draw_batches(struct cls_app *app, struct cls_array *cmds,
++                                 struct cls_array *batches,
+                                  struct cls_array *transparent_batches) {
+     if (!app || !batches)
+         return CLS_NULLPTR;
+@@ -224,12 +229,13 @@ int cls_gl_renderer_draw_batches(struct cls_app *app, struct cls_array *batches,
+         error = cls_array_elem_get(&batch_ptr, batches, i);
+         if (error)
+             continue;
++
+         struct cls_renderer_batch *batch = batch_ptr;
+         if (!batch || batch->data.state.blending)
+             continue; // Skip transparent batches
+ 
+         apply_render_state(&batch->data.state);
+-        error = render_batch(app, batch);
++        error = render_batch(app, cmds, batch);
+         if (error)
+             continue;
+     }
+@@ -274,7 +280,7 @@ int cls_gl_renderer_draw_batches(struct cls_app *app, struct cls_array *batches,
+             *(struct cls_renderer_batch **)batch_ptr;
+ 
+         apply_render_state(&batch->data.state);
+-        error = render_batch(app, batch);
++        error = render_batch(app, cmds, batch);
+         if (error)
+             continue;
+     }
+diff --git a/src/gfx/renderer.c b/src/gfx/renderer.c
+index b9542f1..482429f 100644
+--- a/src/gfx/renderer.c
++++ b/src/gfx/renderer.c
+@@ -5,7 +5,6 @@
+ #include <cls/ecs/component/components.h>
+ #include <cls/ecs/ecs.h>
+ #include <cls/gfx/batch.h>
+-#include <cls/gfx/cmd.h>
+ #include <cls/gfx/gfx_api.h>
+ #include <cls/gfx/renderer.h>
+ #include <cls/util/arena.h>
+@@ -14,11 +13,11 @@
+ #include <cls/util/logger.h>
+ #include <cls/util/profiler.h>
+ 
+-#define START_CMD_CAPACITY 128
+-#define BATCH_START_CAPACITY 64
++static const size_t CMD_START_CAPACITY = 128;
++static const size_t BATCH_START_CAPACITY = 128;
+ 
+ struct cls_renderer {
+-    struct cls_mem *mem_frame;
++    struct cls_array *cmds;
+     struct cls_array *batches;
+     struct cls_array *transparent_batches;
+     struct cls_table *batch_indices;
+@@ -28,31 +27,33 @@ struct cls_renderer {
+ 
+ struct cls_ecs_renderer_ctx {
+     struct cls_app *app;
+-    struct camera *active_cam;
++    struct camera *cam;
+     struct cls_renderer *rend;
+     struct renderable *ren;
+     struct transform *cam_tf;
+     struct transform *tf;
+     struct cls_ecs_world *world;
++    bool cam_dirty;
+ };
+ 
+-struct world_render_ctx {
++struct render_world_ctx {
+     struct cls_ecs_world *world;
+     struct camera *cam;
+     struct transform *cam_tf;
+ };
+ 
+ static int add_cmd_to_render_batch(struct cls_renderer *rend,
+-                                   struct cls_renderer_cmd *cmd) {
+-    if (!rend || !cmd || !cmd->ren)
++                                   struct cls_renderer_cmd *cmd,
++                                   size_t cmd_idx) {
++    if (!rend || !cmd)
+         return CLS_NULLPTR;
+ 
+     struct cls_renderer_batch_data key = {
+-        .state = cmd->ren->state,
+-        .mesh_id = cmd->ren->mesh_id,
+-        .shader_id = cmd->ren->shader_id,
+-        .texture_id = cmd->ren->texture_id,
+-        .transparent = cmd->ren->opacity < 1.0f,
++        .state = cmd->ren.state,
++        .mesh_id = cmd->ren.mesh_id,
++        .shader_id = cmd->ren.shader_id,
++        .texture_id = cmd->ren.texture_id,
++        .transparent = cmd->ren.opacity < 1.0f,
+     };
+ 
+     void *found_ptr = NULL;
+@@ -60,9 +61,9 @@ static int add_cmd_to_render_batch(struct cls_renderer *rend,
+     if (error)
+         return error;
+ 
+-    struct cls_array *batch_cmds = NULL;
++    struct cls_array *new_batch_cmds = NULL;
+     size_t *found = found_ptr;
+-    size_t batch_index = 0;
++    size_t batch_idx = 0;
+     if (!found) {
+         struct cls_renderer_batch new_batch = {.data = key, .cmds = NULL};
+         error = cls_array_push(&rend->batches, &new_batch);
+@@ -74,30 +75,21 @@ static int add_cmd_to_render_batch(struct cls_renderer *rend,
+         if (error)
+             return error;
+ 
+-        batch_index = batches_len - 1;
+-        error = cls_table_insert(rend->batch_indices, &key, &batch_index);
++        batch_idx = batches_len - 1;
++        error = cls_table_insert(rend->batch_indices, &key, &batch_idx);
+         if (error)
+             return error;
+ 
+-        void *batch_ptr = NULL;
+-        error = cls_array_elem_get(&batch_ptr, rend->batches, batch_index);
+-        if (error)
+-            return error;
+-
+-        struct cls_renderer_batch *batch = batch_ptr;
+-        if (!batch)
+-            return error;
+-
+-        error = cls_array_create(&batch_cmds, BATCH_START_CAPACITY,
+-                                 sizeof(struct cls_renderer_cmd *));
++        error = cls_array_create(&new_batch_cmds, BATCH_START_CAPACITY,
++                                 sizeof(size_t));
+         if (error)
+             goto cleanup;
+     } else {
+-        batch_index = *found;
++        batch_idx = *found;
+     }
+ 
+     void *batch_ptr = NULL;
+-    error = cls_array_elem_get(&batch_ptr, rend->batches, batch_index);
++    error = cls_array_elem_get(&batch_ptr, rend->batches, batch_idx);
+     if (error)
+         return error;
+ 
+@@ -106,125 +98,63 @@ static int add_cmd_to_render_batch(struct cls_renderer *rend,
+         return error;
+ 
+     if (!found)
+-        batch->cmds = batch_cmds;
+-
+-    size_t cmds_length = 0;
+-    cls_array_length_get(&cmds_length, batch->cmds);
+-    batch->depth = (batch->depth * (float)cmds_length + cmd->depth) /
+-                   ((float)cmds_length + 1);
++        batch->cmds = new_batch_cmds;
+ 
+-    return cls_array_push(&batch->cmds, (void *)&cmd);
+-
+-cleanup:
+-    cls_array_destroy(batch_cmds);
+-    return error;
+-}
+-
+-static int add_ecs_base_renderer_cmd(struct cls_ecs_renderer_ctx *ctx) {
+-    cls_arena_marker marker = 0;
+-    int error = cls_arena_marker_save(&marker, ctx->app->arena_frame);
++    size_t cmds_len = 0;
++    error = cls_array_length_get(&cmds_len, batch->cmds);
+     if (error)
+         return error;
+ 
+-    void *cmd_ptr = NULL;
+-    error = cls_mem_alloc(&cmd_ptr, ctx->rend->mem_frame,
+-                          sizeof(struct cls_renderer_cmd),
+-                          alignof(struct cls_renderer_cmd));
+-    if (error)
+-        goto cleanup;
+-
+-    struct cls_renderer_cmd *cmd = cmd_ptr;
+-    if (!cmd)
+-        goto cleanup;
+-
+-    cmd->ren = ctx->ren;
+-
+-    vec3 delta = {0.0f};
+-    glm_vec3_sub(ctx->tf->pos, ctx->cam_tf->pos, delta);
+-    cmd->depth = glm_vec3_dot(ctx->active_cam->forward, delta);
+-
+-    mat4 model = {{0.0f}};
+-    glm_mat4_identity(model);
+-    glm_translate(model, ctx->tf->pos);
+-    glm_rotate_at(model, ctx->tf->origin, ctx->tf->rot_angle,
+-                  ctx->tf->rot_axis);
+-    glm_scale(model, ctx->tf->scale);
++    batch->depth =
++        (batch->depth * (float)cmds_len + cmd->depth) / ((float)cmds_len + 1);
+ 
+-    glm_mat4_identity(cmd->mvp);
+-    glm_mat4_mul(cmd->mvp, ctx->active_cam->projection, cmd->mvp);
+-    glm_mat4_mul(cmd->mvp, ctx->active_cam->view, cmd->mvp);
+-    glm_mat4_mul(cmd->mvp, model, cmd->mvp);
+-
+-    error = add_cmd_to_render_batch(ctx->rend, cmd);
+-    if (error)
+-        goto cleanup;
+-
+-    return CLS_SUCCESS;
++    return cls_array_push(&batch->cmds, &cmd_idx);
+ 
+ cleanup:
+-    cls_arena_marker_restore(ctx->app->arena_frame, &marker);
++    cls_array_destroy(new_batch_cmds);
+     return error;
+ }
+ 
+-static int find_active_camera(struct camera **cam, struct transform **tf,
+-                              struct cls_ecs_world *world) {
+-    if (!cam || !world)
+-        return CLS_NULLPTR;
+-
+-    struct cls_ecs_world_query *cam_query = NULL;
+-    int error =
+-        cls_ecs_world_query_create(&cam_query, world, 3, CLS_COMP_CAMERA,
+-                                   CLS_COMP_CAMERA_ACTIVE, CLS_COMP_TRANSFORM);
++static int create_batches(struct cls_renderer *rend) {
++    size_t cmds_len = 0;
++    int error = cls_array_length_get(&cmds_len, rend->cmds);
+     if (error)
+         return error;
+ 
+-    cls_entity e = CLS_ENTITY_MAX;
+-    while (cls_ecs_world_query_next(&e, cam_query) == CLS_SUCCESS &&
+-           e != CLS_ENTITY_MAX) {
+-        void *cam_ptr = NULL;
+-        error = cls_ecs_world_query_component_get(&cam_ptr, cam_query, e,
+-                                                  CLS_COMP_CAMERA);
++    for (size_t i = 0; i < cmds_len; ++i) {
++        void *cmd_ptr = NULL;
++        error = cls_array_elem_get(&cmd_ptr, rend->cmds, i);
+         if (error)
+             continue;
+ 
+-        void *tf_ptr = NULL;
+-        error = cls_ecs_world_query_component_get(&tf_ptr, cam_query, e,
+-                                                  CLS_COMP_TRANSFORM);
++        struct cls_renderer_cmd *cmd = cmd_ptr;
++        error = add_cmd_to_render_batch(rend, cmd, i);
+         if (error)
+             continue;
+-
+-        *cam = cam_ptr;
+-        *tf = tf_ptr;
+     }
+ 
+-    cls_ecs_world_query_destroy(cam_query);
+     return CLS_SUCCESS;
+ }
+ 
+-static int world_render_ctx_layer_compare(const void *a, const void *b) {
+-    const struct world_render_ctx *wa = a;
+-    const struct world_render_ctx *wb = b;
+-
+-    if (wa->cam->layer > wb->cam->layer)
+-        return 1;
+-
+-    if (wa->cam->layer < wb->cam->layer)
+-        return -1;
++static int renderer_draw(struct cls_renderer *rend, struct cls_app *app) {
++    int error = rend->api->draw_batches(app, rend->cmds, rend->batches,
++                                        rend->transparent_batches);
++    if (error)
++        return error;
+ 
+-    return 0;
++    return CLS_SUCCESS;
+ }
+ 
+-static int renderer_frame_reset(struct cls_renderer *rend,
+-                                struct cls_app *app) {
++static void renderer_frame_destroy(struct cls_renderer *rend) {
+     if (!rend)
+-        return CLS_NULLPTR;
++        return;
+ 
+-    size_t batches_length = 0;
+-    int error = cls_array_length_get(&batches_length, rend->batches);
++    size_t batches_len = 0;
++    int error = cls_array_length_get(&batches_len, rend->batches);
+     if (error)
+-        return error;
++        return;
+ 
+-    for (size_t i = 0; i < batches_length; ++i) {
++    for (size_t i = 0; i < batches_len; ++i) {
+         void *batch_ptr = NULL;
+         error = cls_array_elem_get(&batch_ptr, rend->batches, i);
+         if (error)
+@@ -234,191 +164,51 @@ static int renderer_frame_reset(struct cls_renderer *rend,
+         if (batch)
+             cls_array_destroy(batch->cmds);
+     }
+-
+-    error = cls_array_clear(rend->batches);
+-    if (error)
+-        return error;
+-
+-    error = cls_table_clear(rend->batch_indices);
+-    if (error)
+-        return error;
+-
+-    error = cls_arena_clear(app->arena_frame);
+-    if (error)
+-        return error;
+-
+-    return CLS_SUCCESS;
+ }
+ 
+-static int create_ecs_render_cmds(struct cls_renderer *rend,
+-                                  struct cls_app *app) {
+-    if (!app)
++static int renderer_frame_reset(struct cls_renderer *rend,
++                                struct cls_app *app) {
++    if (!rend)
+         return CLS_NULLPTR;
+ 
+-    struct cls_table *ecs_worlds = NULL;
+-    int error = cls_ecs_world_get_all(&ecs_worlds, app->ecs);
+-    if (error)
+-        return error;
+-
+-    struct cls_array *world_ctxs = NULL;
+-    error = cls_array_create(&world_ctxs, 8, sizeof(struct world_render_ctx));
+-    if (error)
+-        return error;
+-
+-    struct cls_table_iterator *iter = NULL;
+-    error = cls_table_iterator_create(&iter, ecs_worlds);
++    size_t batches_length = 0;
++    int error = cls_array_length_get(&batches_length, rend->batches);
+     if (error)
+         return error;
+ 
+-    bool iter_next = false;
+-    while (cls_table_iterator_next(&iter_next, iter) == CLS_SUCCESS &&
+-           iter_next) {
+-        void *world_ptr = NULL;
+-        error = cls_table_iterator_value_get(&world_ptr, iter);
++    for (size_t i = 0; i < batches_length; ++i) {
++        void *batch_ptr = NULL;
++        error = cls_array_elem_get(&batch_ptr, rend->batches, i);
+         if (error)
+             continue;
+ 
+-        struct cls_ecs_world *world = world_ptr;
+-        if (!world)
+-            continue;
+-
+-        struct camera *cam = NULL;
+-        struct transform *cam_tf = NULL;
+-        error = find_active_camera(&cam, &cam_tf, world);
+-        if (error || !cam || !cam_tf)
+-            continue;
+-
+-        error = cls_array_push(&world_ctxs, &(struct world_render_ctx){
+-                                                .world = world,
+-                                                .cam = cam,
+-                                                .cam_tf = cam_tf,
+-                                            });
+-        if (error)
+-            continue;
++        struct cls_renderer_batch *batch = batch_ptr;
++        if (batch)
++            cls_array_destroy(batch->cmds);
+     }
+ 
+-    cls_table_iterator_destroy(iter);
+-
+-    size_t world_count = 0;
+-    error = cls_array_length_get(&world_count, world_ctxs);
++    error = cls_array_clear(rend->cmds);
+     if (error)
+         return error;
+ 
+-    void *world_ctxs_data = NULL;
+-    error = cls_array_data_get(&world_ctxs_data, world_ctxs);
++    error = cls_array_clear(rend->batches);
+     if (error)
+         return error;
+ 
+-    // World layer based sorting provided by the user
+-    qsort(world_ctxs_data, world_count, sizeof(struct world_render_ctx),
+-          world_render_ctx_layer_compare);
+-
+-    ivec2 fb_size = {0};
+-    error = cls_window_fb_size_get(fb_size, app->window);
++    error = cls_table_clear(rend->batch_indices);
+     if (error)
+         return error;
+ 
+-    for (size_t i = 0; i < world_count; ++i) {
+-        void *wctx_ptr = NULL;
+-        error = cls_array_elem_get(&wctx_ptr, world_ctxs, i);
+-        if (error || !wctx_ptr)
+-            continue;
+-
+-        struct world_render_ctx *wctx = wctx_ptr;
+-        if (!wctx)
+-            continue;
+-
+-        camera_resize(wctx->cam, fb_size);
+-        if (wctx->cam->update) {
+-            error = camera_update(wctx->cam, wctx->cam_tf);
+-            if (error)
+-                CLS_LOGGER_LOG_ERROR(CLS_LOGGER_ERROR, error, "%s",
+-                                     "Updating renderer active camera failed");
+-        }
+-
+-        struct cls_ecs_renderer_ctx ctx = {
+-            .app = app,
+-            .active_cam = wctx->cam,
+-            .cam_tf = wctx->cam_tf,
+-            .rend = rend,
+-            .world = wctx->world,
+-        };
+-
+-        struct cls_ecs_world_query *query = NULL;
+-        error = cls_ecs_world_query_create(
+-            &query, wctx->world, 2, CLS_COMP_RENDERABLE, CLS_COMP_TRANSFORM);
+-        if (error)
+-            continue;
+-
+-        cls_entity e = CLS_ENTITY_MAX;
+-        while (cls_ecs_world_query_next(&e, query) == CLS_SUCCESS &&
+-               e != CLS_ENTITY_MAX) {
+-            void *ren_ptr = NULL;
+-            error = cls_ecs_world_query_component_get(&ren_ptr, query, e,
+-                                                      CLS_COMP_RENDERABLE);
+-            if (error)
+-                continue;
+-
+-            void *tf_ptr = NULL;
+-            error = cls_ecs_world_query_component_get(&tf_ptr, query, e,
+-                                                      CLS_COMP_TRANSFORM);
+-            if (error)
+-                continue;
+-
+-            struct renderable *ren = ren_ptr;
+-            struct transform *tf = tf_ptr;
+-
+-            if (!ren || !tf || !ren->visible)
+-                continue;
+-
+-            ctx.ren = ren;
+-            ctx.tf = tf;
+-
+-            error = add_ecs_base_renderer_cmd(&ctx);
+-            if (error)
+-                continue;
+-        }
+-
+-        cls_ecs_world_query_destroy(query);
+-
+-        error = rend->api->draw_batches(app, rend->batches,
+-                                        rend->transparent_batches);
+-        if (error)
+-            continue;
+-
+-        error = renderer_frame_reset(rend, app);
+-        if (error)
+-            return error;
+-    }
+-
+-    cls_array_destroy(world_ctxs);
+-    return CLS_SUCCESS;
+-}
+-
+-static void renderer_frame_destroy(struct cls_renderer *rend) {
+-    if (!rend)
+-        return;
+-
+-    size_t batches_length = 0;
+-    int error = cls_array_length_get(&batches_length, rend->batches);
++    error = cls_arena_clear(app->arena_frame);
+     if (error)
+-        return;
+-
+-    for (size_t i = 0; i < batches_length; ++i) {
+-        void *batch_ptr = NULL;
+-        error = cls_array_elem_get(&batch_ptr, rend->batches, i);
+-        if (error)
+-            continue;
++        return error;
+ 
+-        struct cls_renderer_batch *batch = batch_ptr;
+-        if (batch)
+-            cls_array_destroy(batch->cmds);
+-    }
++    return CLS_SUCCESS;
+ }
+ 
+ int cls_renderer_create(struct cls_renderer **rend, struct cls_mem *mem_perm,
+                         struct cls_mem *mem_frame, struct cls_gfx_api *api,
+-                        ivec4 bg_color) {
++                        const ivec4 bg_color) {
+     if (!rend || !mem_frame || !api)
+         return CLS_NULLPTR;
+ 
+@@ -433,21 +223,25 @@ int cls_renderer_create(struct cls_renderer **rend, struct cls_mem *mem_perm,
+     if (!instance)
+         return CLS_NULLPTR;
+ 
+-    instance->mem_frame = mem_frame;
+     instance->api = api;
+-    glm_ivec4_copy(bg_color, instance->bg_color);
++    glm_ivec4_copy((int *)bg_color, instance->bg_color);
++
++    error = cls_array_create(&instance->cmds, CMD_START_CAPACITY,
++                             sizeof(struct cls_renderer_cmd));
++    if (error)
++        goto cleanup;
+ 
+-    error = cls_array_create(&instance->batches, START_CMD_CAPACITY,
++    error = cls_array_create(&instance->batches, CMD_START_CAPACITY,
+                              sizeof(struct cls_renderer_batch));
+     if (error)
+         goto cleanup;
+ 
+-    error = cls_array_create(&instance->transparent_batches, START_CMD_CAPACITY,
++    error = cls_array_create(&instance->transparent_batches, CMD_START_CAPACITY,
+                              sizeof(struct cls_renderer_batch *));
+     if (error)
+         goto cleanup;
+ 
+-    error = cls_table_create(&instance->batch_indices, START_CMD_CAPACITY,
++    error = cls_table_create(&instance->batch_indices, CMD_START_CAPACITY,
+                              sizeof(struct cls_renderer_batch_data),
+                              sizeof(size_t));
+     if (error)
+@@ -470,6 +264,7 @@ void cls_renderer_destroy(struct cls_renderer *rend) {
+         return;
+ 
+     renderer_frame_destroy(rend);
++    cls_array_destroy(rend->cmds);
+     cls_array_destroy(rend->batches);
+     cls_array_destroy(rend->transparent_batches);
+     cls_table_destroy(rend->batch_indices);
+@@ -490,14 +285,27 @@ int cls_renderer_on_resize(struct cls_renderer *rend, int width, int height) {
+     return CLS_SUCCESS;
+ }
+ 
++int cls_renderer_cmd_push(struct cls_renderer *rend, struct renderable *ren,
++                          struct transform *tf, float depth) {
++    if (!rend || !ren || !tf)
++        return CLS_NULLPTR;
++
++    struct cls_renderer_cmd cmd = {.ren = *ren, .tf = *tf, .depth = depth};
++    return cls_array_push(&rend->cmds, &cmd);
++}
++
+ int cls_renderer_frame_create(struct cls_renderer *rend, struct cls_app *app) {
+     if (!rend || !app)
+         return CLS_NULLPTR;
+ 
+     rend->api->begin_frame();
+-    int error = create_ecs_render_cmds(rend, app);
++    int error = create_batches(rend);
+     if (error)
+         return error;
+ 
+-    return CLS_SUCCESS;
++    error = renderer_draw(rend, app);
++    if (error)
++        return error;
++
++    return renderer_frame_reset(rend, app);
+ }
+diff --git a/src/io/ascii.c b/src/io/ascii.c
+index ef0032b..abf3b42 100644
+--- a/src/io/ascii.c
++++ b/src/io/ascii.c
+@@ -20,8 +20,8 @@ int cls_ascii_init(const char **ascii, const char *path) {
+         goto cleanup;
+     }
+ 
+-    long length = ftell(file);
+-    if (length < 0) {
++    long len = ftell(file);
++    if (len < 0) {
+         error = CLS_ACCESS_DENIED;
+         goto cleanup;
+     }
+@@ -31,7 +31,7 @@ int cls_ascii_init(const char **ascii, const char *path) {
+         goto cleanup;
+     }
+ 
+-    size_t buffer_size = (size_t)length + 1;
++    size_t buffer_size = (size_t)len + 1;
+     file_buffer = malloc(buffer_size);
+     if (!file_buffer) {
+         error = CLS_OUT_OF_MEMORY;
+@@ -39,7 +39,7 @@ int cls_ascii_init(const char **ascii, const char *path) {
+     }
+ 
+     size_t read_size = fread(file_buffer, 1, buffer_size, file);
+-    if (read_size != (size_t)length) {
++    if (read_size != (size_t)len) {
+         error = CLS_ACCESS_DENIED;
+         goto cleanup;
+     }
+diff --git a/src/io/font.c b/src/io/font.c
+index 9b68eb8..fc9ac78 100644
+--- a/src/io/font.c
++++ b/src/io/font.c
+@@ -13,10 +13,10 @@
+ #include <stdlib.h>
+ #include <string.h>
+ 
+-#define FONT_MIN_ATLAS_SIZE 128
+-#define FONT_MAX_ATLAS_SIZE 2048
+-#define FONT_GLYPH_PADDING 2 // Prevents texture bleeding
+-#define FONT_SDF_SPREAD 8 // SDF spread in pixels
++static const unsigned int FONT_MIN_ATLAS_SIZE = 128;
++static const unsigned int FONT_MAX_ATLAS_SIZE = 2048;
++static const unsigned int FONT_GLYPH_PADDING = 2; // Prevents texture bleeding
++static const u8 FONT_SDF_SPREAD = 8; // SDF spread in pixels
+ 
+ struct cls_font_meta {
+     unsigned int atlas_width;
+@@ -79,15 +79,15 @@ static int font_save(const struct cls_font *f, const char *path) {
+                                  .atlas_height = f->atlas_height,
+                                  .pixel_size = f->pixel_size,
+                                  .sdf_spread = FONT_SDF_SPREAD};
+-    unsigned long length = fwrite(&meta, sizeof(meta), 1, file);
+-    if (length < 1) {
++    unsigned long len = fwrite(&meta, sizeof(meta), 1, file);
++    if (len < 1) {
+         error = CLS_ACCESS_DENIED;
+         goto cleanup;
+     }
+ 
+-    length =
++    len =
+         fwrite(f->glyphs, sizeof(struct cls_glyph), CLS_FONT_CHAR_LENGTH, file);
+-    if (length < CLS_FONT_CHAR_LENGTH) {
++    if (len < CLS_FONT_CHAR_LENGTH) {
+         error = CLS_ACCESS_DENIED;
+         goto cleanup;
+     }
+@@ -201,7 +201,7 @@ int cls_font_init(struct cls_font *f, FT_Library ft, const char *path,
+     unsigned int total_area = 0;
+     unsigned int max_width = 0;
+     unsigned int max_height = 0;
+-    for (u8 c = CLS_FONT_CHAR_START; c <= CLS_FONT_CHAR_END; ++c) {
++    for (u8 c = CLS_FONT_CHAR_START; c <= (u8)CLS_FONT_CHAR_END; ++c) {
+         // Load with SDF render mode
+         if (FT_Load_Char(f->face, c, FT_LOAD_DEFAULT))
+             continue;
+@@ -236,7 +236,7 @@ int cls_font_init(struct cls_font *f, FT_Library ft, const char *path,
+         unsigned int test_shelf_height = 0;
+         packing_success = true;
+ 
+-        for (u8 c = CLS_FONT_CHAR_START; c <= CLS_FONT_CHAR_END; ++c) {
++        for (u8 c = CLS_FONT_CHAR_START; c <= (u8)CLS_FONT_CHAR_END; ++c) {
+             if (FT_Load_Char(f->face, c, FT_LOAD_DEFAULT))
+                 continue;
+ 
+@@ -277,7 +277,7 @@ int cls_font_init(struct cls_font *f, FT_Library ft, const char *path,
+     unsigned int shelf_y = 0;
+     unsigned int shelf_height = 0;
+ 
+-    for (u8 c = CLS_FONT_CHAR_START; c <= CLS_FONT_CHAR_END; ++c) {
++    for (u8 c = CLS_FONT_CHAR_START; c <= (u8)CLS_FONT_CHAR_END; ++c) {
+         if (FT_Load_Char(f->face, c, FT_LOAD_DEFAULT))
+             continue;
+ 
+diff --git a/src/util/array.c b/src/util/array.c
+index 82b95f6..2a8b23e 100644
+--- a/src/util/array.c
++++ b/src/util/array.c
+@@ -15,6 +15,39 @@ struct cls_array {
+     void *data;
+ };
+ 
++static int array_grow(struct cls_array **in) {
++    struct cls_array *array = *in;
++    size_t new_capacity =
++        (size_t)((double)array->capacity * ARRAY_GROWTH_FACTOR);
++
++    if (new_capacity <= array->capacity)
++        new_capacity = array->capacity + 1;
++
++    const size_t align = alignof(max_align_t);
++    size_t total_size = sizeof(struct cls_array) +
++                        new_capacity * array->elem_size + (align - 1);
++
++    size_t old_data_offset = (size_t)((u8 *)array->data - (u8 *)array);
++
++    struct cls_array *temp = realloc(array, total_size);
++    if (!temp)
++        return CLS_OUT_OF_MEMORY;
++
++    uintptr_t base = (uintptr_t)temp + sizeof(struct cls_array);
++    uintptr_t aligned = (base + (align - 1)) & ~(uintptr_t)(align - 1);
++    void *new_data = (void *)aligned;
++
++    if (new_data != (void *)((u8 *)temp + old_data_offset)) {
++        memmove(new_data, (u8 *)temp + old_data_offset,
++                temp->length * temp->elem_size);
++    }
++
++    temp->data = new_data;
++    temp->capacity = new_capacity;
++    *in = temp;
++    return CLS_SUCCESS;
++}
++
+ int cls_array_create(struct cls_array **a, size_t start_capacity,
+                      size_t elem_size) {
+     if (!a)
+@@ -107,39 +140,6 @@ int cls_array_elem_set(struct cls_array *a, size_t index, const void *data) {
+     return CLS_SUCCESS;
+ }
+ 
+-static int array_grow(struct cls_array **in) {
+-    struct cls_array *array = *in;
+-    size_t new_capacity =
+-        (size_t)((double)array->capacity * ARRAY_GROWTH_FACTOR);
+-
+-    if (new_capacity <= array->capacity)
+-        new_capacity = array->capacity + 1;
+-
+-    const size_t align = alignof(max_align_t);
+-    size_t total_size = sizeof(struct cls_array) +
+-                        new_capacity * array->elem_size + (align - 1);
+-
+-    size_t old_data_offset = (size_t)((u8 *)array->data - (u8 *)array);
+-
+-    struct cls_array *temp = realloc(array, total_size);
+-    if (!temp)
+-        return CLS_OUT_OF_MEMORY;
+-
+-    uintptr_t base = (uintptr_t)temp + sizeof(struct cls_array);
+-    uintptr_t aligned = (base + (align - 1)) & ~(uintptr_t)(align - 1);
+-    void *new_data = (void *)aligned;
+-
+-    if (new_data != (void *)((u8 *)temp + old_data_offset)) {
+-        memmove(new_data, (u8 *)temp + old_data_offset,
+-                temp->length * temp->elem_size);
+-    }
+-
+-    temp->data = new_data;
+-    temp->capacity = new_capacity;
+-    *in = temp;
+-    return CLS_SUCCESS;
+-}
+-
+ int cls_array_push(struct cls_array **in, const void *data) {
+     if (!in || !*in || !data)
+         return CLS_NULLPTR;
+diff --git a/src/util/table.c b/src/util/table.c
+index 97b0001..86c740e 100644
+--- a/src/util/table.c
++++ b/src/util/table.c
+@@ -6,12 +6,11 @@
+ #include <stdlib.h>
+ #include <string.h>
+ 
+-#define MIN_CAPACITY 16
+-#define MIN_LOAD_FACTOR 0.25
+-#define MAX_LOAD_FACTOR 0.75
+-#define GROWTH_FACTOR 2
+-#define SHRINK_FACTOR 0.5
+-#define SLOT_METADATA_SIZE 8
++static const double MIN_LOAD_FACTOR = 0.25;
++static const double MAX_LOAD_FACTOR = 0.75;
++static const double SHRINK_FACTOR = 0.5;
++static const size_t GROWTH_FACTOR = 2;
++static const size_t SLOT_METADATA_SIZE = 8;
+ 
+ struct cls_table {
+     size_t capacity;
+@@ -24,7 +23,7 @@ struct cls_table {
+ 
+ struct cls_table_iterator {
+     const struct cls_table *t;
+-    size_t current_index;
++    size_t current_idx;
+     void *key;
+     void *value;
+ };
+@@ -42,21 +41,21 @@ static size_t table_calculate_slot_size(size_t key_size, size_t value_size) {
+ }
+ 
+ static int cls_table_get_slot(void **slot, const struct cls_table *t,
+-                              size_t index) {
++                              size_t idx) {
+     if (!slot || !t)
+         return CLS_NULLPTR;
+ 
+-    *slot = (u8 *)t->slots + index * t->slot_size;
++    *slot = (u8 *)t->slots + idx * t->slot_size;
+     return CLS_SUCCESS;
+ }
+ 
+ static int cls_table_get_metadata(u8 **meta, const struct cls_table *t,
+-                                  size_t index) {
++                                  size_t idx) {
+     if (!meta || !t)
+         return CLS_NULLPTR;
+ 
+     void *slot = NULL;
+-    int error = cls_table_get_slot(&slot, t, index);
++    int error = cls_table_get_slot(&slot, t, idx);
+     if (error)
+         return error;
+ 
+@@ -65,12 +64,12 @@ static int cls_table_get_metadata(u8 **meta, const struct cls_table *t,
+ }
+ 
+ static int cls_table_get_key(void **key, const struct cls_table *t,
+-                             size_t index) {
++                             size_t idx) {
+     if (!key || !t)
+         return CLS_NULLPTR;
+ 
+     void *slot = NULL;
+-    int error = cls_table_get_slot(&slot, t, index);
++    int error = cls_table_get_slot(&slot, t, idx);
+     if (error)
+         return error;
+ 
+@@ -81,12 +80,12 @@ static int cls_table_get_key(void **key, const struct cls_table *t,
+ }
+ 
+ static int cls_table_get_value(void **value, const struct cls_table *t,
+-                               size_t index) {
++                               size_t idx) {
+     if (!value || !t)
+         return CLS_NULLPTR;
+ 
+     void *slot = NULL;
+-    int error = cls_table_get_slot(&slot, t, index);
++    int error = cls_table_get_slot(&slot, t, idx);
+     if (error)
+         return error;
+ 
+@@ -108,10 +107,10 @@ static int cls_table_insert_no_resize(struct cls_table *t, const void *key,
+         return error;
+ 
+     u8 fingerprint = (hash & 0x7f) | 0x80;
+-    u32 index = hash & ((u32)t->capacity - 1);
++    u32 idx = hash & ((u32)t->capacity - 1);
+ 
+     for (size_t i = 0; i < t->capacity; ++i) {
+-        u32 probe = (u32)(index + i) & (u32)(t->capacity - 1);
++        u32 probe = (u32)(idx + i) & (u32)(t->capacity - 1);
+         u8 *probe_metadata = NULL;
+         error = cls_table_get_metadata(&probe_metadata, t, probe);
+         if (error)
+@@ -288,10 +287,10 @@ int cls_table_remove(void *value, struct cls_table *t, const void *key) {
+         return error;
+ 
+     u8 hash_metadata = (hash & 0x7f) | 0x80;
+-    u32 index = hash & (u32)(t->capacity - 1);
++    u32 idx = hash & (u32)(t->capacity - 1);
+ 
+     for (size_t i = 0; i < t->capacity; ++i) {
+-        u32 probe = (u32)(index + i) & (u32)(t->capacity - 1);
++        u32 probe = (u32)(idx + i) & (u32)(t->capacity - 1);
+         u8 *probe_metadata = NULL;
+         error = cls_table_get_metadata(&probe_metadata, t, probe);
+         if (error)
+@@ -346,10 +345,10 @@ int cls_table_find(void **value, const struct cls_table *t, const void *key) {
+         return error;
+ 
+     u8 fingerprint = (hash & 0x7f) | 0x80;
+-    u32 index = hash & (u32)(t->capacity - 1);
++    u32 idx = hash & (u32)(t->capacity - 1);
+ 
+     for (size_t i = 0; i < t->capacity; ++i) {
+-        u32 probe = (u32)(index + i) & (u32)(t->capacity - 1);
++        u32 probe = (u32)(idx + i) & (u32)(t->capacity - 1);
+         u8 *probe_metadata = NULL;
+         error = cls_table_get_metadata(&probe_metadata, t, probe);
+         if (error)
+@@ -419,7 +418,7 @@ int cls_table_iterator_create(struct cls_table_iterator **it,
+         return CLS_OUT_OF_MEMORY;
+ 
+     iter->t = t;
+-    iter->current_index = 0;
++    iter->current_idx = 0;
+     iter->key = NULL;
+     iter->value = NULL;
+ 
+@@ -438,9 +437,9 @@ int cls_table_iterator_next(bool *exists, struct cls_table_iterator *it) {
+     if (!it || !it->t)
+         return CLS_NULLPTR;
+ 
+-    while (it->current_index < it->t->capacity) {
++    while (it->current_idx < it->t->capacity) {
+         u8 *metadata = NULL;
+-        int error = cls_table_get_metadata(&metadata, it->t, it->current_index);
++        int error = cls_table_get_metadata(&metadata, it->t, it->current_idx);
+         if (error)
+             return error;
+ 
+@@ -448,22 +447,22 @@ int cls_table_iterator_next(bool *exists, struct cls_table_iterator *it) {
+             void *key_ptr = NULL;
+             void *value_ptr = NULL;
+ 
+-            error = cls_table_get_key(&key_ptr, it->t, it->current_index);
++            error = cls_table_get_key(&key_ptr, it->t, it->current_idx);
+             if (error)
+                 return error;
+ 
+-            error = cls_table_get_value(&value_ptr, it->t, it->current_index);
++            error = cls_table_get_value(&value_ptr, it->t, it->current_idx);
+             if (error)
+                 return error;
+ 
+             it->key = key_ptr;
+             it->value = value_ptr;
+-            it->current_index++;
++            it->current_idx++;
+             *exists = true;
+             return CLS_SUCCESS;
+         }
+ 
+-        it->current_index++;
++        it->current_idx++;
+     }
+ 
+     it->key = NULL;
+@@ -476,7 +475,7 @@ int cls_table_iterator_clear(struct cls_table_iterator *it) {
+     if (!it)
+         return CLS_NULLPTR;
+ 
+-    it->current_index = 0;
++    it->current_idx = 0;
+     it->key = NULL;
+     it->value = NULL;
+     return CLS_SUCCESS;
+diff --git a/src/util/xxhash32.c b/src/util/xxhash32.c
+index cf08d81..9d399d4 100644
+--- a/src/util/xxhash32.c
++++ b/src/util/xxhash32.c
+@@ -4,11 +4,11 @@
+ #include <stdint.h>
+ #include <string.h>
+ 
+-#define XXH_PRIME32_1 0x9E3779B1U
+-#define XXH_PRIME32_2 0x85EBCA77U
+-#define XXH_PRIME32_3 0xC2B2AE3DU
+-#define XXH_PRIME32_4 0x27D4EB2FU
+-#define XXH_PRIME32_5 0x165667B1U
++static const u32 XXH_PRIME32_1 = 0x9E3779B1U;
++static const u32 XXH_PRIME32_2 = 0x85EBCA77U;
++static const u32 XXH_PRIME32_3 = 0xC2B2AE3DU;
++static const u32 XXH_PRIME32_4 = 0x27D4EB2FU;
++static const u32 XXH_PRIME32_5 = 0x165667B1U;
+ 
+ static u32 rotl32(u32 x, int r) {
+     return (x << r) | (x >> (32 - r));

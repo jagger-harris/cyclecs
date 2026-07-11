@@ -21,7 +21,7 @@ struct cls_app {
 };
 
 int cls_app_init(struct cls_app *app, struct cls_gfx_api *api, ivec2 size,
-                 const char *title, ivec4 bg_color);
+                 const char *title, const ivec4 bg_color);
 void cls_app_destroy(struct cls_app *app);
 int cls_app_run(struct cls_app *app);
 

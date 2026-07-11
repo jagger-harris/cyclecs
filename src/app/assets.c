@@ -13,13 +13,14 @@
 #include <cls/util/types.h>
 #include <cls/util/xxhash32.h>
 
-#define START_CAPACITY 64
 #define CORE_PATH "data/core/"
 #define FONT_PATH CORE_PATH "gfx/fonts/"
 #define SHADER_PATH CORE_PATH "gfx/shaders/"
 #define TEXTURE2D_PATH CORE_PATH "gfx/texture2ds/"
 #define TEXTURE2D_DEFAULT_BLANK "DEFAULT_BLANK"
 #define TEXTURE2D_DEFAULT_MISSING "DEFAULT_MISSING"
+
+static const size_t START_CAPACITY = 64;
 
 struct cls_assets {
     struct cls_table *fonts;
@@ -252,13 +253,18 @@ void cls_assets_font_add(struct cls_assets *assets, const char *font_path,
     return;
 }
 
-int cls_assets_font_get(const struct cls_font **font,
-                        const struct cls_assets *assets, u32 font_id) {
-    if (!font || !assets || !font_id)
+int cls_assets_font_get(struct cls_font **font, const struct cls_assets *assets,
+                        const char *id) {
+    if (!font || !assets || !id)
         return CLS_NULLPTR;
 
+    u32 hash = 0;
+    int error = cls_xxhash32(&hash, id, strlen(id), 0);
+    if (error)
+        return error;
+
     void *found_ptr = NULL;
-    int error = cls_table_find(&found_ptr, assets->fonts, &font_id);
+    error = cls_table_find(&found_ptr, assets->fonts, &hash);
     if (error)
         return error;
 

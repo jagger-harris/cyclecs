@@ -1,4 +1,3 @@
-#include <GLFW/glfw3.h>
 #include <cglm/ivec2.h>
 #include <cglm/vec2.h>
 #include <cls/app/window.h>
@@ -7,6 +6,11 @@
 #include <cls/util/logger.h>
 #include <cls/util/mem.h>
 #include <string.h>
+
+enum {
+    WINDOW_INPUT_KEYS_SIZE = GLFW_KEY_LAST + 1,
+    WINDOW_INPUT_MOUSE_BUTTONS_SIZE = GLFW_MOUSE_BUTTON_LAST + 1,
+};
 
 struct cls_input {
     bool keys[WINDOW_INPUT_KEYS_SIZE];
@@ -47,7 +51,7 @@ static void window_size_callback(GLFWwindow *glfw_window, int width,
 
     if (!window) {
         CLS_LOGGER_LOG_ERROR(CLS_LOGGER_ERROR, CLS_GLFW, "%s",
-                             "GLFW framebuffer resize failed");
+                             "GLFW window resize failed");
         return;
     }
 
@@ -169,7 +173,7 @@ static int timing_create(struct cls_timing **t, struct cls_mem *alloc) {
 int cls_window_create(struct cls_window **win, struct cls_mem *mem_persistant,
                       struct cls_mem *mem_frame, struct cls_gfx_api *api,
                       ivec2 size, const char *title, bool vsync,
-                      ivec4 bg_color) {
+                      const ivec4 bg_color) {
     if (!win || !mem_persistant || !mem_frame || !title)
         return CLS_NULLPTR;
 
@@ -253,6 +257,15 @@ void cls_window_destroy(struct cls_window *win) {
 
     glfwDestroyWindow(win->glfw_window);
     cls_renderer_destroy(win->renderer);
+}
+
+int cls_window_renderer_get(struct cls_renderer **rend,
+                            struct cls_window *win) {
+    if (!rend || !win)
+        return CLS_NULLPTR;
+
+    *rend = win->renderer;
+    return CLS_SUCCESS;
 }
 
 int cls_window_update(bool *should_close, struct cls_window *win) {

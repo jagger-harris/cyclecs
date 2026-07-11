@@ -6,9 +6,11 @@
 #include <stdbool.h>
 #include FT_FREETYPE_H
 
-#define CLS_FONT_CHAR_START 32
-#define CLS_FONT_CHAR_END 126
-#define CLS_FONT_CHAR_LENGTH (CLS_FONT_CHAR_END - CLS_FONT_CHAR_START + 1)
+enum {
+    CLS_FONT_CHAR_START = 32,
+    CLS_FONT_CHAR_END = 126,
+    CLS_FONT_CHAR_LENGTH = CLS_FONT_CHAR_END - CLS_FONT_CHAR_START + 1,
+};
 
 struct cls_glyph {
     unsigned int width;

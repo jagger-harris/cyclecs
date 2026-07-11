@@ -2,6 +2,8 @@
 #define CLS_COMPONENTS_H
 
 #include <cglm/types.h>
+#include <cls/ecs/component/camera.h>
+#include <cls/io/font.h>
 #include <cls/util/types.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -10,6 +12,7 @@
 
 #define CLS_COMP_CAMERA "camera"
 #define CLS_COMP_CAMERA_ACTIVE "camera_active"
+#define CLS_SINGLETON_CAMERA_ACTIVE "singleton_camera_active"
 #define CLS_COMP_GROUP "group"
 #define CLS_COMP_RENDERABLE "renderable"
 #define CLS_COMP_TRANSFORM "transform"
@@ -17,7 +20,6 @@
 #define CLS_COMP_BUTTON "button"
 #define CLS_COMP_BUTTON_GROUP "button_group"
 #define CLS_COMP_LABEL "label"
-#define CLS_COMP_LABEL_GROUP "label_group"
 #define CLS_COMP_PROGRESS_BAR "progress_bar"
 
 struct group {
@@ -35,6 +37,7 @@ struct render_state {
 
 struct renderable {
     struct render_state state;
+    mat4 mvp;
     vec2 uv_offset;
     vec2 uv_scale;
     ivec4 tint;
@@ -51,6 +54,16 @@ struct transform {
     vec3 scale;
     vec3 rot_axis;
     float rot_angle;
+    bool dirty;
+};
+
+struct singleton_camera_active {
+    struct camera cam;
+    struct transform tf;
+};
+
+struct camera_active {
+    u8 _;
 };
 
 struct ui {
@@ -71,13 +84,11 @@ struct button_group {
 
 struct label {
     char text[CLS_UI_TEXT_MAX];
+    ivec4 tint;
     int font_size;
     u32 font_id;
-    bool font;
-};
-
-struct label_group {
-    u8 _;
+    bool visible;
+    bool dirty;
 };
 
 struct progress_bar {

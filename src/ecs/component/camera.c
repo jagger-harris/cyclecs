@@ -40,7 +40,6 @@ int camera_update(struct camera *cam, struct transform *tf) {
     }
     }
 
-    cam->update = false;
     return CLS_SUCCESS;
 }
 
@@ -48,7 +47,7 @@ void camera_resize(struct camera *cam, ivec2 size) {
     if (!cam)
         return;
 
-    cam->update = true;
+    cam->dirty = true;
 
     switch (cam->type) {
     case CAMERA_PERSP:

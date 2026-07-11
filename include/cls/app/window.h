@@ -1,11 +1,10 @@
 #ifndef CLS_WINDOW_H
 #define CLS_WINDOW_H
 
+#include <GLFW/glfw3.h>
 #include <cglm/types.h>
 #include <stdbool.h>
-
-#define WINDOW_INPUT_KEYS_SIZE (GLFW_KEY_LAST + 1)
-#define WINDOW_INPUT_MOUSE_BUTTONS_SIZE (GLFW_MOUSE_BUTTON_LAST + 1)
+#include <stddef.h>
 
 struct cls_app;
 struct cls_gfx_api;
@@ -19,8 +18,9 @@ typedef struct GLFWwindow GLFWwindow;
 int cls_window_create(struct cls_window **win, struct cls_mem *alloc_perm,
                       struct cls_mem *alloc_frame, struct cls_gfx_api *api,
                       ivec2 size, const char *title, bool vsync,
-                      ivec4 bg_color);
+                      const ivec4 bg_color);
 void cls_window_destroy(struct cls_window *win);
+int cls_window_renderer_get(struct cls_renderer **rend, struct cls_window *win);
 int cls_window_update(bool *should_close, struct cls_window *win);
 int cls_window_renderer_update(struct cls_window *win, struct cls_app *app);
 int cls_window_should_close(bool *should_close, const struct cls_window *win);

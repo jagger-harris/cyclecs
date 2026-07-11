@@ -15,6 +15,39 @@ struct cls_array {
     void *data;
 };
 
+static int array_grow(struct cls_array **in) {
+    struct cls_array *array = *in;
+    size_t new_capacity =
+        (size_t)((double)array->capacity * ARRAY_GROWTH_FACTOR);
+
+    if (new_capacity <= array->capacity)
+        new_capacity = array->capacity + 1;
+
+    const size_t align = alignof(max_align_t);
+    size_t total_size = sizeof(struct cls_array) +
+                        new_capacity * array->elem_size + (align - 1);
+
+    size_t old_data_offset = (size_t)((u8 *)array->data - (u8 *)array);
+
+    struct cls_array *temp = realloc(array, total_size);
+    if (!temp)
+        return CLS_OUT_OF_MEMORY;
+
+    uintptr_t base = (uintptr_t)temp + sizeof(struct cls_array);
+    uintptr_t aligned = (base + (align - 1)) & ~(uintptr_t)(align - 1);
+    void *new_data = (void *)aligned;
+
+    if (new_data != (void *)((u8 *)temp + old_data_offset)) {
+        memmove(new_data, (u8 *)temp + old_data_offset,
+                temp->length * temp->elem_size);
+    }
+
+    temp->data = new_data;
+    temp->capacity = new_capacity;
+    *in = temp;
+    return CLS_SUCCESS;
+}
+
 int cls_array_create(struct cls_array **a, size_t start_capacity,
                      size_t elem_size) {
     if (!a)
@@ -104,39 +137,6 @@ int cls_array_elem_set(struct cls_array *a, size_t index, const void *data) {
         return CLS_INVALID_ARG;
 
     memcpy((u8 *)a->data + index * a->elem_size, data, a->elem_size);
-    return CLS_SUCCESS;
-}
-
-static int array_grow(struct cls_array **in) {
-    struct cls_array *array = *in;
-    size_t new_capacity =
-        (size_t)((double)array->capacity * ARRAY_GROWTH_FACTOR);
-
-    if (new_capacity <= array->capacity)
-        new_capacity = array->capacity + 1;
-
-    const size_t align = alignof(max_align_t);
-    size_t total_size = sizeof(struct cls_array) +
-                        new_capacity * array->elem_size + (align - 1);
-
-    size_t old_data_offset = (size_t)((u8 *)array->data - (u8 *)array);
-
-    struct cls_array *temp = realloc(array, total_size);
-    if (!temp)
-        return CLS_OUT_OF_MEMORY;
-
-    uintptr_t base = (uintptr_t)temp + sizeof(struct cls_array);
-    uintptr_t aligned = (base + (align - 1)) & ~(uintptr_t)(align - 1);
-    void *new_data = (void *)aligned;
-
-    if (new_data != (void *)((u8 *)temp + old_data_offset)) {
-        memmove(new_data, (u8 *)temp + old_data_offset,
-                temp->length * temp->elem_size);
-    }
-
-    temp->data = new_data;
-    temp->capacity = new_capacity;
-    *in = temp;
     return CLS_SUCCESS;
 }
 

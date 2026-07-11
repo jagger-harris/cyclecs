@@ -4,11 +4,11 @@
 #include <stdint.h>
 #include <string.h>
 
-#define XXH_PRIME32_1 0x9E3779B1U
-#define XXH_PRIME32_2 0x85EBCA77U
-#define XXH_PRIME32_3 0xC2B2AE3DU
-#define XXH_PRIME32_4 0x27D4EB2FU
-#define XXH_PRIME32_5 0x165667B1U
+static const u32 XXH_PRIME32_1 = 0x9E3779B1U;
+static const u32 XXH_PRIME32_2 = 0x85EBCA77U;
+static const u32 XXH_PRIME32_3 = 0xC2B2AE3DU;
+static const u32 XXH_PRIME32_4 = 0x27D4EB2FU;
+static const u32 XXH_PRIME32_5 = 0x165667B1U;
 
 static u32 rotl32(u32 x, int r) {
     return (x << r) | (x >> (32 - r));
