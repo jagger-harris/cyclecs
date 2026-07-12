@@ -388,7 +388,6 @@ static int winner_system(struct cls_ecs_world_query *query,
                                        (ivec4){255, 255, 255, 255});
         if (error)
             return error;
-        CLS_LOGGER_LOG(CLS_LOGGER_DEBUG, "%s", "Okay.....");
     }
 
     return CLS_SUCCESS;

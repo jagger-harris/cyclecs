@@ -961,27 +961,28 @@ int cls_ecs_world_query_create(struct cls_ecs_world_query **query,
 
     for (size_t i = 0; i < comp_count; ++i) {
         const char *id = ids[i];
-
         u32 hash = 0;
         error = cls_xxhash32(&hash, id, strlen(id), 0);
         if (error)
-            continue;
-
-        error = cls_array_push(&instance->comp_ids, &hash);
-        if (error)
-            continue;
+            goto cleanup;
 
         void *set_ptr = NULL;
         error = cls_table_find(&set_ptr, world->components, &hash);
         if (error)
-            continue;
+            goto cleanup;
 
-        if (!set_ptr)
-            continue;
+        if (!set_ptr) {
+            error = CLS_INVALID_ARG;
+            goto cleanup;
+        }
+
+        error = cls_array_push(&instance->comp_ids, &hash);
+        if (error)
+            goto cleanup;
 
         error = cls_array_push(&instance->sets, (const void *)&set_ptr);
         if (error)
-            continue;
+            goto cleanup;
     }
 
     void *set_ptr = NULL;
@@ -1063,7 +1064,6 @@ int cls_ecs_world_query_next(cls_entity *e, void **comps,
                              struct cls_ecs_world_query *query) {
     if (!e || !query || !query->smallest_set)
         return CLS_INVALID_ARG;
-
     *e = CLS_ENTITY_MAX;
 
     size_t min_dense_len = 0;
@@ -1072,47 +1072,69 @@ int cls_ecs_world_query_next(cls_entity *e, void **comps,
     if (error)
         return error;
 
+    size_t len = 0;
+    error = cls_array_length_get(&len, query->comp_ids);
+    if (error)
+        return error;
+
+    const cls_entity *smallest_dense = NULL;
+    error = cls_array_data_get((void **)&smallest_dense,
+                               query->smallest_set->dense);
+    if (error)
+        return error;
+
     while (query->current_idx < min_dense_len) {
-        cls_entity current_e = CLS_ENTITY_MAX;
-        error = cls_array_elem_get_cpy(&current_e, query->smallest_set->dense,
-                                       query->current_idx++);
-        if (error)
-            return error;
-
-        size_t len = 0;
-        cls_array_length_get(&len, query->comp_ids);
-
+        cls_entity current_e = smallest_dense[query->current_idx++];
         bool match = true;
+
         for (size_t i = 0; i < len; ++i) {
             struct cls_ecs_world_sparse_set *set = NULL;
-            cls_array_elem_get_cpy((void *)&set, query->sets, i);
+            error = cls_array_elem_get_cpy(&set, query->sets, i);
+            if (error)
+                return error;
 
             size_t sparse_len = 0;
-            cls_array_length_get(&sparse_len, set->sparse);
-            if (current_e >= sparse_len) {
+            error = cls_array_length_get(&sparse_len, set->sparse);
+            if (error)
+                return error;
+            if ((size_t)current_e >= sparse_len) {
                 match = false;
                 break;
             }
 
-            u32 dense_idx = 0;
-            cls_array_elem_get_cpy(&dense_idx, set->sparse, current_e);
+            const u32 *sparse = NULL;
+            error = cls_array_data_get((void **)&sparse, set->sparse);
+            if (error)
+                return error;
+
+            u32 dense_idx = sparse[current_e];
 
             size_t dense_len = 0;
-            cls_array_length_get(&dense_len, set->dense);
+            error = cls_array_length_get(&dense_len, set->dense);
+            if (error)
+                return error;
             if (dense_idx >= dense_len) {
                 match = false;
                 break;
             }
 
-            u32 check = 0;
-            cls_array_elem_get_cpy(&check, set->dense, dense_idx);
-            if (check != current_e) {
+            const u32 *dense = NULL;
+            error = cls_array_data_get((void **)&dense, set->dense);
+            if (error)
+                return error;
+            if (dense[dense_idx] != current_e) {
                 match = false;
                 break;
             }
 
-            if (comps)
-                cls_array_elem_get(&comps[i], set->data, dense_idx);
+            if (comps) {
+                void *data_ptr = NULL;
+                error = cls_array_data_get(&data_ptr, set->data);
+                if (error)
+                    return error;
+
+                comps[i] = (char *)data_ptr + dense_idx * set->component_size;
+            }
         }
 
         if (match) {
@@ -1120,7 +1142,6 @@ int cls_ecs_world_query_next(cls_entity *e, void **comps,
             return CLS_SUCCESS;
         }
     }
-
     return CLS_SUCCESS;
 }
 

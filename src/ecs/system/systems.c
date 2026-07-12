@@ -282,6 +282,9 @@ int cls_render_system(struct cls_ecs_world_query *query, struct cls_app *app) {
     if (!active)
         return CLS_SUCCESS;
 
+    mat4 view_proj = {{0.0f}};
+    glm_mat4_mul(active->cam.projection, active->cam.view, view_proj);
+
     cls_entity e = CLS_ENTITY_MAX;
     void *comps[2] = {NULL, NULL};
     while (cls_ecs_world_query_next(&e, comps, query) == CLS_SUCCESS &&
@@ -302,9 +305,8 @@ int cls_render_system(struct cls_ecs_world_query *query, struct cls_app *app) {
         glm_scale(model, tf->scale);
 
         glm_mat4_identity(ren->mvp);
-        glm_mat4_mul(ren->mvp, active->cam.projection, ren->mvp);
-        glm_mat4_mul(ren->mvp, active->cam.view, ren->mvp);
         glm_mat4_mul(ren->mvp, model, ren->mvp);
+        glm_mat4_mul(view_proj, model, ren->mvp);
 
         error = cls_renderer_cmd_push(rend, ren, tf, depth);
         if (error)

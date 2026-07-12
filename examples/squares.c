@@ -145,14 +145,8 @@ static int squares_system(struct cls_ecs_world_query *query,
     if (!query || !app)
         return CLS_NULLPTR;
 
-    const char *square_id = "square";
-    u32 square_hash = 0;
-    int error = cls_xxhash32(&square_hash, square_id, strlen(square_id), 0);
-    if (error)
-        return error;
-
     float dt = 0.0f;
-    error = cls_window_timing_dt_get(&dt, app->window);
+    int error = cls_window_timing_dt_get(&dt, app->window);
     if (error)
         return error;
 

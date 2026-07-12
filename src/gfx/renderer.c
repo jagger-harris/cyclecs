@@ -11,7 +11,6 @@
 #include <cls/util/array.h>
 #include <cls/util/error.h>
 #include <cls/util/logger.h>
-#include <cls/util/profiler.h>
 
 static const size_t CMD_START_CAPACITY = 128;
 static const size_t BATCH_START_CAPACITY = 128;
