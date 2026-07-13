@@ -137,7 +137,7 @@ static int create_batches(struct cls_renderer *rend) {
 
 static int renderer_draw(struct cls_renderer *rend, struct cls_app *app) {
     int error = rend->api->draw_batches(app, rend->cmds, rend->batches,
-                                        rend->transparent_batches);
+                                        &rend->transparent_batches);
     if (error)
         return error;
 
@@ -208,7 +208,7 @@ static int renderer_frame_reset(struct cls_renderer *rend,
 int cls_renderer_create(struct cls_renderer **rend, struct cls_mem *mem_perm,
                         struct cls_mem *mem_frame, struct cls_gfx_api *api,
                         const ivec4 bg_color) {
-    if (!rend || !mem_frame || !api)
+    if (!rend || !mem_perm || !mem_frame || !api)
         return CLS_NULLPTR;
 
     void *instance_ptr = NULL;
@@ -219,8 +219,6 @@ int cls_renderer_create(struct cls_renderer **rend, struct cls_mem *mem_perm,
         return error;
 
     struct cls_renderer *instance = instance_ptr;
-    if (!instance)
-        return CLS_NULLPTR;
 
     instance->api = api;
     glm_ivec4_copy((int *)bg_color, instance->bg_color);
@@ -270,7 +268,7 @@ void cls_renderer_destroy(struct cls_renderer *rend) {
 }
 
 int cls_renderer_swap_buffers(struct cls_renderer *rend, GLFWwindow *window) {
-    if (!rend)
+    if (!rend || !window)
         return CLS_NULLPTR;
 
     return rend->api->swap_buffers(window);

@@ -46,36 +46,54 @@ int cls_gl_shader_init(struct cls_shader *s,
 
     GLuint vert = 0;
     GLuint frag = 0;
+    GLuint prog = 0;
+    int error = CLS_SUCCESS;
 
     vert = glCreateShader(GL_VERTEX_SHADER);
     glShaderSource(vert, 1, &info->vert_src, NULL);
     glCompileShader(vert);
-    int error = check_shader(vert, GL_VERTEX_SHADER);
+    error = check_shader(vert, GL_VERTEX_SHADER);
     if (error)
-        return error;
+        goto cleanup;
 
     frag = glCreateShader(GL_FRAGMENT_SHADER);
     glShaderSource(frag, 1, &info->frag_src, NULL);
     glCompileShader(frag);
     error = check_shader(frag, GL_FRAGMENT_SHADER);
     if (error)
-        return error;
+        goto cleanup;
 
-    s->gl.id = glCreateProgram();
-    glAttachShader(s->gl.id, vert);
-    glAttachShader(s->gl.id, frag);
-    glLinkProgram(s->gl.id);
+    prog = glCreateProgram();
+    glAttachShader(prog, vert);
+    glAttachShader(prog, frag);
+    glLinkProgram(prog);
 
-    int gl_error = (int)glGetError();
-    if (gl_error != GL_NO_ERROR) {
+    GLint link_status = GL_FALSE;
+    glGetProgramiv(prog, GL_LINK_STATUS, &link_status);
+    if (link_status == GL_FALSE) {
+        error = CLS_GL;
         CLS_LOGGER_LOG_ERROR(CLS_LOGGER_WARN, error, "%s",
                              "Adding gl shader failed");
-        return CLS_GL;
+        goto cleanup;
     }
 
     glDeleteShader(vert);
     glDeleteShader(frag);
+
+    s->gl.id = prog;
     return CLS_SUCCESS;
+
+cleanup:
+    if (vert)
+        glDeleteShader(vert);
+
+    if (frag)
+        glDeleteShader(frag);
+
+    if (prog)
+        glDeleteProgram(prog);
+
+    return error;
 }
 
 void cls_gl_shader_destroy(struct cls_shader *s) {

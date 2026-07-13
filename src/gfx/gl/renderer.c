@@ -210,8 +210,8 @@ void cls_gl_renderer_begin_frame(void) {
 
 int cls_gl_renderer_draw_batches(struct cls_app *app, struct cls_array *cmds,
                                  struct cls_array *batches,
-                                 struct cls_array *transparent_batches) {
-    if (!app || !batches)
+                                 struct cls_array **transparent_batches) {
+    if (!app || !batches || !transparent_batches)
         return CLS_NULLPTR;
 
     size_t batches_len = 0;
@@ -240,7 +240,7 @@ int cls_gl_renderer_draw_batches(struct cls_app *app, struct cls_array *cmds,
             continue;
     }
 
-    cls_array_clear(transparent_batches);
+    cls_array_clear(*transparent_batches);
 
     for (size_t i = 0; i < batches_len; ++i) {
         void *batch_ptr = NULL;
@@ -252,18 +252,18 @@ int cls_gl_renderer_draw_batches(struct cls_app *app, struct cls_array *cmds,
         if (!batch || !batch->data.state.blending)
             continue;
 
-        error = cls_array_push(&transparent_batches, (const void *)&batch_ptr);
+        error = cls_array_push(transparent_batches, (const void *)&batch_ptr);
         if (error)
             continue;
     }
 
     size_t transparent_batch_len = 0;
-    error = cls_array_length_get(&transparent_batch_len, transparent_batches);
+    error = cls_array_length_get(&transparent_batch_len, *transparent_batches);
     if (error)
         return error;
 
     void *transparent_data = NULL;
-    error = cls_array_data_get(&transparent_data, transparent_batches);
+    error = cls_array_data_get(&transparent_data, *transparent_batches);
     if (error)
         return error;
 
@@ -272,7 +272,7 @@ int cls_gl_renderer_draw_batches(struct cls_app *app, struct cls_array *cmds,
 
     for (size_t i = 0; i < transparent_batch_len; ++i) {
         void *batch_ptr = NULL;
-        error = cls_array_elem_get(&batch_ptr, transparent_batches, i);
+        error = cls_array_elem_get(&batch_ptr, *transparent_batches, i);
         if (error)
             continue;
 

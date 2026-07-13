@@ -46,6 +46,9 @@ void cls_gl_mesh_destroy(struct cls_gl_mesh *mesh) {
     if (!mesh)
         return;
 
+    if (mesh->instance_vbo)
+        glDeleteBuffers(1, &mesh->instance_vbo);
+
     glDeleteVertexArrays(1, &mesh->vao);
     glDeleteBuffers(1, &mesh->vbo);
     glDeleteBuffers(1, &mesh->ebo);
@@ -63,7 +66,7 @@ int cls_gl_mesh_draw(const struct cls_gl_mesh *mesh) {
 int cls_gl_mesh_draw_instanced(struct cls_gl_mesh *mesh,
                                struct cls_gl_mesh_instance_data *instances,
                                GLsizei instance_count) {
-    if (!mesh)
+    if (!mesh || !instances)
         return CLS_NULLPTR;
 
     if (instance_count == 0)

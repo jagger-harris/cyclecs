@@ -42,7 +42,7 @@ int cls_gl_texture2d_init(struct cls_texture2d *tex,
 }
 
 void cls_gl_texture2d_destroy(struct cls_texture2d *in) {
-    if (!glIsTexture(in->gl.id))
+    if (!in || !glIsTexture(in->gl.id))
         return;
 
     glDeleteTextures(1, &in->gl.id);

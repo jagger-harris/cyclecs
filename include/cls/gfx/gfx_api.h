@@ -19,7 +19,7 @@ struct cls_gfx_api {
     void (*begin_frame)(void);
     int (*draw_batches)(struct cls_app *app, struct cls_array *cmds,
                         struct cls_array *batches,
-                        struct cls_array *transparent_batches);
+                        struct cls_array **transparent_batches);
     int (*shader_init)(struct cls_shader *s,
                        const struct cls_shader_info *info);
     void (*shader_destroy)(struct cls_shader *s);
