@@ -150,7 +150,7 @@ static int squares_system(struct cls_ecs_world_query *query,
     if (error)
         return error;
 
-    float speed = 10.0f;
+    float speed = 1.0f;
     float dtheta = speed * dt;
 
     float cos_t = cosf(dtheta);
