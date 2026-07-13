@@ -1,132 +1,69 @@
 #ifndef CLS_PROFILER_H
 #define CLS_PROFILER_H
 
-#include <cls/util/error.h>
-#include <stdio.h>
-#include <string.h>
-#include <sys/time.h>
-#include <time.h>
+#include <stddef.h>
 
-static inline int cls_profiler_mem_usage_get(size_t *mb) {
-    FILE *f = fopen("/proc/self/status", "r");
-    if (!f)
-        return CLS_FILE_NOT_FOUND;
-
-    char buffer[128];
-    while (fgets(buffer, sizeof(buffer), f)) {
-        if (strncmp(buffer, "VmRSS:", 6) == 0) {
-            fclose(f);
-            size_t kb = 0;
-            sscanf(buffer, "VmRSS: %zu kB", &kb);
-            *mb = kb / 1024;
-            return CLS_SUCCESS;
-        }
-    }
-
-    fclose(f);
-    *mb = 0;
-    return CLS_SUCCESS;
-}
-
-static inline double cls_profiler_get_time(void) {
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    return (double)ts.tv_sec + (double)ts.tv_nsec / 1000000000.0;
-}
-
-#define CLS_PROFILER_TIME_NOW(time)                                            \
-    struct timespec time;                                                      \
-    clock_gettime(CLOCK_MONOTONIC, &time)
-
-#define CLS_PROFILER_TIME_DIFF_MS(start, end)                                  \
-    (((end.tv_sec - start.tv_sec) * 1000.0) +                                  \
-     ((end.tv_nsec - start.tv_nsec) / 1e6))
-
-#define CLS_PROFILER_START(name)                                               \
-    double _profiler_start_##name = cls_profiler_get_time()
-
-#define CLS_PROFILER_END(name)                                                 \
-    do {                                                                       \
-        double _profiler_end_##name = cls_profiler_get_time();                 \
-        double _profiler_elapsed_##name =                                      \
-            (_profiler_end_##name - _profiler_start_##name) * 1000.0;          \
-        printf("[PROFILE] %s: %.3f ms\n", #name, _profiler_elapsed_##name);    \
-    } while (0)
-
-#define _CLS_PROFILER_CLEANUP_IMPL(name)                                       \
-    static inline void _cls_profiler_cleanup_##name(double *start) {           \
-        double end = cls_profiler_get_time();                                  \
-        double elapsed = (end - *start) * 1000.0;                              \
-        printf("[PROFILE] %s: %.3f ms\n", #name, elapsed);                     \
-    }
-
-#define CLS_PROFILER_MAX_ENTRIES 128
-
-struct cls_profiler_entry {
-    const char *name;
-    double total_time;
-    size_t call_count;
+struct cls_profiler_timer {
+    size_t entry_idx;
+    double start_time;
 };
 
-static struct cls_profiler_entry _profiler_entries[CLS_PROFILER_MAX_ENTRIES] = {
-    0};
-static size_t _cls_profiler_entry_count = 0;
+/**
+ * @brief Starts a profiler timer.
+ *
+ * Starts a timer for the named profiling section.
+ *
+ * @param[in] name Timer name.
+ *
+ * @return Profiler timer.
+ */
+struct cls_profiler_timer cls_profiler_start(const char *name);
 
-static inline size_t profiler_get_or_create_entry(const char *name) {
-    for (size_t i = 0; i < _cls_profiler_entry_count; ++i) {
-        if (_profiler_entries[i].name == name)
-            return i;
-    }
+/**
+ * @brief Ends a profiler timer.
+ *
+ * Records the elapsed time for the timer.
+ *
+ * @param[in] timer Profiler timer.
+ */
+void cls_profiler_end(struct cls_profiler_timer timer);
 
-    if (_cls_profiler_entry_count >= CLS_PROFILER_MAX_ENTRIES)
-        return 0;
+/**
+ * @brief Prints the elapsed time.
+ *
+ * Prints the elapsed time for a profiler timer.
+ *
+ * @param[in] name  Timer name.
+ * @param[in] timer Profiler timer.
+ */
+void cls_profiler_print_elapsed(const char *name,
+                                struct cls_profiler_timer timer);
 
-    size_t idx = _cls_profiler_entry_count++;
-    _profiler_entries[idx].name = name;
-    _profiler_entries[idx].total_time = 0.0;
-    _profiler_entries[idx].call_count = 0;
-    return idx;
-}
+/**
+ * @brief Prints the profiler summary.
+ *
+ * Prints the recorded profiler data.
+ */
+void cls_profiler_print_summary(void);
 
-#define CLS_PROFILER_FUNC_START(name)                                          \
-    size_t _profiler_idx_##name = profiler_get_or_create_entry(#name);         \
-    double _profiler_func_start_##name = cls_profiler_get_time()
+/**
+ * @brief Resets the profiler.
+ *
+ * Clears all recorded profiler data.
+ */
+void cls_profiler_reset(void);
 
-#define CLS_PROFILER_FUNC_END(name)                                            \
-    do {                                                                       \
-        double _profiler_func_end_##name = cls_profiler_get_time();            \
-        double _profiler_func_elapsed_##name =                                 \
-            _profiler_func_end_##name - _profiler_func_start_##name;           \
-        _profiler_entries[_profiler_idx_##name].total_time +=                  \
-            _profiler_func_elapsed_##name;                                     \
-        _profiler_entries[_profiler_idx_##name].call_count++;                  \
-    } while (0)
-
-static inline void cls_profiler_print_summary(void) {
-    printf("\n=== PROFILE SUMMARY ===\n");
-    printf("%-30s %12s %12s %12s\n", "Function", "Total (ms)", "Calls",
-           "Avg (ms)");
-    printf("-------------------------------------------------------------------"
-           "\n");
-
-    for (size_t i = 0; i < _cls_profiler_entry_count; ++i) {
-        struct cls_profiler_entry *entry = &_profiler_entries[i];
-        double total_ms = entry->total_time * 1000.0;
-        double avg_ms = (entry->call_count > 0)
-                            ? (total_ms / (double)entry->call_count)
-                            : 0.0;
-
-        printf("%-30s %12.3f %12zu %12.3f\n", entry->name, total_ms,
-               entry->call_count, avg_ms);
-    }
-    printf("======================\n\n");
-}
-
-static inline void cls_profiler_reset(void) {
-    for (size_t i = 0; i < _cls_profiler_entry_count; ++i) {
-        _profiler_entries[i].total_time = 0.0;
-        _profiler_entries[i].call_count = 0;
-    }
-}
+/**
+ * @brief Retrieves memory usage.
+ *
+ * Retrieves the current process memory usage in megabytes.
+ *
+ * @param[out] mb Memory usage.
+ *
+ * @return CLS_SUCCESS On success.
+ * @retval CLS_NULLPTR If `mb` is NULL.
+ * @retval CLS_FILE_NOT_FOUND If reading the process status fails.
+ */
+int cls_profiler_mem_usage_get(size_t *mb);
 
 #endif // CLS_PROFILER_H
