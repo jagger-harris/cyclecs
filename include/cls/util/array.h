@@ -4,72 +4,61 @@
 #include <stddef.h>
 
 /**
- * @struct array
+ * @struct cls_array
  * @brief Dynamic array.
  */
 struct cls_array;
 
 /**
- * @brief Creates a new dynamic array.
+ * @brief Creates an array.
  *
- * Allocates a new array with enough space for `start_capacity` elements,
- * each of size `elem_size`. Returned array must be destroyed with
- * cls_array_destroy().
+ * Creates a dynamic array with space for `start_capacity` elements.
+ * Destroy the returned array with cls_array_destroy().
  *
- * @param[out] a              Array instance.
- * @param[in]  start_capacity Initial capacity of the array.
- * @param[in]  elem_size      Size of each element in bytes.
+ * @param[out] a              Array.
+ * @param[in]  start_capacity Initial capacity.
+ * @param[in]  elem_size      Element size in bytes.
  *
  * @return CLS_SUCCESS       On success.
  * @retval CLS_NULLPTR       If `a` is NULL.
- * @retval CLS_INVALID_ARG   If start_capacity or elem_size are < 1.
+ * @retval CLS_INVALID_ARG   If `start_capacity` or `elem_size` is less than 1.
  * @retval CLS_OUT_OF_MEMORY If allocation fails.
  *
- * ### Example
  * @code
  * struct cls_array *arr;
  * cls_array_create(&arr, 16, sizeof(int));
- * // Use arr
- * array_destroy(arr);
+ * // Use arr.
+ * cls_array_destroy(arr);
  * @endcode
  */
 int cls_array_create(struct cls_array **a, size_t start_capacity,
                      size_t elem_size);
 
 /**
- * @brief Destroys an array and frees its memory.
+ * @brief Destroys an array.
  *
- * @param[in] a Array instance. NULL valid.
+ * Releases the array memory.
  *
- * ### Example
- * @code
- * cls_array_destroy(arr);
- * @endcode
+ * @param[in] a Array to destroy.
  */
 void cls_array_destroy(struct cls_array *a);
 
 /**
- * @brief Gets the number of elements in the array.
+ * @brief Retrieves the array length.
  *
- * @param[out] len Pointer to receive the length.
- * @param[in]  a   Array instance.
+ * @param[out] len Array length.
+ * @param[in]  a   Array.
  *
  * @return CLS_SUCCESS On success.
  * @retval CLS_NULLPTR If `len` or `a` is NULL.
- *
- * ### Example
- * @code
- * size_t len;
- * cls_array_length_get(&len, arr);
- * @endcode
  */
 int cls_array_length_get(size_t *len, struct cls_array *a);
 
 /**
- * @brief Gets the raw data in the array.
+ * @brief Retrieves the array data.
  *
- * @param[out] data Pointer to receive the raw data.
- * @param[in]  a    Array instance.
+ * @param[out] data Array data.
+ * @param[in]  a    Array.
  *
  * @return CLS_SUCCESS On success.
  * @retval CLS_NULLPTR If `data` or `a` is NULL.
@@ -77,71 +66,74 @@ int cls_array_length_get(size_t *len, struct cls_array *a);
 int cls_array_data_get(void **data, struct cls_array *a);
 
 /**
- * @brief Clears the array without freeing memory.
+ * @brief Clears an array.
  *
- * Sets the length to zero. Existing data remains but considered invalid.
+ * Sets the array length to zero without releasing memory.
  *
- * @param[in] a Array instance.
+ * @param[in] a Array.
  *
  * @return CLS_SUCCESS On success.
- * @retval CLS_NULLPTR If 'a' is NULL.
+ * @retval CLS_NULLPTR If `a` is NULL.
  */
 int cls_array_clear(struct cls_array *a);
 
 /**
- * @brief Gets a const pointer to an element in the array.
+ * @brief Retrieves an element.
  *
- * @param[out] dest  Pointer to receive the element address.
- * @param[in]  a     Array instance.
- * @param[in]  index Index of the element.
+ * @param[out] dest  Element address.
+ * @param[in]  a     Array.
+ * @param[in]  index Element index.
  *
  * @return CLS_SUCCESS     On success.
- * @retval CLS_NULLPTR     If 'dest' or 'a' is NULL.
- * @retval CLS_INVALID_ARG If 'index' is out of bounds.
+ * @retval CLS_NULLPTR     If `dest` or `a` is NULL.
+ * @retval CLS_INVALID_ARG If `index` is out of bounds.
  */
 int cls_array_elem_get(void **dest, const struct cls_array *a, size_t index);
 
 /**
- * @brief Copies an element from the array into user-provided memory.
+ * @brief Copies an element.
  *
- * @param[out] dest  Destination buffer of size at least elem_size.
- * @param[in]  a     Array instance.
- * @param[in]  index Index of the element to copy.
+ * Copies the element at `index` into `dest`.
+ *
+ * @param[out] dest  Destination buffer.
+ * @param[in]  a     Array.
+ * @param[in]  index Element index.
  *
  * @return CLS_SUCCESS     On success.
- * @retval CLS_NULLPTR     If 'dest' or 'a' is NULL.
- * @retval CLS_INVALID_ARG If 'index' is out of bounds.
+ * @retval CLS_NULLPTR     If `dest` or `a` is NULL.
+ * @retval CLS_INVALID_ARG If `index` is out of bounds.
  */
 int cls_array_elem_get_cpy(void *dest, const struct cls_array *a, size_t index);
 
 /**
- * @brief Sets the value of an element.
+ * @brief Sets an element.
  *
- * Copies elem_size bytes from `data` into the element at `index`.
+ * Copies `elem` into the element at `index`.
  *
- * @param[in] a     Array instance.
- * @param[in] index Index to set.
- * @param[in] elem  Pointer to the element data to copy in.
+ * @param[in] a     Array.
+ * @param[in] index Element index.
+ * @param[in] elem  Element data.
  *
  * @return CLS_SUCCESS     On success.
- * @retval CLS_NULLPTR     If 'a' or 'elem' is NULL.
- * @retval CLS_INVALID_ARG If 'index' is out of bounds.
+ * @retval CLS_NULLPTR     If `a` or `elem` is NULL.
+ * @retval CLS_INVALID_ARG If `index` is out of bounds.
  */
 int cls_array_elem_set(struct cls_array *a, size_t index, const void *elem);
 
 /**
- * @brief Appends an element to the array, growing if needed.
+ * @brief Appends an element.
  *
- * @param[in,out] a    Pointer to array instance.
- * @param[in]     elem Pointer to the element to append.
+ * Grows the array if required.
+ *
+ * @param[in,out] a    Array.
+ * @param[in]     elem Element data.
  *
  * @return CLS_SUCCESS       On success.
- * @retval CLS_NULLPTR       If 'in' or 'elem' is NULL.
+ * @retval CLS_NULLPTR       If `a` or `elem` is NULL.
  * @retval CLS_OUT_OF_MEMORY If resizing fails.
  *
- * @note If growth occurs, the array pointer will change.
+ * @note The array pointer may change if the array grows.
  *
- * ### Example
  * @code
  * int v = 42;
  * cls_array_push(&arr, &v);
@@ -150,58 +142,58 @@ int cls_array_elem_set(struct cls_array *a, size_t index, const void *elem);
 int cls_array_push(struct cls_array **a, const void *elem);
 
 /**
- * @brief Removes last element from array.
+ * @brief Removes the last element.
  *
- * @param[out] last Pointer to store popped value. NULL allowed.
- * @param[in]  a    Array instance.
+ * @param[out] last Last element value.
+ * @param[in]  a    Array.
  *
  * @return CLS_SUCCESS     On success.
- * @retval CLS_NULLPTR     If 'a' is NULL.
- * @retval CLS_INVALID_ARG If 'a' is empty.
+ * @retval CLS_NULLPTR     If `a` is NULL.
+ * @retval CLS_INVALID_ARG If the array is empty.
  */
 int cls_array_pop(void *last, struct cls_array *a);
 
 /**
- * @brief Inserts an element at given index.
+ * @brief Inserts an element.
  *
- * Shifts following elements to the right. Grows the array if needed.
+ * Inserts an element at `index` and shifts following elements.
  *
- * @param[in] a     Pointer to array pointer.
- * @param[in] index Insert position.
- * @param[in] elem  Element to insert.
+ * @param[in,out] a     Array.
+ * @param[in]     index Element index.
+ * @param[in]     elem  Element data.
  *
  * @return CLS_SUCCESS     On success.
- * @retval CLS_NULLPTR     If 'a' or 'elem' is NULL.
- * @retval CLS_INVALID_ARG If 'index' is invalid.
+ * @retval CLS_NULLPTR     If `a` or `elem` is NULL.
+ * @retval CLS_INVALID_ARG If `index` is invalid.
  */
 int cls_array_insert(struct cls_array **a, size_t index, const void *elem);
 
 /**
- * @brief Removes the element at the given index.
+ * @brief Removes an element.
  *
- * Following elements are shifted left.
+ * Shifts following elements after removing the element at `index`.
  *
- * @param[in] a     Array instance.
- * @param[in] index Index of element to remove.
+ * @param[in] a     Array.
+ * @param[in] index Element index.
  *
  * @return CLS_SUCCESS     On success.
- * @retval CLS_NULLPTR     If 'a' is NULL.
- * @retval CLS_INVALID_ARG If 'index' is out of bounds.
+ * @retval CLS_NULLPTR     If `a` is NULL.
+ * @retval CLS_INVALID_ARG If `index` is out of bounds.
  */
 int cls_array_remove(struct cls_array *a, size_t index);
 
 /**
- * @brief Appends all elements of array `src` into array `dest`.
+ * @brief Concatenates arrays.
  *
- * Ensures sufficient capacity and performs a contiguous copy.
+ * Appends all elements from `src` to `dest`.
  *
- * @param[in,out] dest Pointer to array instance.
- * @param[in]     src  Source array. Must have same elem_size.
+ * @param[in,out] dest Destination array.
+ * @param[in]     src  Source array.
  *
  * @return CLS_SUCCESS       On success.
- * @retval CLS_NULLPTR       If 'dest' or 'src' is NULL.
- * @retval CLS_INVALID_ARG   If array element size differs.
- * @retval CLS_OUT_OF_MEMORY If growth fails.
+ * @retval CLS_NULLPTR       If `dest` or `src` is NULL.
+ * @retval CLS_INVALID_ARG   If the element sizes differ.
+ * @retval CLS_OUT_OF_MEMORY If resizing fails.
  */
 int cls_array_concat(struct cls_array **dest, const struct cls_array *src);
 

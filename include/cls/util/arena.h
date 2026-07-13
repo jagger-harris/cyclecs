@@ -5,155 +5,132 @@
 
 /**
  * @typedef cls_arena_marker
- * @brief Represents a saved state of an arena's allocation position.
+ * @brief Arena allocation position.
  *
- * This marker can be used with arena_marker_restore() to revert the arena
- * back to a previous allocation point.
+ * Stores a saved allocation position in an arena. Can be used with
+ * cls_arena_marker_restore() to restore the arena state.
  *
- * @note Does not free memory.
+ * @note Does not release memory.
  */
 typedef size_t cls_arena_marker;
 
 /**
  * @struct cls_arena
- * @brief Linear memory allocator.
+ * @brief Linear allocator.
  */
 struct cls_arena;
 
 /**
- * @brief Creates a new arena allocator.
+ * @brief Creates an arena.
  *
- * Allocates a contiguous block of memory containing both the arena metadata and
- * the aligned buffer region. Caller must free the arena using arena_destroy().
+ * Allocates an arena with the given size. Destroy the returned arena with
+ * cls_arena_destroy().
  *
- * @param[out] a  Arena instance.
- * @param[in]  size Size of the arena's usable buffer in bytes.
+ * @param[out] a    Arena.
+ * @param[in]  size Arena size in bytes.
  *
  * @return CLS_SUCCESS       On success.
  * @retval CLS_NULLPTR       If `a` is NULL.
- * @retval CLS_INVALID_ARG   If size is zero.
+ * @retval CLS_INVALID_ARG   If `size` is zero.
  * @retval CLS_OUT_OF_MEMORY If allocation fails.
  *
- * ### Example
  * @code
  * struct cls_arena *a;
- * if (cls_arena_create(&a, 1024) == CLS_SUCCESS) {
- *     // use the arena
- *     arena_destroy(a);
- * }
+ * cls_arena_create(&a, 1024);
+ * // Use a.
+ * cls_arena_destroy(a);
  * @endcode
  */
 int cls_arena_create(struct cls_arena **a, size_t size);
 
 /**
- * @brief Destroys an arena created with cls_arena_create().
+ * @brief Destroys an arena.
  *
- * Frees the memory associated with the arena.
+ * Releases the arena memory.
  *
- * @param[in] a Arena instance.
- *
- * @return CLS_SUCCESS       On success.
- * @retval CLS_NULLPTR       If `a` is NULL.
- * @retval CLS_INVALID_ARG   If 'size' < 1.
- * @retval CLS_OUT_OF_MEMORY If os is out of memory.
- *
- * ### Example
- * @code
- * struct cls_arena *a = NULL;
- * cls_arena_create(&a, 1024);
- * cls_arena_destroy(a);
- * @endcode
+ * @param[in] a Arena to destroy.
  */
 void cls_arena_destroy(struct cls_arena *a);
 
 /**
- * @brief Allocates memory from arena.
+ * @brief Allocates arena memory.
  *
- * Allocates `size` bytes with the provided `align` alignment.
- * Non-freeing. May instead clear the arena or restore a marker.
+ * Allocates `size` bytes with the requested alignment.
  *
- * @param[out] dest  Pointer to allocated memory.
- * @param[in]  a     Arena instance.
- * @param[in]  size  Number of bytes to allocate.
- * @param[in]  align Alignment (a power of two).
+ * @param[out] dest  Allocated memory.
+ * @param[in]  a     Arena.
+ * @param[in]  size  Allocation size.
+ * @param[in]  align Allocation alignment.
  *
  * @return CLS_SUCCESS       On success.
  * @retval CLS_NULLPTR       If `dest` or `a` is NULL.
- * @retval CLS_INVALID_ARG   If size is zero or align is not a power of two.
- * @retval CLS_OUT_OF_MEMORY If there is not enough space left.
+ * @retval CLS_INVALID_ARG   If `size` is zero or `align` is invalid.
+ * @retval CLS_OUT_OF_MEMORY If there is not enough space.
  *
- * @warning Returned memory is only valid until the arena is cleared,
- *          destroyed, or restored to an earlier marker.
+ * @warning Memory is invalid after clearing, destroying, or restoring the
+ *          arena.
  *
- * ### Example
  * @code
- * void *values_ptr = NULL;
- * cls_arena_alloc(&values_ptr, arena, 100 * sizeof(int), alignof(int));
- * int *values = values_ptr;
+ * void *ptr;
+ * cls_arena_alloc(&ptr, a, 100, alignof(int));
  * @endcode
  */
 int cls_arena_alloc(void **dest, struct cls_arena *a, size_t size,
                     size_t align);
 
 /**
- * @brief Resets an arena to empty state.
+ * @brief Clears an arena.
  *
- * Sets the `used` counter to zero, making all previous allocations invalid.
- * Does not release underlying memory.
+ * Resets the allocation position without releasing memory.
  *
- * @param[in] a Arena instance.
+ * @param[in] a Arena.
  *
  * @return CLS_SUCCESS On success.
- * @retval CLS_NULLPTR If 'a' is NULL.
+ * @retval CLS_NULLPTR If `a` is NULL.
  *
- * ### Example
  * @code
- * cls_arena_clear(a); // All allocations are now invalid
+ * cls_arena_clear(a);
  * @endcode
  */
 int cls_arena_clear(struct cls_arena *a);
 
 /**
- * @brief Saves the current allocation offset in the arena.
+ * @brief Saves an arena marker.
  *
- * Marker may later be passed to cls_arena_marker_restore() in order to rewind
- * the arena to this point.
+ * Stores the current allocation position for later restoration.
  *
- * @param[out] marker  Marker to store the current arena position.
- * @param[in]  a       Arena instance.
+ * @param[out] marker Arena marker.
+ * @param[in]  a      Arena.
  *
  * @return CLS_SUCCESS On success.
- * @retval CLS_NULLPTR If 'a' or 'marker' is NULL.
+ * @retval CLS_NULLPTR If `marker` or `a` is NULL.
  *
- * ### Example
  * @code
- * cls_arena_marker m = 0;
- * cls_arena_marker_save(&m, a);
+ * cls_arena_marker marker;
+ * cls_arena_marker_save(&marker, a);
  * @endcode
  */
 int cls_arena_marker_save(cls_arena_marker *marker, struct cls_arena *a);
 
 /**
- * @brief Restores the arena to a previously saved marker.
+ * @brief Restores an arena marker.
  *
- * Invalidates all memory allocated after the marker.
+ * Restores the arena allocation position and invalidates allocations made
+ * after the marker.
  *
- * @param[in] a       Arena instance.
- * @param[in] marker  Marker returned by cls_arena_marker_save().
+ * @param[in] a      Arena.
+ * @param[in] marker Arena marker.
  *
  * @return CLS_SUCCESS On success.
- * @retval CLS_NULLPTR If 'a' or 'marker' is NULL.
+ * @retval CLS_NULLPTR If `a` or `marker` is NULL.
  *
- * @note Restoring to a marker beyond arena is undefined behavior.
- *
- * ### Example
  * @code
- * cls_arena_marker m = 0;
- * cls_arena_marker_save(&m, a);
+ * cls_arena_marker marker;
+ * cls_arena_marker_save(&marker, a);
  *
- * // Allocate data
+ * // Allocate memory.
  *
- * cls_arena_marker_restore(a, &m); // Revert to saved point
+ * cls_arena_marker_restore(a, &marker);
  * @endcode
  */
 int cls_arena_marker_restore(struct cls_arena *a, cls_arena_marker *marker);
