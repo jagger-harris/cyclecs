@@ -41,6 +41,9 @@ static u32 xxh32_avalanche(u32 h32) {
 }
 
 int cls_xxhash32(u32 *hash, const void *input, size_t length, u32 seed) {
+    if (!hash || !input)
+        return CLS_NULLPTR;
+
     const u8 *p = input;
     const u8 *const b_end = p + length;
     u32 h32;

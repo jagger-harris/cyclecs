@@ -38,7 +38,7 @@ int cls_ascii_init(const char **ascii, const char *path) {
         goto cleanup;
     }
 
-    size_t read_size = fread(file_buffer, 1, buffer_size, file);
+    size_t read_size = fread(file_buffer, 1, (size_t)len, file);
     if (read_size != (size_t)len) {
         error = CLS_ACCESS_DENIED;
         goto cleanup;

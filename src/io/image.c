@@ -39,7 +39,7 @@ int cls_image_save(const struct cls_image *img, const char *path) {
         return CLS_INVALID_ARG;
 
     int success = stbi_write_png(path, img->width, img->height, img->channels,
-                                 img->data, img->width * img->channels);
+                                 img->data, stride);
     if (!success)
         return CLS_FAILURE;
 

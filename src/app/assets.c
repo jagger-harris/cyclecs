@@ -1,6 +1,6 @@
 #include <cls/app/assets.h>
 #include <cls/gfx/gfx_api.h>
-#include <cls/gfx/quad.h>
+#include <cls/gfx/primitive.h>
 #include <cls/gfx/shader.h>
 #include <cls/io/ascii.h>
 #include <cls/io/font.h>
@@ -443,7 +443,7 @@ cleanup:
 int cls_assets_texture2d_get(struct cls_texture2d **texture,
                              const struct cls_assets *assets,
                              u32 texture2d_id) {
-    if (!texture || !assets || !texture2d_id)
+    if (!texture || !assets)
         return CLS_NULLPTR;
 
     void *found_ptr = NULL;

@@ -1,3 +1,4 @@
+#include <GLFW/glfw3.h>
 #include <cglm/ivec2.h>
 #include <cglm/vec2.h>
 #include <cls/app/window.h>
@@ -291,6 +292,9 @@ int cls_window_update(bool *should_close, struct cls_window *win) {
 }
 
 int cls_window_renderer_update(struct cls_window *win, struct cls_app *app) {
+    if (!win || !app)
+        return CLS_NULLPTR;
+
     int error = cls_renderer_frame_create(win->renderer, app);
     if (error) {
         CLS_LOGGER_LOG_ERROR(CLS_LOGGER_ERROR, error, "%s",
@@ -348,6 +352,9 @@ int cls_window_input_key(struct cls_window *win, int key, int action) {
     if (!win)
         return CLS_NULLPTR;
 
+    if (key < 0 || key >= WINDOW_INPUT_KEYS_SIZE)
+        return CLS_INVALID_ARG;
+
     if (action == GLFW_PRESS)
         win->input->keys[key] = true;
 
@@ -395,7 +402,6 @@ int cls_window_input_scroll_offset_get(vec2 offset, struct cls_window *win) {
         return CLS_NULLPTR;
 
     glm_vec2_copy(win->input->scroll_offset, offset);
-    glm_vec2_copy((vec2){0.0f, 0.0f}, win->input->scroll_offset);
     return CLS_SUCCESS;
 }
 
