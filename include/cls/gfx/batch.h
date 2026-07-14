@@ -3,7 +3,6 @@
 
 #include <cls/ecs/component/components.h>
 #include <cls/util/array.h>
-#include <cls/util/globals.h>
 #include <cls/util/types.h>
 #include <stdbool.h>
 

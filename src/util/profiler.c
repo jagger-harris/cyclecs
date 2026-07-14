@@ -1,6 +1,7 @@
 #include <cls/util/error.h>
 #include <cls/util/profiler.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/time.h>
 #include <time.h>
@@ -29,9 +30,9 @@ static size_t cls_profiler_get_or_create_entry(const char *name) {
     }
 
     if (g_entry_count >= CLS_PROFILER_MAX_ENTRIES) {
-        fprintf(stderr,
-                "cls_profiler: max entries (%d) exceeded, dropping '%s'\n",
-                CLS_PROFILER_MAX_ENTRIES, name);
+        (void)fprintf(
+            stderr, "cls_profiler: max entries (%d) exceeded, dropping '%s'\n",
+            CLS_PROFILER_MAX_ENTRIES, name);
         return CLS_PROFILER_MAX_ENTRIES - 1;
     }
 
@@ -87,22 +88,26 @@ void cls_profiler_reset(void) {
 int cls_profiler_mem_usage_get(size_t *mb) {
     if (!mb)
         return CLS_NULLPTR;
-
     FILE *f = fopen("/proc/self/status", "r");
     if (!f)
         return CLS_FILE_NOT_FOUND;
-
     char buffer[128];
     *mb = 0;
     while (fgets(buffer, sizeof(buffer), f)) {
         if (strncmp(buffer, "VmRSS:", 6) == 0) {
-            size_t kb = 0;
-            sscanf(buffer, "VmRSS: %zu kB", &kb);
-            *mb = kb / 1024;
+            char *p = buffer + 6;
+            while (*p == ' ' || *p == '\t') {
+                ++p;
+            }
+            char *endptr = NULL;
+            int errno = 0;
+            unsigned long kb = strtoul(p, &endptr, 10);
+            if (endptr != p && errno == 0) {
+                *mb = (size_t)kb / 1024;
+            }
             break;
         }
     }
-
-    fclose(f);
+    (void)fclose(f);
     return CLS_SUCCESS;
 }

@@ -6,9 +6,9 @@
 #include <cls/io/font.h>
 #include <cls/io/image.h>
 #include <cls/util/error.h>
-#include <cls/util/globals.h>
 #include <cls/util/logger.h>
 #include <cls/util/mem.h>
+#include <cls/util/string.h>
 #include <cls/util/table.h>
 #include <cls/util/types.h>
 #include <cls/util/xxhash32.h>
@@ -214,14 +214,13 @@ void cls_assets_font_add(struct cls_assets *assets, const char *font_path,
         return;
     }
 
-    char font_full_path[CLS_GLOBALS_PATH_MAX] = {0};
-    int ret = snprintf(font_full_path, CLS_GLOBALS_PATH_MAX, FONT_PATH "%s",
-                       font_path);
-    if (ret < 0)
+    char *font_full_path = cls_str_fmt(FONT_PATH "%s", font_path);
+    if (!font_full_path)
         return;
 
     struct cls_font font = {0};
     error = cls_font_init(&font, assets->ft, font_full_path, pixel_size);
+    free(font_full_path);
     if (error) {
         CLS_LOGGER_LOG_ERROR(CLS_LOGGER_WARN, error,
                              "Adding font to assets failed (%s)", font_path);
@@ -294,19 +293,13 @@ void cls_assets_shader_add(struct cls_assets *assets, const char *shader_path) {
         return;
     }
 
-    char vert_path[CLS_GLOBALS_PATH_MAX] = {0};
-    char frag_path[CLS_GLOBALS_PATH_MAX] = {0};
-    int ret = snprintf(
-        vert_path, CLS_GLOBALS_PATH_MAX, "%s%.*s.vert", SHADER_PATH,
-        (int)(CLS_GLOBALS_PATH_MAX - strlen(SHADER_PATH) - 6), shader_path);
-    if (ret < 0)
+    char *vert_path = cls_str_fmt("%s%s.vert", SHADER_PATH, shader_path);
+    char *frag_path = cls_str_fmt("%s%s.frag", SHADER_PATH, shader_path);
+    if (!vert_path || !frag_path) {
+        free(vert_path);
+        free(frag_path);
         return;
-
-    ret = snprintf(frag_path, CLS_GLOBALS_PATH_MAX, "%s%.*s.frag", SHADER_PATH,
-                   (int)(CLS_GLOBALS_PATH_MAX - strlen(SHADER_PATH) - 6),
-                   shader_path);
-    if (ret < 0)
-        return;
+    }
 
     const char *vert_src = NULL;
     const char *frag_src = NULL;
@@ -397,11 +390,8 @@ void cls_assets_texture2d_add(struct cls_assets *assets,
         return;
     }
 
-    char img_path[CLS_GLOBALS_PATH_MAX] = {0};
-    int ret = snprintf(img_path, CLS_GLOBALS_PATH_MAX, "%s%.*s", TEXTURE2D_PATH,
-                       (int)(CLS_GLOBALS_PATH_MAX - strlen(TEXTURE2D_PATH)),
-                       texture2d_path);
-    if (ret < 0)
+    char *img_path = cls_str_fmt("%s%s", TEXTURE2D_PATH, texture2d_path);
+    if (!img_path)
         return;
 
     struct cls_image img = {0};
@@ -434,6 +424,8 @@ void cls_assets_texture2d_add(struct cls_assets *assets,
 
     CLS_LOGGER_LOG(CLS_LOGGER_INFO, "Loaded texture successfully (%s)",
                    img_path);
+
+    free(img_path);
     return;
 
 cleanup:

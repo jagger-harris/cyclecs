@@ -1,7 +1,7 @@
 #include <cls/io/font.h>
 #include <cls/io/image.h>
 #include <cls/util/error.h>
-#include <cls/util/globals.h>
+#include <cls/util/string.h>
 #include <cls/util/types.h>
 #include <freetype/freetype.h>
 #include <freetype/ftimage.h>
@@ -40,17 +40,15 @@ static int font_save(const struct cls_font *f, const char *path) {
     if (!f || !path)
         return CLS_NULLPTR;
 
-    char atlas_image_path[CLS_GLOBALS_PATH_MAX] = {0};
-    char meta_path[CLS_GLOBALS_PATH_MAX] = {0};
-
-    int ret = snprintf(atlas_image_path, CLS_GLOBALS_PATH_MAX, "%s.png", path);
-    if (ret < 0)
-        return CLS_FAILURE;
-
+    int error = CLS_SUCCESS;
     size_t size = (size_t)f->atlas_width * (size_t)f->atlas_height;
     u8 *atlas = malloc(size);
-    if (!atlas)
-        return CLS_OUT_OF_MEMORY;
+    char *atlas_image_path = cls_str_fmt("%s.png", path);
+    char *meta_path = cls_str_fmt("%s.meta", path);
+    if (!atlas || !atlas_image_path || !meta_path) {
+        error = CLS_OUT_OF_MEMORY;
+        goto cleanup;
+    }
 
     for (size_t i = 0; i < size; ++i)
         atlas[i] = f->atlas[i];
@@ -59,15 +57,9 @@ static int font_save(const struct cls_font *f, const char *path) {
                                     .width = (int)f->atlas_width,
                                     .height = (int)f->atlas_height,
                                     .channels = 1};
-    int error = cls_image_save(&atlas_image, atlas_image_path);
+    error = cls_image_save(&atlas_image, atlas_image_path);
     if (error)
         goto cleanup;
-
-    ret = snprintf(meta_path, CLS_GLOBALS_PATH_MAX, "%s.meta", path);
-    if (ret < 0) {
-        error = CLS_FAILURE;
-        goto cleanup;
-    }
 
     FILE *file = fopen(meta_path, "wb");
     if (!file) {
@@ -97,13 +89,19 @@ static int font_save(const struct cls_font *f, const char *path) {
         goto cleanup;
     }
 
+    free(atlas_image_path);
+    free(meta_path);
     return CLS_SUCCESS;
 
 cleanup:
-    if (atlas) {
+    if (atlas)
         free(atlas);
-        atlas = NULL;
-    }
+
+    if (atlas_image_path)
+        free(atlas_image_path);
+
+    if (meta_path)
+        free(meta_path);
 
     return error;
 }
@@ -112,23 +110,21 @@ static int font_load(struct cls_font *f, const char *path) {
     if (!f || !path)
         return CLS_NULLPTR;
 
-    char atlas_image_path[CLS_GLOBALS_PATH_MAX] = {0};
-    char meta_path[CLS_GLOBALS_PATH_MAX] = {0};
-
-    int ret = snprintf(atlas_image_path, CLS_GLOBALS_PATH_MAX, "%s.png", path);
-    if (ret < 0)
-        return CLS_FAILURE;
-
-    ret = snprintf(meta_path, CLS_GLOBALS_PATH_MAX, "%s.meta", path);
-    if (ret < 0)
-        return CLS_FAILURE;
+    int error = CLS_SUCCESS;
+    FILE *file = NULL;
+    char *atlas_image_path = cls_str_fmt("%s.png", path);
+    char *meta_path = cls_str_fmt("%s.meta", path);
+    if (!atlas_image_path || !meta_path) {
+        error = CLS_OUT_OF_MEMORY;
+        goto cleanup;
+    }
 
     struct cls_image atlas_image = {0};
-    int error = cls_image_init(&atlas_image, atlas_image_path);
+    error = cls_image_init(&atlas_image, atlas_image_path);
     if (error)
         return error;
 
-    FILE *file = fopen(meta_path, "rb");
+    file = fopen(meta_path, "rb");
     if (!file) {
         error = CLS_FILE_NOT_FOUND;
         goto cleanup;
@@ -161,6 +157,8 @@ static int font_load(struct cls_font *f, const char *path) {
         goto cleanup;
     }
 
+    free(atlas_image_path);
+    free(meta_path);
     memcpy(f->atlas, atlas_image.data, atlas_size);
     cls_image_destroy(&atlas_image);
     f->face = NULL;
@@ -169,6 +167,12 @@ static int font_load(struct cls_font *f, const char *path) {
 cleanup:
     if (file)
         (void)fclose(file);
+
+    if (atlas_image_path)
+        free(atlas_image_path);
+
+    if (meta_path)
+        free(meta_path);
 
     cls_image_destroy(&atlas_image);
     return error;
@@ -179,15 +183,15 @@ int cls_font_init(struct cls_font *f, FT_Library ft, const char *path,
     if (!f || !ft || !path)
         return CLS_NULLPTR;
 
-    char cache_path[CLS_GLOBALS_PATH_MAX] = {0};
-    int ret = snprintf(cache_path, CLS_GLOBALS_PATH_MAX, "%s_%i_sdf", path,
-                       pixel_size);
-    if (ret < 0)
+    char *cache_path = cls_str_fmt("%s_%i_sdf", path, pixel_size);
+    if (!cache_path)
         return CLS_FAILURE;
 
     int error = font_load(f, cache_path);
-    if (!error)
+    if (!error) {
+        free(cache_path);
         return CLS_SUCCESS;
+    }
 
     if (FT_New_Face(ft, path, 0, &f->face))
         return CLS_FILE_NOT_FOUND;
@@ -324,6 +328,7 @@ int cls_font_init(struct cls_font *f, FT_Library ft, const char *path,
     }
 
     error = font_save(f, cache_path);
+    free(cache_path);
     if (error)
         return error;
 

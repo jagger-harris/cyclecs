@@ -5,7 +5,6 @@
 #include <cls/ecs/ecs.h>
 #include <cls/util/array.h>
 #include <cls/util/error.h>
-#include <cls/util/globals.h>
 #include <cls/util/logger.h>
 #include <cls/util/mem.h>
 #include <cls/util/table.h>
@@ -1089,7 +1088,7 @@ int cls_ecs_world_query_next(cls_entity *e, void **comps,
 
         for (size_t i = 0; i < len; ++i) {
             struct cls_ecs_world_sparse_set *set = NULL;
-            error = cls_array_elem_get_cpy(&set, query->sets, i);
+            error = cls_array_elem_get_cpy((void *)&set, query->sets, i);
             if (error)
                 return error;
 

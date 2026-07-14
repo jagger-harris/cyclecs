@@ -1,5 +1,5 @@
-#ifndef CLS_UTIL_H
-#define CLS_UTIL_H
+#ifndef CLS_MACROS_H
+#define CLS_MACROS_H
 
 /**
  * @def CLS_ARRAY_LENGTH
@@ -21,4 +21,4 @@
  */
 #define CLS_ARRAY_LENGTH(a) (sizeof(a) / sizeof((a)[0]))
 
-#endif // CLS_UTIL_H
+#endif // CLS_MACROS_H

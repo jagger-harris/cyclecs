@@ -3,7 +3,7 @@
 
 #include <cls/gfx/gl/mesh.h>
 #include <cls/util/array.h>
-#include <cls/util/util.h>
+#include <cls/util/macros.h>
 
 static const struct cls_vertex CLS_QUAD_VERTICES[] = {
     {{-0.5f, -0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 0.0f}},
