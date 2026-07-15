@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <cls/util/arena.h>
 #include <cls/util/error.h>
 #include <cls/util/types.h>
@@ -14,6 +15,8 @@ struct cls_arena {
 };
 
 static inline void *arena_data(struct cls_arena *a) {
+    assert(a && "a is NULL");
+
     return (u8 *)a + sizeof(struct cls_arena);
 }
 

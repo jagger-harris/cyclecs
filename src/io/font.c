@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <cls/io/font.h>
 #include <cls/io/image.h>
 #include <cls/util/error.h>
@@ -37,8 +38,7 @@ static unsigned int next_pow2(unsigned int i) {
 }
 
 static int font_save(const struct cls_font *f, const char *path) {
-    if (!f || !path)
-        return CLS_NULLPTR;
+    assert(f && path && "f or path is NULL");
 
     int error = CLS_SUCCESS;
     size_t size = (size_t)f->atlas_width * (size_t)f->atlas_height;
@@ -107,8 +107,7 @@ cleanup:
 }
 
 static int font_load(struct cls_font *f, const char *path) {
-    if (!f || !path)
-        return CLS_NULLPTR;
+    assert(f && path && "f or path is NULL");
 
     int error = CLS_SUCCESS;
     FILE *file = NULL;
@@ -122,7 +121,7 @@ static int font_load(struct cls_font *f, const char *path) {
     struct cls_image atlas_image = {0};
     error = cls_image_init(&atlas_image, atlas_image_path);
     if (error)
-        return error;
+        goto cleanup;
 
     file = fopen(meta_path, "rb");
     if (!file) {

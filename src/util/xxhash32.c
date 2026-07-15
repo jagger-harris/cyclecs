@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <cls/util/error.h>
 #include <cls/util/types.h>
 #include <cls/util/xxhash32.h>
@@ -14,14 +15,12 @@ static u32 rotl32(u32 x, int r) {
     return (x << r) | (x >> (32 - r));
 }
 
-static int read32le(u32 *out, const void *data) {
-    if (!out || !data)
-        return CLS_NULLPTR;
+static u32 read32le(const u8 *p) {
+    assert(p && "p is NULL");
 
-    const u8 *p = (const u8 *)data;
-    *out =
-        ((u32)p[0]) | ((u32)p[1] << 8) | ((u32)p[2] << 16) | ((u32)p[3] << 24);
-    return CLS_SUCCESS;
+    u32 val;
+    memcpy(&val, p, 4);
+    return val;
 }
 
 static u32 xxh32_round(u32 acc, u32 input) {
@@ -56,28 +55,19 @@ int cls_xxhash32(u32 *hash, const void *input, size_t length, u32 seed) {
         u32 v4 = seed - XXH_PRIME32_1;
 
         do {
-            u32 val = 0;
-            int error = read32le(&val, p);
-            if (error)
-                return error;
+            u32 val = read32le(p);
             v1 = xxh32_round(v1, val);
             p += 4;
 
-            error = read32le(&val, p);
-            if (error)
-                return error;
+            val = read32le(p);
             v2 = xxh32_round(v2, val);
             p += 4;
 
-            error = read32le(&val, p);
-            if (error)
-                return error;
+            val = read32le(p);
             v3 = xxh32_round(v3, val);
             p += 4;
 
-            error = read32le(&val, p);
-            if (error)
-                return error;
+            val = read32le(p);
             v4 = xxh32_round(v4, val);
             p += 4;
         } while (p <= limit);
@@ -90,10 +80,7 @@ int cls_xxhash32(u32 *hash, const void *input, size_t length, u32 seed) {
     h32 += (u32)length;
 
     while (p + 4 <= b_end) {
-        u32 val = 0;
-        int error = read32le(&val, p);
-        if (error)
-            return error;
+        u32 val = read32le(p);
         h32 += val * XXH_PRIME32_3;
         h32 = rotl32(h32, 17) * XXH_PRIME32_4;
         p += 4;

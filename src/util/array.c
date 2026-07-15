@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <cls/util/array.h>
 #include <cls/util/error.h>
 #include <cls/util/logger.h>
@@ -15,8 +16,10 @@ struct cls_array {
     void *data;
 };
 
-static int array_grow(struct cls_array **in) {
-    struct cls_array *array = *in;
+static int array_grow(struct cls_array **arr) {
+    assert(arr && "in is NULL");
+
+    struct cls_array *array = *arr;
     size_t new_capacity =
         (size_t)((double)array->capacity * ARRAY_GROWTH_FACTOR);
 
@@ -44,7 +47,7 @@ static int array_grow(struct cls_array **in) {
 
     temp->data = new_data;
     temp->capacity = new_capacity;
-    *in = temp;
+    *arr = temp;
     return CLS_SUCCESS;
 }
 

@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <cls/app/app.h>
 #include <cls/app/assets.h>
 #include <cls/app/window.h>
@@ -16,8 +17,7 @@ static const size_t APP_FRAME_ARENA_SIZE = 1024L * 1024L * 50L;
 
 static int allocator_arena_alloc(void **dest, void *ctx, size_t size,
                                  size_t align) {
-    if (!dest || !ctx)
-        return CLS_NULLPTR;
+    assert(dest && ctx && "dest or ctx is NULL");
 
     return cls_arena_alloc(dest, (struct cls_arena *)ctx, size, align);
 }

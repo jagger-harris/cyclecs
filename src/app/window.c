@@ -1,4 +1,5 @@
 #include <GLFW/glfw3.h>
+#include <assert.h>
 #include <cglm/ivec2.h>
 #include <cglm/vec2.h>
 #include <cls/app/window.h>
@@ -140,8 +141,7 @@ static void cursor_pos_callback(GLFWwindow *glfw_window, double pos_x,
 }
 
 static int input_create(struct cls_input **in, struct cls_mem *alloc) {
-    if (!in || !alloc)
-        return CLS_NULLPTR;
+    assert(in && alloc && "in or alloc is NULL");
 
     void *instance_ptr = NULL;
     int error = cls_mem_alloc(&instance_ptr, alloc, sizeof(struct cls_input),
@@ -149,14 +149,12 @@ static int input_create(struct cls_input **in, struct cls_mem *alloc) {
     if (error)
         return error;
 
-    memset(instance_ptr, 0, sizeof(struct cls_input));
     *in = instance_ptr;
     return CLS_SUCCESS;
 }
 
 static int timing_create(struct cls_timing **t, struct cls_mem *alloc) {
-    if (!t || !alloc)
-        return CLS_NULLPTR;
+    assert(t && alloc && "t or alloc is NULL");
 
     void *instance_ptr = NULL;
     int error = cls_mem_alloc(&instance_ptr, alloc, sizeof(struct cls_timing),

@@ -1,5 +1,6 @@
 #include "cls/gfx/gl/texture2d.h"
 #include <GLFW/glfw3.h>
+#include <assert.h>
 #include <cls/app/app.h>
 #include <cls/app/assets.h>
 #include <cls/ecs/component/camera.h>
@@ -63,6 +64,8 @@ void cls_gl_renderer_on_resize(int width, int height) {
 }
 
 static void apply_render_state(const struct render_state *state) {
+    assert(state && "state is NULL");
+
     if (state->depth_test) {
         glEnable(GL_DEPTH_TEST);
     } else {
@@ -81,6 +84,8 @@ static void apply_render_state(const struct render_state *state) {
 
 static int render_batch(struct cls_app *app, struct cls_array *cmds,
                         struct cls_renderer_batch *batch) {
+    assert(app && cmds && batch && "app or cmds or batch is NULL");
+
     struct cls_gl_mesh *mesh = NULL;
     int error = cls_assets_mesh_get(&mesh, app->assets, batch->data.mesh_id);
     if (error)
@@ -186,6 +191,8 @@ static int render_batch(struct cls_app *app, struct cls_array *cmds,
 }
 
 static int batch_depth_compare(const void *a, const void *b) {
+    assert(a && b && "a or b is NULL");
+
     const struct cls_renderer_batch *ba =
         *(const struct cls_renderer_batch **)a;
     const struct cls_renderer_batch *bb =

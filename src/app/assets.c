@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <cls/app/assets.h>
 #include <cls/gfx/gfx_api.h>
 #include <cls/gfx/primitive.h>
@@ -32,6 +33,8 @@ struct cls_assets {
 };
 
 static int load_missing_texture(struct cls_assets *assets) {
+    assert(assets && "assets is NULL");
+
     static u8 missingno[16] = {
         255, 0, 255, 255, 0, 0, 0, 255, 0, 0, 0, 255, 255, 0, 255, 255,
     };
@@ -60,6 +63,8 @@ static int load_missing_texture(struct cls_assets *assets) {
 }
 
 static int load_blank_texture(struct cls_assets *assets) {
+    assert(assets && "assets is NULL");
+
     static u8 blank[4] = {255, 255, 255, 0};
     struct cls_texture2d_info info = {.data = blank,
                                       .width = 1,
@@ -86,6 +91,8 @@ static int load_blank_texture(struct cls_assets *assets) {
 }
 
 static int assets_load_defaults(struct cls_assets *assets) {
+    assert(assets && "assets is NULL");
+
     cls_assets_mesh_add(assets, "quad", CLS_QUAD_VERTICES,
                         CLS_QUAD_VERTEX_COUNT, CLS_QUAD_INDICES,
                         CLS_QUAD_INDEX_COUNT);

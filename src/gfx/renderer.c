@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <cglm/ivec4.h>
 #include <cls/app/app.h>
 #include <cls/app/window.h>
@@ -44,8 +45,7 @@ struct render_world_ctx {
 static int add_cmd_to_render_batch(struct cls_renderer *rend,
                                    struct cls_renderer_cmd *cmd,
                                    size_t cmd_idx) {
-    if (!rend || !cmd)
-        return CLS_NULLPTR;
+    assert(rend && cmd && "rend or cmd is NULL");
 
     struct cls_renderer_batch_data key = {
         .state = cmd->ren.state,
@@ -115,6 +115,8 @@ cleanup:
 }
 
 static int create_batches(struct cls_renderer *rend) {
+    assert(rend && "rend is NULL");
+
     size_t cmds_len = 0;
     int error = cls_array_length_get(&cmds_len, rend->cmds);
     if (error)
@@ -136,6 +138,8 @@ static int create_batches(struct cls_renderer *rend) {
 }
 
 static int renderer_draw(struct cls_renderer *rend, struct cls_app *app) {
+    assert(rend && app && "rend or app is NULL");
+
     int error = rend->api->draw_batches(app, rend->cmds, rend->batches,
                                         &rend->transparent_batches);
     if (error)
@@ -145,8 +149,7 @@ static int renderer_draw(struct cls_renderer *rend, struct cls_app *app) {
 }
 
 static void renderer_frame_destroy(struct cls_renderer *rend) {
-    if (!rend)
-        return;
+    assert(rend && "rend is NULL");
 
     size_t batches_len = 0;
     int error = cls_array_length_get(&batches_len, rend->batches);
@@ -167,8 +170,7 @@ static void renderer_frame_destroy(struct cls_renderer *rend) {
 
 static int renderer_frame_reset(struct cls_renderer *rend,
                                 struct cls_app *app) {
-    if (!rend)
-        return CLS_NULLPTR;
+    assert(rend && app && "rend or app is NULL");
 
     size_t batches_length = 0;
     int error = cls_array_length_get(&batches_length, rend->batches);

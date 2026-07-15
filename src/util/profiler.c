@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <cls/util/error.h>
 #include <cls/util/profiler.h>
 #include <stdio.h>
@@ -18,12 +19,14 @@ static struct profiler_entry g_entries[CLS_PROFILER_MAX_ENTRIES];
 static size_t g_entry_count = 0;
 
 static double cls_profiler_get_time(void) {
-    struct timespec ts;
+    struct timespec ts = {0};
     clock_gettime(CLOCK_MONOTONIC, &ts);
     return (double)ts.tv_sec + (double)ts.tv_nsec / 1e9;
 }
 
 static size_t cls_profiler_get_or_create_entry(const char *name) {
+    assert(name && "name is NULL");
+
     for (size_t i = 0; i < g_entry_count; ++i) {
         if (strcmp(g_entries[i].name, name) == 0)
             return i;
@@ -44,7 +47,7 @@ static size_t cls_profiler_get_or_create_entry(const char *name) {
 }
 
 struct cls_profiler_timer cls_profiler_start(const char *name) {
-    struct cls_profiler_timer t;
+    struct cls_profiler_timer t = {0};
     t.entry_idx = cls_profiler_get_or_create_entry(name);
     t.start_time = cls_profiler_get_time();
     return t;
@@ -88,26 +91,33 @@ void cls_profiler_reset(void) {
 int cls_profiler_mem_usage_get(size_t *mb) {
     if (!mb)
         return CLS_NULLPTR;
+
     FILE *f = fopen("/proc/self/status", "r");
     if (!f)
         return CLS_FILE_NOT_FOUND;
-    char buffer[128];
+
+    char buffer[128] = {0};
     *mb = 0;
     while (fgets(buffer, sizeof(buffer), f)) {
         if (strncmp(buffer, "VmRSS:", 6) == 0) {
             char *p = buffer + 6;
+
             while (*p == ' ' || *p == '\t') {
                 ++p;
             }
+
             char *endptr = NULL;
             int errno = 0;
             unsigned long kb = strtoul(p, &endptr, 10);
+
             if (endptr != p && errno == 0) {
                 *mb = (size_t)kb / 1024;
             }
+
             break;
         }
     }
+
     (void)fclose(f);
     return CLS_SUCCESS;
 }

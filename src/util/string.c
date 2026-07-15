@@ -1,9 +1,12 @@
+#include <assert.h>
 #include <cls/util/string.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 
 char *cls_str_fmt(const char *fmt, ...) {
+    assert(fmt && "fmt is NULL");
+
     va_list args;
     va_list args_copy;
     va_start(args, fmt);

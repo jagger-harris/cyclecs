@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <cls/app/app.h>
 #include <cls/app/window.h>
 #include <cls/ecs/component/camera.h>
@@ -134,6 +135,8 @@ static void world_destroy(struct cls_ecs_world *world) {
 }
 
 static int add_default_component_types(struct cls_ecs_world *world) {
+    assert(world && "world is NULL");
+
     int error = cls_ecs_world_component_type_add(world, CLS_COMP_CAMERA,
                                                  sizeof(struct camera));
     if (error)
@@ -188,8 +191,7 @@ static int add_default_component_types(struct cls_ecs_world *world) {
 }
 
 static int world_init(struct cls_ecs_world *world, bool should_update) {
-    if (!world)
-        return CLS_NULLPTR;
+    assert(world && "world is NULL");
 
     *world = (struct cls_ecs_world){.next_entity_id = 0,
                                     .should_update = should_update};
@@ -243,8 +245,7 @@ cleanup:
 
 static int world_component_add_by_id(struct cls_ecs_world *world, cls_entity e,
                                      u32 id, const void *comp) {
-    if (!world || !comp)
-        return CLS_NULLPTR;
+    assert(world && comp && "world or comp is NULL");
 
     if (e == CLS_ENTITY_MAX)
         return CLS_INVALID_ARG;
@@ -300,8 +301,7 @@ static int world_component_add_by_id(struct cls_ecs_world *world, cls_entity e,
 
 static int world_entity_remove_component_by_id(struct cls_ecs_world *world,
                                                cls_entity e, u32 id) {
-    if (!world)
-        return CLS_NULLPTR;
+    assert(world && "world is NULL");
 
     void *set_ptr = NULL;
     int error = cls_table_find(&set_ptr, world->components, &id);
@@ -376,6 +376,8 @@ static int world_entity_remove_component_by_id(struct cls_ecs_world *world,
 }
 
 static int world_run_systems(struct cls_ecs_world *world, struct cls_app *app) {
+    assert(world && app && "world or app is NULL");
+
     struct cls_table_iterator *iter = NULL;
     int error = cls_table_iterator_create(&iter, world->systems);
     if (error)
@@ -429,8 +431,7 @@ static int world_run_systems(struct cls_ecs_world *world, struct cls_app *app) {
 }
 
 static int world_entity_remove(struct cls_ecs_world *world, cls_entity e) {
-    if (!world)
-        return CLS_NULLPTR;
+    assert(world && "world is NULL");
 
     if (e == CLS_ENTITY_MAX)
         return CLS_INVALID_ARG;
@@ -500,6 +501,7 @@ static int world_entity_remove(struct cls_ecs_world *world, cls_entity e) {
     cls_table_iterator_destroy(iter);
     return cls_array_push(&world->free_entities, &e);
 }
+
 int cls_ecs_create(struct cls_ecs **ecs, struct cls_mem *mem) {
     if (!ecs || !mem)
         return CLS_NULLPTR;
@@ -838,7 +840,7 @@ int cls_ecs_world_component_type_remove(struct cls_ecs_world *world,
 
 int cls_ecs_world_component_add(struct cls_ecs_world *world, cls_entity e,
                                 const char *id, const void *comp) {
-    if (!world || !comp)
+    if (!world || !id || !comp)
         return CLS_NULLPTR;
 
     u32 hash = 0;
@@ -851,7 +853,7 @@ int cls_ecs_world_component_add(struct cls_ecs_world *world, cls_entity e,
 
 int cls_ecs_world_component_remove(struct cls_ecs_world *world, cls_entity e,
                                    const char *id) {
-    if (!world)
+    if (!world || !id)
         return CLS_NULLPTR;
 
     if (e == CLS_ENTITY_MAX)

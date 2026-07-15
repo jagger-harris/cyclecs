@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <cls/util/error.h>
 #include <cls/util/logger.h>
 #include <cls/util/table.h>
@@ -42,8 +43,7 @@ static size_t table_calculate_slot_size(size_t key_size, size_t value_size) {
 
 static int cls_table_get_slot(void **slot, const struct cls_table *t,
                               size_t idx) {
-    if (!slot || !t)
-        return CLS_NULLPTR;
+    assert(slot && t && "slot or t is NULL");
 
     *slot = (u8 *)t->slots + idx * t->slot_size;
     return CLS_SUCCESS;
@@ -51,8 +51,7 @@ static int cls_table_get_slot(void **slot, const struct cls_table *t,
 
 static int cls_table_get_metadata(u8 **meta, const struct cls_table *t,
                                   size_t idx) {
-    if (!meta || !t)
-        return CLS_NULLPTR;
+    assert(meta && t && "meta or t is NULL");
 
     void *slot = NULL;
     int error = cls_table_get_slot(&slot, t, idx);
@@ -65,8 +64,7 @@ static int cls_table_get_metadata(u8 **meta, const struct cls_table *t,
 
 static int cls_table_get_key(void **key, const struct cls_table *t,
                              size_t idx) {
-    if (!key || !t)
-        return CLS_NULLPTR;
+    assert(key && t && "key or t is NULL");
 
     void *slot = NULL;
     int error = cls_table_get_slot(&slot, t, idx);
@@ -81,8 +79,7 @@ static int cls_table_get_key(void **key, const struct cls_table *t,
 
 static int cls_table_get_value(void **value, const struct cls_table *t,
                                size_t idx) {
-    if (!value || !t)
-        return CLS_NULLPTR;
+    assert(value && t && "value or t is NULL");
 
     void *slot = NULL;
     int error = cls_table_get_slot(&slot, t, idx);
@@ -98,8 +95,7 @@ static int cls_table_get_value(void **value, const struct cls_table *t,
 
 static int cls_table_insert_no_resize(struct cls_table *t, const void *key,
                                       const void *value) {
-    if (!t)
-        return CLS_NULLPTR;
+    assert(t && key && "t or key is NULL");
 
     u32 hash = 0;
     int error = cls_xxhash32(&hash, key, t->key_size, 0);
@@ -141,8 +137,7 @@ static int cls_table_insert_no_resize(struct cls_table *t, const void *key,
 }
 
 static int cls_table_resize(struct cls_table *t, size_t new_capacity) {
-    if (!t)
-        return CLS_NULLPTR;
+    assert(t && "t is NULL");
 
     const size_t align = alignof(max_align_t);
     size_t slots_size = new_capacity * t->slot_size + (align - 1);
