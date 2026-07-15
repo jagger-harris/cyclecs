@@ -1,6 +1,7 @@
 #ifndef CLS_ARENA_H
 #define CLS_ARENA_H
 
+#include <cls/util/error.h>
 #include <stddef.h>
 
 /**
@@ -41,7 +42,7 @@ struct cls_arena;
  * cls_arena_destroy(a);
  * @endcode
  */
-int cls_arena_create(struct cls_arena **a, size_t size);
+cls_error cls_arena_create(struct cls_arena **a, size_t size);
 
 /**
  * @brief Destroys an arena.
@@ -75,8 +76,8 @@ void cls_arena_destroy(struct cls_arena *a);
  * cls_arena_alloc(&ptr, a, 100, alignof(int));
  * @endcode
  */
-int cls_arena_alloc(void **dest, struct cls_arena *a, size_t size,
-                    size_t align);
+cls_error cls_arena_alloc(void **dest, struct cls_arena *a, size_t size,
+                          size_t align);
 
 /**
  * @brief Clears an arena.
@@ -92,7 +93,7 @@ int cls_arena_alloc(void **dest, struct cls_arena *a, size_t size,
  * cls_arena_clear(a);
  * @endcode
  */
-int cls_arena_clear(struct cls_arena *a);
+cls_error cls_arena_clear(struct cls_arena *a);
 
 /**
  * @brief Saves an arena marker.
@@ -110,7 +111,7 @@ int cls_arena_clear(struct cls_arena *a);
  * cls_arena_marker_save(&marker, a);
  * @endcode
  */
-int cls_arena_marker_save(cls_arena_marker *marker, struct cls_arena *a);
+cls_error cls_arena_marker_save(cls_arena_marker *marker, struct cls_arena *a);
 
 /**
  * @brief Restores an arena marker.
@@ -133,6 +134,7 @@ int cls_arena_marker_save(cls_arena_marker *marker, struct cls_arena *a);
  * cls_arena_marker_restore(a, &marker);
  * @endcode
  */
-int cls_arena_marker_restore(struct cls_arena *a, cls_arena_marker *marker);
+cls_error cls_arena_marker_restore(struct cls_arena *a,
+                                   cls_arena_marker *marker);
 
 #endif // CLS_ARENA_H

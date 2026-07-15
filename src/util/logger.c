@@ -17,7 +17,7 @@
 #define ANSI_DEFAULT "\x1b[0m"
 
 static void logger_log_all(enum cls_logger_level level, bool has_error,
-                           bool is_debug, int error, const char *file,
+                           bool is_debug, cls_error error, const char *file,
                            const char *func, int line, const char *fmt,
                            va_list args) {
     char level_str[STR_MAX];
@@ -126,7 +126,7 @@ void cls_logger_log_debug(enum cls_logger_level level, const char *file,
     va_end(args);
 }
 
-void cls_logger_log_error(enum cls_logger_level level, int error,
+void cls_logger_log_error(enum cls_logger_level level, cls_error error,
                           const char *fmt, ...) {
     va_list args;
     va_start(args, fmt);
@@ -134,7 +134,7 @@ void cls_logger_log_error(enum cls_logger_level level, int error,
     va_end(args);
 }
 
-void cls_logger_log_error_debug(enum cls_logger_level level, int error,
+void cls_logger_log_error_debug(enum cls_logger_level level, cls_error error,
                                 const char *file, const char *func, int line,
                                 const char *fmt, ...) {
     va_list args;

@@ -2,7 +2,7 @@
 #include <cls/ecs/component/components.h>
 #include <cls/ecs/ecs.h>
 
-int camera_update(struct camera *cam, struct transform *tf) {
+cls_error camera_update(struct camera *cam, struct transform *tf) {
     if (!cam || !tf)
         return CLS_NULLPTR;
 
@@ -70,8 +70,9 @@ void camera_resize(struct camera *cam, ivec2 size) {
     }
 }
 
-int camera_screen_to_world(vec2 pos, struct camera *cam, const vec2 cursor_pos,
-                           const ivec2 viewport_size) {
+cls_error camera_screen_to_world(vec2 pos, struct camera *cam,
+                                 const vec2 cursor_pos,
+                                 const ivec2 viewport_size) {
     if (!cam)
         return CLS_NULLPTR;
 

@@ -2,6 +2,7 @@
 #define CLS_ASSETS_H
 
 #include <cls/gfx/texture2d.h>
+#include <cls/util/error.h>
 #include <stddef.h>
 
 /* Forward declarations. */
@@ -42,8 +43,8 @@ struct cls_assets;
  * cls_assets_destroy(assets);
  * @endcode
  */
-int cls_assets_create(struct cls_assets **assets, struct cls_mem *mem,
-                      struct cls_gfx_api *api);
+cls_error cls_assets_create(struct cls_assets **assets, struct cls_mem *mem,
+                            struct cls_gfx_api *api);
 
 /**
  * @brief Destroys an asset store.
@@ -84,8 +85,8 @@ void cls_assets_font_add(struct cls_assets *assets, const char *font_path,
  *
  * @note On success, `*font` may be NULL if no font is registered under `id`.
  */
-int cls_assets_font_get(struct cls_font **font, const struct cls_assets *assets,
-                        const char *id);
+cls_error cls_assets_font_get(struct cls_font **font,
+                              const struct cls_assets *assets, const char *id);
 
 /**
  * @brief Loads a shader into the asset store.
@@ -114,8 +115,8 @@ void cls_assets_shader_add(struct cls_assets *assets, const char *shader_path);
  * @note On success, `*shader` may be NULL if no shader is registered under
  * `shader_id`.
  */
-int cls_assets_shader_get(struct cls_shader **shader,
-                          const struct cls_assets *assets, u32 shader_id);
+cls_error cls_assets_shader_get(struct cls_shader **shader,
+                                const struct cls_assets *assets, u32 shader_id);
 
 /**
  * @brief Loads a texture into the asset store.
@@ -150,8 +151,9 @@ void cls_assets_texture2d_add(struct cls_assets *assets,
  * @retval (error)     If retrieving the requested texture or a fallback
  *                     texture fails.
  */
-int cls_assets_texture2d_get(struct cls_texture2d **texture,
-                             const struct cls_assets *assets, u32 texture2d_id);
+cls_error cls_assets_texture2d_get(struct cls_texture2d **texture,
+                                   const struct cls_assets *assets,
+                                   u32 texture2d_id);
 
 /**
  * @brief Creates a mesh and adds it to the asset store.
@@ -184,7 +186,7 @@ void cls_assets_mesh_add(struct cls_assets *assets, const char *mesh_id,
  * @note On success, `*mesh` may be NULL if no mesh is registered under
  * `mesh_id`.
  */
-int cls_assets_mesh_get(struct cls_gl_mesh **mesh,
-                        const struct cls_assets *assets, u32 mesh_id);
+cls_error cls_assets_mesh_get(struct cls_gl_mesh **mesh,
+                              const struct cls_assets *assets, u32 mesh_id);
 
 #endif // CLS_ASSETS_H

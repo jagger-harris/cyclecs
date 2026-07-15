@@ -1,4 +1,3 @@
-#include <cls/util/error.h>
 #include <cls/util/mem.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -10,8 +9,8 @@ struct cls_mem {
     void *ctx;
 };
 
-int cls_mem_create(struct cls_mem **alloc, cls_mem_alloc_fn alloc_fn,
-                   cls_mem_free_fn free, void *ctx) {
+cls_error cls_mem_create(struct cls_mem **alloc, cls_mem_alloc_fn alloc_fn,
+                         cls_mem_free_fn free, void *ctx) {
     if (!alloc || !alloc_fn)
         return CLS_NULLPTR;
 
@@ -34,8 +33,8 @@ void cls_mem_destroy(struct cls_mem *alloc) {
     free(alloc);
 }
 
-int cls_mem_alloc(void **dest, struct cls_mem *alloc, size_t size,
-                  size_t align) {
+cls_error cls_mem_alloc(void **dest, struct cls_mem *alloc, size_t size,
+                        size_t align) {
     if (!dest || !alloc)
         return CLS_NULLPTR;
 

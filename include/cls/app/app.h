@@ -2,6 +2,7 @@
 #define CLS_APP_H
 
 #include <cglm/types.h>
+#include <cls/util/error.h>
 
 /* Forward declarations. */
 struct cls_assets;
@@ -51,8 +52,9 @@ struct cls_app {
  * cls_app_destroy(&app);
  * @endcode
  */
-int cls_app_init(struct cls_app *app, struct cls_gfx_api *api,
-                 ivec2 window_size, const char *title, const ivec4 bg_color);
+cls_error cls_app_init(struct cls_app *app, struct cls_gfx_api *api,
+                       ivec2 window_size, const char *title,
+                       const ivec4 bg_color);
 
 /**
  * @brief Destroys an application.
@@ -76,6 +78,6 @@ void cls_app_destroy(struct cls_app *app);
  * @retval CLS_NULLPTR If `app` is NULL.
  * @retval (error)     If updating the window, ECS, or renderer fails.
  */
-int cls_app_run(struct cls_app *app);
+cls_error cls_app_run(struct cls_app *app);
 
 #endif // CLS_APP_H

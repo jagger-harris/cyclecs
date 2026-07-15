@@ -1,6 +1,7 @@
 #ifndef CLS_MEM_H
 #define CLS_MEM_H
 
+#include <cls/util/error.h>
 #include <stddef.h>
 
 /**
@@ -17,8 +18,8 @@
  * @return CLS_SUCCESS On success.
  * @retval (error)     Error if allocation fails.
  */
-typedef int (*cls_mem_alloc_fn)(void **dest, void *ctx, size_t size,
-                                size_t align);
+typedef cls_error (*cls_mem_alloc_fn)(void **dest, void *ctx, size_t size,
+                                      size_t align);
 
 /**
  * @typedef cls_mem_free_fn
@@ -61,8 +62,8 @@ struct cls_mem;
  * cls_mem_destroy(mem);
  * @endcode
  */
-int cls_mem_create(struct cls_mem **alloc, cls_mem_alloc_fn alloc_fn,
-                   cls_mem_free_fn free, void *ctx);
+cls_error cls_mem_create(struct cls_mem **alloc, cls_mem_alloc_fn alloc_fn,
+                         cls_mem_free_fn free, void *ctx);
 
 /**
  * @brief Destroys an allocator.
@@ -87,8 +88,8 @@ void cls_mem_destroy(struct cls_mem *alloc);
  * @retval CLS_NULLPTR If `dest` or `alloc` is NULL.
  * @retval (error)     If the allocation callback fails.
  */
-int cls_mem_alloc(void **dest, struct cls_mem *alloc, size_t size,
-                  size_t align);
+cls_error cls_mem_alloc(void **dest, struct cls_mem *alloc, size_t size,
+                        size_t align);
 
 /**
  * @brief Frees memory.

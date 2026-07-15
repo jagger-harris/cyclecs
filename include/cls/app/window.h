@@ -2,6 +2,7 @@
 #define CLS_WINDOW_H
 
 #include <cglm/types.h>
+#include <cls/util/error.h>
 #include <stdbool.h>
 #include <stddef.h>
 
@@ -48,10 +49,11 @@ struct cls_window;
  * cls_window_destroy(win);
  * @endcode
  */
-int cls_window_create(struct cls_window **win, struct cls_mem *mem_persistant,
-                      struct cls_mem *mem_frame, struct cls_gfx_api *api,
-                      ivec2 size, const char *title, bool vsync,
-                      const ivec4 bg_color);
+cls_error cls_window_create(struct cls_window **win,
+                            struct cls_mem *mem_persistant,
+                            struct cls_mem *mem_frame, struct cls_gfx_api *api,
+                            ivec2 size, const char *title, bool vsync,
+                            const ivec4 bg_color);
 
 /**
  * @brief Destroys a window.
@@ -74,7 +76,8 @@ void cls_window_destroy(struct cls_window *win);
  * @return CLS_SUCCESS On success.
  * @retval CLS_NULLPTR If `rend` or `win` is NULL.
  */
-int cls_window_renderer_get(struct cls_renderer **rend, struct cls_window *win);
+cls_error cls_window_renderer_get(struct cls_renderer **rend,
+                                  struct cls_window *win);
 
 /**
  * @brief Updates a window.
@@ -88,7 +91,7 @@ int cls_window_renderer_get(struct cls_renderer **rend, struct cls_window *win);
  * @retval CLS_NULLPTR If `should_close` or `win` is NULL.
  * @retval (error)     If updating the timing or input state fails.
  */
-int cls_window_update(bool *should_close, struct cls_window *win);
+cls_error cls_window_update(bool *should_close, struct cls_window *win);
 
 /**
  * @brief Renders a frame.
@@ -102,7 +105,8 @@ int cls_window_update(bool *should_close, struct cls_window *win);
  * @retval CLS_NULLPTR If `win` or `app` is NULL.
  * @retval (error)     If rendering or presenting the frame fails.
  */
-int cls_window_renderer_update(struct cls_window *win, struct cls_app *app);
+cls_error cls_window_renderer_update(struct cls_window *win,
+                                     struct cls_app *app);
 
 /**
  * @brief Checks whether a window should close.
@@ -113,7 +117,8 @@ int cls_window_renderer_update(struct cls_window *win, struct cls_app *app);
  * @return CLS_SUCCESS On success.
  * @retval CLS_NULLPTR If `should_close` or `win` is NULL.
  */
-int cls_window_should_close(bool *should_close, const struct cls_window *win);
+cls_error cls_window_should_close(bool *should_close,
+                                  const struct cls_window *win);
 
 /**
  * @brief Retrieves the window size.
@@ -124,7 +129,7 @@ int cls_window_should_close(bool *should_close, const struct cls_window *win);
  * @return CLS_SUCCESS On success.
  * @retval CLS_NULLPTR If `size` or `win` is NULL.
  */
-int cls_window_size_get(ivec2 size, struct cls_window *win);
+cls_error cls_window_size_get(ivec2 size, struct cls_window *win);
 
 /**
  * @brief Retrieves the framebuffer size.
@@ -135,7 +140,7 @@ int cls_window_size_get(ivec2 size, struct cls_window *win);
  * @return CLS_SUCCESS On success.
  * @retval CLS_NULLPTR If `fb_size` or `win` is NULL.
  */
-int cls_window_fb_size_get(ivec2 fb_size, struct cls_window *win);
+cls_error cls_window_fb_size_get(ivec2 fb_size, struct cls_window *win);
 
 /**
  * @brief Updates the input state.
@@ -147,7 +152,7 @@ int cls_window_fb_size_get(ivec2 fb_size, struct cls_window *win);
  * @return CLS_SUCCESS On success.
  * @retval CLS_NULLPTR If `win` is NULL.
  */
-int cls_window_input_update(struct cls_window *win);
+cls_error cls_window_input_update(struct cls_window *win);
 
 /**
  * @brief Records a key event.
@@ -160,7 +165,7 @@ int cls_window_input_update(struct cls_window *win);
  * @retval CLS_NULLPTR If `win` is NULL.
  * @retval CLS_INVALID_ARG If `key` is out of range.
  */
-int cls_window_input_key(struct cls_window *win, int key, int action);
+cls_error cls_window_input_key(struct cls_window *win, int key, int action);
 
 /**
  * @brief Records a mouse button event.
@@ -173,8 +178,8 @@ int cls_window_input_key(struct cls_window *win, int key, int action);
  * @retval CLS_NULLPTR If `win` is NULL.
  * @retval CLS_INVALID_ARG If `button` is out of range.
  */
-int cls_window_input_mouse_button_set(struct cls_window *win, int button,
-                                      int action);
+cls_error cls_window_input_mouse_button_set(struct cls_window *win, int button,
+                                            int action);
 
 /**
  * @brief Retrieves the cursor position.
@@ -185,7 +190,7 @@ int cls_window_input_mouse_button_set(struct cls_window *win, int button,
  * @return CLS_SUCCESS On success.
  * @retval CLS_NULLPTR If `win` is NULL.
  */
-int cls_window_input_cursor_pos_get(vec2 pos, struct cls_window *win);
+cls_error cls_window_input_cursor_pos_get(vec2 pos, struct cls_window *win);
 
 /**
  * @brief Sets the cursor position.
@@ -196,7 +201,7 @@ int cls_window_input_cursor_pos_get(vec2 pos, struct cls_window *win);
  * @return CLS_SUCCESS On success.
  * @retval CLS_NULLPTR If `win` is NULL.
  */
-int cls_window_input_cursor_pos_set(struct cls_window *win, vec2 pos);
+cls_error cls_window_input_cursor_pos_set(struct cls_window *win, vec2 pos);
 
 /**
  * @brief Retrieves the scroll offset.
@@ -209,7 +214,8 @@ int cls_window_input_cursor_pos_set(struct cls_window *win, vec2 pos);
  * @return CLS_SUCCESS On success.
  * @retval CLS_NULLPTR If `win` is NULL.
  */
-int cls_window_input_scroll_offset_get(vec2 offset, struct cls_window *win);
+cls_error cls_window_input_scroll_offset_get(vec2 offset,
+                                             struct cls_window *win);
 
 /**
  * @brief Sets the scroll offset.
@@ -220,7 +226,8 @@ int cls_window_input_scroll_offset_get(vec2 offset, struct cls_window *win);
  * @return CLS_SUCCESS On success.
  * @retval CLS_NULLPTR If `win` is NULL.
  */
-int cls_window_input_scroll_offset_set(struct cls_window *win, vec2 offset);
+cls_error cls_window_input_scroll_offset_set(struct cls_window *win,
+                                             vec2 offset);
 
 /**
  * @brief Checks whether a key was pressed this frame.
@@ -232,8 +239,8 @@ int cls_window_input_scroll_offset_set(struct cls_window *win, vec2 offset);
  * @return CLS_SUCCESS On success.
  * @retval CLS_NULLPTR If `pressed` or `win` is NULL.
  */
-int cls_window_input_key_pressed(bool *pressed, const struct cls_window *win,
-                                 int key);
+cls_error cls_window_input_key_pressed(bool *pressed,
+                                       const struct cls_window *win, int key);
 
 /**
  * @brief Checks whether a key was released this frame.
@@ -245,8 +252,8 @@ int cls_window_input_key_pressed(bool *pressed, const struct cls_window *win,
  * @return CLS_SUCCESS On success.
  * @retval CLS_NULLPTR If `released` or `win` is NULL.
  */
-int cls_window_input_key_released(bool *released, const struct cls_window *win,
-                                  int key);
+cls_error cls_window_input_key_released(bool *released,
+                                        const struct cls_window *win, int key);
 
 /**
  * @brief Checks whether a key is held down.
@@ -258,8 +265,8 @@ int cls_window_input_key_released(bool *released, const struct cls_window *win,
  * @return CLS_SUCCESS On success.
  * @retval CLS_NULLPTR If `down` or `win` is NULL.
  */
-int cls_window_input_key_down(bool *down, const struct cls_window *win,
-                              int key);
+cls_error cls_window_input_key_down(bool *down, const struct cls_window *win,
+                                    int key);
 
 /**
  * @brief Checks whether a mouse button was pressed this frame.
@@ -271,8 +278,9 @@ int cls_window_input_key_down(bool *down, const struct cls_window *win,
  * @return CLS_SUCCESS On success.
  * @retval CLS_NULLPTR If `pressed` or `win` is NULL.
  */
-int cls_window_input_mouse_pressed(bool *pressed, const struct cls_window *win,
-                                   int button);
+cls_error cls_window_input_mouse_pressed(bool *pressed,
+                                         const struct cls_window *win,
+                                         int button);
 
 /**
  * @brief Checks whether a mouse button was released this frame.
@@ -284,8 +292,9 @@ int cls_window_input_mouse_pressed(bool *pressed, const struct cls_window *win,
  * @return CLS_SUCCESS On success.
  * @retval CLS_NULLPTR If `released` or `win` is NULL.
  */
-int cls_window_input_mouse_released(bool *released,
-                                    const struct cls_window *win, int button);
+cls_error cls_window_input_mouse_released(bool *released,
+                                          const struct cls_window *win,
+                                          int button);
 
 /**
  * @brief Checks whether a mouse button is held down.
@@ -297,8 +306,8 @@ int cls_window_input_mouse_released(bool *released,
  * @return CLS_SUCCESS On success.
  * @retval CLS_NULLPTR If `down` or `win` is NULL.
  */
-int cls_window_input_mouse_down(bool *down, const struct cls_window *win,
-                                int button);
+cls_error cls_window_input_mouse_down(bool *down, const struct cls_window *win,
+                                      int button);
 
 /**
  * @brief Updates the timing state.
@@ -310,7 +319,7 @@ int cls_window_input_mouse_down(bool *down, const struct cls_window *win,
  * @return CLS_SUCCESS On success.
  * @retval CLS_NULLPTR If `win` is NULL.
  */
-int cls_window_timing_update(struct cls_window *win);
+cls_error cls_window_timing_update(struct cls_window *win);
 
 /**
  * @brief Retrieves the frame delta time.
@@ -321,7 +330,7 @@ int cls_window_timing_update(struct cls_window *win);
  * @return CLS_SUCCESS On success.
  * @retval CLS_NULLPTR If `dt` or `win` is NULL.
  */
-int cls_window_timing_dt_get(float *dt, const struct cls_window *win);
+cls_error cls_window_timing_dt_get(float *dt, const struct cls_window *win);
 
 /**
  * @brief Retrieves the current FPS.
@@ -332,7 +341,7 @@ int cls_window_timing_dt_get(float *dt, const struct cls_window *win);
  * @return CLS_SUCCESS On success.
  * @retval CLS_NULLPTR If `fps` or `win` is NULL.
  */
-int cls_window_timing_fps_get(float *fps, const struct cls_window *win);
+cls_error cls_window_timing_fps_get(float *fps, const struct cls_window *win);
 
 /**
  * @brief Retrieves the average FPS.
@@ -343,6 +352,7 @@ int cls_window_timing_fps_get(float *fps, const struct cls_window *win);
  * @return CLS_SUCCESS On success.
  * @retval CLS_NULLPTR If `fps_avg` or `win` is NULL.
  */
-int cls_window_timing_fps_avg_get(float *fps_avg, const struct cls_window *win);
+cls_error cls_window_timing_fps_avg_get(float *fps_avg,
+                                        const struct cls_window *win);
 
 #endif // CLS_WINDOW_H

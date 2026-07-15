@@ -10,7 +10,6 @@
 #include <cls/gfx/renderer.h>
 #include <cls/gfx/shader.h>
 #include <cls/util/array.h>
-#include <cls/util/error.h>
 #include <cls/util/logger.h>
 #include <cls/util/mem.h>
 
@@ -33,7 +32,7 @@ void GLAPIENTRY msg_callback(GLenum source, GLenum type, GLuint id,
 }
 #endif
 
-int cls_gl_renderer_init(ivec4 bg_color) {
+cls_error cls_gl_renderer_init(ivec4 bg_color) {
     if (!gladLoadGL((GLADloadfunc)glfwGetProcAddress))
         return CLS_GL;
 
@@ -51,7 +50,7 @@ int cls_gl_renderer_init(ivec4 bg_color) {
     return CLS_SUCCESS;
 }
 
-int cls_gl_renderer_swap_buffers(GLFWwindow *win) {
+cls_error cls_gl_renderer_swap_buffers(GLFWwindow *win) {
     if (!win)
         return CLS_NULLPTR;
 
@@ -82,12 +81,13 @@ static void apply_render_state(const struct render_state *state) {
     }
 }
 
-static int render_batch(struct cls_app *app, struct cls_array *cmds,
-                        struct cls_renderer_batch *batch) {
+static cls_error render_batch(struct cls_app *app, struct cls_array *cmds,
+                              struct cls_renderer_batch *batch) {
     assert(app && cmds && batch && "app or cmds or batch is NULL");
 
     struct cls_gl_mesh *mesh = NULL;
-    int error = cls_assets_mesh_get(&mesh, app->assets, batch->data.mesh_id);
+    cls_error error =
+        cls_assets_mesh_get(&mesh, app->assets, batch->data.mesh_id);
     if (error)
         return error;
 
@@ -215,14 +215,15 @@ void cls_gl_renderer_begin_frame(void) {
     glDisable(GL_BLEND);
 }
 
-int cls_gl_renderer_draw_batches(struct cls_app *app, struct cls_array *cmds,
-                                 struct cls_array *batches,
-                                 struct cls_array **transparent_batches) {
+cls_error cls_gl_renderer_draw_batches(struct cls_app *app,
+                                       struct cls_array *cmds,
+                                       struct cls_array *batches,
+                                       struct cls_array **transparent_batches) {
     if (!app || !batches || !transparent_batches)
         return CLS_NULLPTR;
 
     size_t batches_len = 0;
-    int error = cls_array_length_get(&batches_len, batches);
+    cls_error error = cls_array_length_get(&batches_len, batches);
     if (error)
         return error;
 

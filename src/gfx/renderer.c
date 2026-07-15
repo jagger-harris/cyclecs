@@ -10,7 +10,6 @@
 #include <cls/gfx/renderer.h>
 #include <cls/util/arena.h>
 #include <cls/util/array.h>
-#include <cls/util/error.h>
 #include <cls/util/logger.h>
 
 static const size_t CMD_START_CAPACITY = 128;
@@ -42,9 +41,9 @@ struct render_world_ctx {
     struct transform *cam_tf;
 };
 
-static int add_cmd_to_render_batch(struct cls_renderer *rend,
-                                   struct cls_renderer_cmd *cmd,
-                                   size_t cmd_idx) {
+static cls_error add_cmd_to_render_batch(struct cls_renderer *rend,
+                                         struct cls_renderer_cmd *cmd,
+                                         size_t cmd_idx) {
     assert(rend && cmd && "rend or cmd is NULL");
 
     struct cls_renderer_batch_data key = {
@@ -56,7 +55,7 @@ static int add_cmd_to_render_batch(struct cls_renderer *rend,
     };
 
     void *found_ptr = NULL;
-    int error = cls_table_find(&found_ptr, rend->batch_indices, &key);
+    cls_error error = cls_table_find(&found_ptr, rend->batch_indices, &key);
     if (error)
         return error;
 
@@ -114,11 +113,11 @@ cleanup:
     return error;
 }
 
-static int create_batches(struct cls_renderer *rend) {
+static cls_error create_batches(struct cls_renderer *rend) {
     assert(rend && "rend is NULL");
 
     size_t cmds_len = 0;
-    int error = cls_array_length_get(&cmds_len, rend->cmds);
+    cls_error error = cls_array_length_get(&cmds_len, rend->cmds);
     if (error)
         return error;
 
@@ -137,11 +136,11 @@ static int create_batches(struct cls_renderer *rend) {
     return CLS_SUCCESS;
 }
 
-static int renderer_draw(struct cls_renderer *rend, struct cls_app *app) {
+static cls_error renderer_draw(struct cls_renderer *rend, struct cls_app *app) {
     assert(rend && app && "rend or app is NULL");
 
-    int error = rend->api->draw_batches(app, rend->cmds, rend->batches,
-                                        &rend->transparent_batches);
+    cls_error error = rend->api->draw_batches(app, rend->cmds, rend->batches,
+                                              &rend->transparent_batches);
     if (error)
         return error;
 
@@ -152,7 +151,7 @@ static void renderer_frame_destroy(struct cls_renderer *rend) {
     assert(rend && "rend is NULL");
 
     size_t batches_len = 0;
-    int error = cls_array_length_get(&batches_len, rend->batches);
+    cls_error error = cls_array_length_get(&batches_len, rend->batches);
     if (error)
         return;
 
@@ -168,12 +167,12 @@ static void renderer_frame_destroy(struct cls_renderer *rend) {
     }
 }
 
-static int renderer_frame_reset(struct cls_renderer *rend,
-                                struct cls_app *app) {
+static cls_error renderer_frame_reset(struct cls_renderer *rend,
+                                      struct cls_app *app) {
     assert(rend && app && "rend or app is NULL");
 
     size_t batches_length = 0;
-    int error = cls_array_length_get(&batches_length, rend->batches);
+    cls_error error = cls_array_length_get(&batches_length, rend->batches);
     if (error)
         return error;
 
@@ -207,14 +206,15 @@ static int renderer_frame_reset(struct cls_renderer *rend,
     return CLS_SUCCESS;
 }
 
-int cls_renderer_create(struct cls_renderer **rend, struct cls_mem *mem_perm,
-                        struct cls_mem *mem_frame, struct cls_gfx_api *api,
-                        const ivec4 bg_color) {
+cls_error cls_renderer_create(struct cls_renderer **rend,
+                              struct cls_mem *mem_perm,
+                              struct cls_mem *mem_frame,
+                              struct cls_gfx_api *api, const ivec4 bg_color) {
     if (!rend || !mem_perm || !mem_frame || !api)
         return CLS_NULLPTR;
 
     void *instance_ptr = NULL;
-    int error =
+    cls_error error =
         cls_mem_alloc(&instance_ptr, mem_perm, sizeof(struct cls_renderer),
                       alignof(struct cls_renderer));
     if (error)
@@ -269,14 +269,16 @@ void cls_renderer_destroy(struct cls_renderer *rend) {
     cls_table_destroy(rend->batch_indices);
 }
 
-int cls_renderer_swap_buffers(struct cls_renderer *rend, GLFWwindow *window) {
+cls_error cls_renderer_swap_buffers(struct cls_renderer *rend,
+                                    GLFWwindow *window) {
     if (!rend || !window)
         return CLS_NULLPTR;
 
     return rend->api->swap_buffers(window);
 }
 
-int cls_renderer_on_resize(struct cls_renderer *rend, int width, int height) {
+cls_error cls_renderer_on_resize(struct cls_renderer *rend, int width,
+                                 int height) {
     if (!rend)
         return CLS_NULLPTR;
 
@@ -284,8 +286,9 @@ int cls_renderer_on_resize(struct cls_renderer *rend, int width, int height) {
     return CLS_SUCCESS;
 }
 
-int cls_renderer_cmd_push(struct cls_renderer *rend, struct renderable *ren,
-                          struct transform *tf, float depth) {
+cls_error cls_renderer_cmd_push(struct cls_renderer *rend,
+                                struct renderable *ren, struct transform *tf,
+                                float depth) {
     if (!rend || !ren || !tf)
         return CLS_NULLPTR;
 
@@ -293,12 +296,13 @@ int cls_renderer_cmd_push(struct cls_renderer *rend, struct renderable *ren,
     return cls_array_push(&rend->cmds, &cmd);
 }
 
-int cls_renderer_frame_create(struct cls_renderer *rend, struct cls_app *app) {
+cls_error cls_renderer_frame_create(struct cls_renderer *rend,
+                                    struct cls_app *app) {
     if (!rend || !app)
         return CLS_NULLPTR;
 
     rend->api->begin_frame();
-    int error = create_batches(rend);
+    cls_error error = create_batches(rend);
     if (error)
         return error;
 

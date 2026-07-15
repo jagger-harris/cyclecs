@@ -1,6 +1,7 @@
 #ifndef CLS_PROFILER_H
 #define CLS_PROFILER_H
 
+#include <cls/util/error.h>
 #include <stddef.h>
 
 struct cls_profiler_timer {
@@ -64,6 +65,6 @@ void cls_profiler_reset(void);
  * @retval CLS_NULLPTR If `mb` is NULL.
  * @retval CLS_FILE_NOT_FOUND If reading the process status fails.
  */
-int cls_profiler_mem_usage_get(size_t *mb);
+cls_error cls_profiler_mem_usage_get(size_t *mb);
 
 #endif // CLS_PROFILER_H

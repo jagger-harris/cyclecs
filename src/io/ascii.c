@@ -1,10 +1,9 @@
 #include <assert.h>
 #include <cls/io/ascii.h>
-#include <cls/util/error.h>
 #include <stdio.h>
 #include <stdlib.h>
 
-int cls_ascii_init(const char **ascii, const char *path) {
+cls_error cls_ascii_init(const char **ascii, const char *path) {
     if (!ascii || !path)
         return CLS_FILE_NOT_FOUND;
 
@@ -12,7 +11,7 @@ int cls_ascii_init(const char **ascii, const char *path) {
     if (!file)
         return CLS_FILE_NOT_FOUND;
 
-    int error = CLS_SUCCESS;
+    cls_error error = CLS_SUCCESS;
     char *file_buffer = NULL;
 
     if (fseek(file, 0, SEEK_END) != 0) {

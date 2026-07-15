@@ -9,18 +9,18 @@
 #include <cls/gfx/gl/texture2d.h>
 #include <cls/gfx/renderer.h>
 #include <cls/io/font.h>
-#include <cls/util/error.h>
 #include <cls/util/logger.h>
 #include <cls/util/xxhash32.h>
 
-int cls_button_system(struct cls_ecs_world_query *query, struct cls_app *app) {
+cls_error cls_button_system(struct cls_ecs_world_query *query,
+                            struct cls_app *app) {
     if (!query || !app)
         return CLS_NULLPTR;
 
     struct camera *cam_data = NULL;
     cls_entity cam = CLS_ENTITY_MAX;
     struct cls_ecs_world *world = NULL;
-    int error = cls_ecs_world_query_world_get(&world, query);
+    cls_error error = cls_ecs_world_query_world_get(&world, query);
     if (error)
         return error;
 
@@ -90,12 +90,13 @@ int cls_button_system(struct cls_ecs_world_query *query, struct cls_app *app) {
     return CLS_SUCCESS;
 }
 
-int cls_camera_system(struct cls_ecs_world_query *query, struct cls_app *app) {
+cls_error cls_camera_system(struct cls_ecs_world_query *query,
+                            struct cls_app *app) {
     if (!query || !app)
         return CLS_NULLPTR;
 
     struct cls_ecs_world *world = NULL;
-    int error = cls_ecs_world_query_world_get(&world, query);
+    cls_error error = cls_ecs_world_query_world_get(&world, query);
     if (error)
         return error;
 
@@ -136,13 +137,13 @@ int cls_camera_system(struct cls_ecs_world_query *query, struct cls_app *app) {
                                        &active, sizeof(active));
 }
 
-int cls_label_render_system(struct cls_ecs_world_query *query,
-                            struct cls_app *app) {
+cls_error cls_label_render_system(struct cls_ecs_world_query *query,
+                                  struct cls_app *app) {
     if (!query || !app)
         return CLS_NULLPTR;
 
     struct cls_renderer *rend = NULL;
-    int error = cls_window_renderer_get(&rend, app->window);
+    cls_error error = cls_window_renderer_get(&rend, app->window);
     if (error)
         return error;
 
@@ -254,12 +255,13 @@ int cls_label_render_system(struct cls_ecs_world_query *query,
     return CLS_SUCCESS;
 }
 
-int cls_render_system(struct cls_ecs_world_query *query, struct cls_app *app) {
+cls_error cls_render_system(struct cls_ecs_world_query *query,
+                            struct cls_app *app) {
     if (!query || !app)
         return CLS_NULLPTR;
 
     struct cls_renderer *rend = NULL;
-    int error = cls_window_renderer_get(&rend, app->window);
+    cls_error error = cls_window_renderer_get(&rend, app->window);
     if (error)
         return error;
 

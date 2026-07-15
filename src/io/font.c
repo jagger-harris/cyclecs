@@ -1,7 +1,6 @@
 #include <assert.h>
 #include <cls/io/font.h>
 #include <cls/io/image.h>
-#include <cls/util/error.h>
 #include <cls/util/string.h>
 #include <cls/util/types.h>
 #include <freetype/freetype.h>
@@ -37,10 +36,10 @@ static unsigned int next_pow2(unsigned int i) {
     return i;
 }
 
-static int font_save(const struct cls_font *f, const char *path) {
+static cls_error font_save(const struct cls_font *f, const char *path) {
     assert(f && path && "f or path is NULL");
 
-    int error = CLS_SUCCESS;
+    cls_error error = CLS_SUCCESS;
     size_t size = (size_t)f->atlas_width * (size_t)f->atlas_height;
     u8 *atlas = malloc(size);
     char *atlas_image_path = cls_str_fmt("%s.png", path);
@@ -106,10 +105,10 @@ cleanup:
     return error;
 }
 
-static int font_load(struct cls_font *f, const char *path) {
+static cls_error font_load(struct cls_font *f, const char *path) {
     assert(f && path && "f or path is NULL");
 
-    int error = CLS_SUCCESS;
+    cls_error error = CLS_SUCCESS;
     FILE *file = NULL;
     char *atlas_image_path = cls_str_fmt("%s.png", path);
     char *meta_path = cls_str_fmt("%s.meta", path);
@@ -177,8 +176,8 @@ cleanup:
     return error;
 }
 
-int cls_font_init(struct cls_font *f, FT_Library ft, const char *path,
-                  int pixel_size) {
+cls_error cls_font_init(struct cls_font *f, FT_Library ft, const char *path,
+                        int pixel_size) {
     if (!f || !ft || !path)
         return CLS_NULLPTR;
 
@@ -186,7 +185,7 @@ int cls_font_init(struct cls_font *f, FT_Library ft, const char *path,
     if (!cache_path)
         return CLS_FAILURE;
 
-    int error = font_load(f, cache_path);
+    cls_error error = font_load(f, cache_path);
     if (!error) {
         free(cache_path);
         return CLS_SUCCESS;

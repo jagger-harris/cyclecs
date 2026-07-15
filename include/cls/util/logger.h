@@ -1,6 +1,8 @@
 #ifndef CLS_LOGGER_H
 #define CLS_LOGGER_H
 
+#include <cls/util/error.h>
+
 enum cls_logger_level {
     CLS_LOGGER_FATAL,
     CLS_LOGGER_ERROR,
@@ -24,9 +26,9 @@ enum cls_logger_level {
 void cls_logger_log(enum cls_logger_level level, const char *fmt, ...);
 void cls_logger_log_debug(enum cls_logger_level level, const char *file,
                           const char *func, int line, const char *fmt, ...);
-void cls_logger_log_error(enum cls_logger_level level, int err, const char *fmt,
-                          ...);
-void cls_logger_log_error_debug(enum cls_logger_level level, int err,
+void cls_logger_log_error(enum cls_logger_level level, cls_error err,
+                          const char *fmt, ...);
+void cls_logger_log_error_debug(enum cls_logger_level level, cls_error err,
                                 const char *file, const char *func, int line,
                                 const char *fmt, ...);
 

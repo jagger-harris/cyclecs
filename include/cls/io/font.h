@@ -1,6 +1,7 @@
 #ifndef CLS_FONT_H
 #define CLS_FONT_H
 
+#include <cls/util/error.h>
 #include <cls/util/types.h>
 #include <ft2build.h>
 #include <stdbool.h>
@@ -63,8 +64,8 @@ struct cls_font {
  * @retval CLS_OUT_OF_MEMORY  If allocating the atlas fails.
  * @retval (error)            If saving the atlas cache fails.
  */
-int cls_font_init(struct cls_font *f, FT_Library ft, const char *path,
-                  int pixel_size);
+cls_error cls_font_init(struct cls_font *f, FT_Library ft, const char *path,
+                        int pixel_size);
 
 /**
  * @brief Destroys a font.

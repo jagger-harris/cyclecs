@@ -1,6 +1,7 @@
 #ifndef CLS_ARRAY_H
 #define CLS_ARRAY_H
 
+#include <cls/util/error.h>
 #include <stddef.h>
 
 /**
@@ -31,8 +32,8 @@ struct cls_array;
  * cls_array_destroy(arr);
  * @endcode
  */
-int cls_array_create(struct cls_array **a, size_t start_capacity,
-                     size_t elem_size);
+cls_error cls_array_create(struct cls_array **a, size_t start_capacity,
+                           size_t elem_size);
 
 /**
  * @brief Destroys an array.
@@ -52,7 +53,7 @@ void cls_array_destroy(struct cls_array *a);
  * @return CLS_SUCCESS On success.
  * @retval CLS_NULLPTR If `len` or `a` is NULL.
  */
-int cls_array_length_get(size_t *len, struct cls_array *a);
+cls_error cls_array_length_get(size_t *len, struct cls_array *a);
 
 /**
  * @brief Retrieves the array data.
@@ -63,7 +64,7 @@ int cls_array_length_get(size_t *len, struct cls_array *a);
  * @return CLS_SUCCESS On success.
  * @retval CLS_NULLPTR If `data` or `a` is NULL.
  */
-int cls_array_data_get(void **data, struct cls_array *a);
+cls_error cls_array_data_get(void **data, struct cls_array *a);
 
 /**
  * @brief Clears an array.
@@ -75,7 +76,7 @@ int cls_array_data_get(void **data, struct cls_array *a);
  * @return CLS_SUCCESS On success.
  * @retval CLS_NULLPTR If `a` is NULL.
  */
-int cls_array_clear(struct cls_array *a);
+cls_error cls_array_clear(struct cls_array *a);
 
 /**
  * @brief Retrieves an element.
@@ -88,7 +89,8 @@ int cls_array_clear(struct cls_array *a);
  * @retval CLS_NULLPTR     If `dest` or `a` is NULL.
  * @retval CLS_INVALID_ARG If `index` is out of bounds.
  */
-int cls_array_elem_get(void **dest, const struct cls_array *a, size_t index);
+cls_error cls_array_elem_get(void **dest, const struct cls_array *a,
+                             size_t index);
 
 /**
  * @brief Copies an element.
@@ -103,7 +105,8 @@ int cls_array_elem_get(void **dest, const struct cls_array *a, size_t index);
  * @retval CLS_NULLPTR     If `dest` or `a` is NULL.
  * @retval CLS_INVALID_ARG If `index` is out of bounds.
  */
-int cls_array_elem_get_cpy(void *dest, const struct cls_array *a, size_t index);
+cls_error cls_array_elem_get_cpy(void *dest, const struct cls_array *a,
+                                 size_t index);
 
 /**
  * @brief Sets an element.
@@ -118,7 +121,8 @@ int cls_array_elem_get_cpy(void *dest, const struct cls_array *a, size_t index);
  * @retval CLS_NULLPTR     If `a` or `elem` is NULL.
  * @retval CLS_INVALID_ARG If `index` is out of bounds.
  */
-int cls_array_elem_set(struct cls_array *a, size_t index, const void *elem);
+cls_error cls_array_elem_set(struct cls_array *a, size_t index,
+                             const void *elem);
 
 /**
  * @brief Appends an element.
@@ -139,7 +143,7 @@ int cls_array_elem_set(struct cls_array *a, size_t index, const void *elem);
  * cls_array_push(&arr, &v);
  * @endcode
  */
-int cls_array_push(struct cls_array **a, const void *elem);
+cls_error cls_array_push(struct cls_array **a, const void *elem);
 
 /**
  * @brief Removes the last element.
@@ -151,7 +155,7 @@ int cls_array_push(struct cls_array **a, const void *elem);
  * @retval CLS_NULLPTR     If `a` is NULL.
  * @retval CLS_INVALID_ARG If the array is empty.
  */
-int cls_array_pop(void *last, struct cls_array *a);
+cls_error cls_array_pop(void *last, struct cls_array *a);
 
 /**
  * @brief Inserts an element.
@@ -166,7 +170,8 @@ int cls_array_pop(void *last, struct cls_array *a);
  * @retval CLS_NULLPTR     If `a` or `elem` is NULL.
  * @retval CLS_INVALID_ARG If `index` is invalid.
  */
-int cls_array_insert(struct cls_array **a, size_t index, const void *elem);
+cls_error cls_array_insert(struct cls_array **a, size_t index,
+                           const void *elem);
 
 /**
  * @brief Removes an element.
@@ -180,7 +185,7 @@ int cls_array_insert(struct cls_array **a, size_t index, const void *elem);
  * @retval CLS_NULLPTR     If `a` is NULL.
  * @retval CLS_INVALID_ARG If `index` is out of bounds.
  */
-int cls_array_remove(struct cls_array *a, size_t index);
+cls_error cls_array_remove(struct cls_array *a, size_t index);
 
 /**
  * @brief Concatenates arrays.
@@ -195,6 +200,7 @@ int cls_array_remove(struct cls_array *a, size_t index);
  * @retval CLS_INVALID_ARG   If the element sizes differ.
  * @retval CLS_OUT_OF_MEMORY If resizing fails.
  */
-int cls_array_concat(struct cls_array **dest, const struct cls_array *src);
+cls_error cls_array_concat(struct cls_array **dest,
+                           const struct cls_array *src);
 
 #endif // CLS_ARRAY_H

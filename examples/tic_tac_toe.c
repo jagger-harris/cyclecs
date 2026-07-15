@@ -11,7 +11,6 @@
 #include <cls/gfx/gl/texture2d.h>
 #include <cls/gfx/texture2d.h>
 #include <cls/util/array.h>
-#include <cls/util/error.h>
 #include <cls/util/logger.h>
 #include <cls/util/profiler.h>
 #include <cls/util/xxhash32.h>
@@ -47,8 +46,9 @@ struct world {
     struct cls_ecs_world *world;
 };
 
-static int preset_board_spawn(cls_entity *board, struct cls_ecs_world *world,
-                              const char *id, vec2 pos, enum player turn) {
+static cls_error preset_board_spawn(cls_entity *board,
+                                    struct cls_ecs_world *world, const char *id,
+                                    vec2 pos, enum player turn) {
     int rows = 3;
     float button_size = 200.0f;
     float gap = 6.0f;
@@ -66,7 +66,7 @@ static int preset_board_spawn(cls_entity *board, struct cls_ecs_world *world,
     ivec4 bg_tint = {255, 100, 100, 255};
 
     cls_entity root = CLS_ENTITY_MAX;
-    int error = cls_preset_rect_spawn(
+    cls_error error = cls_preset_rect_spawn(
         &root, world, "", pos, (vec2){board_border_size, board_border_size},
         0.0f, 0.0f, bg_tint, (vec2){1.0f, 1.0f}, (vec2){1.0f, 1.0f}, true);
     if (error)
@@ -166,13 +166,13 @@ cleanup:
     return error;
 }
 
-static int board_button_system(struct cls_ecs_world_query *query,
-                               struct cls_app *app) {
+static cls_error board_button_system(struct cls_ecs_world_query *query,
+                                     struct cls_app *app) {
     if (!query || !app)
         return CLS_NULLPTR;
 
     struct cls_ecs_world *world = NULL;
-    int error = cls_ecs_world_query_world_get(&world, query);
+    cls_error error = cls_ecs_world_query_world_get(&world, query);
     if (error)
         return error;
 
@@ -333,13 +333,13 @@ static enum winner check_winner(enum player state[9]) {
     return WINNER_DRAW;
 }
 
-static int winner_system(struct cls_ecs_world_query *query,
-                         struct cls_app *app) {
+static cls_error winner_system(struct cls_ecs_world_query *query,
+                               struct cls_app *app) {
     if (!query || !app)
         return CLS_NULLPTR;
 
     struct cls_ecs_world *world = NULL;
-    int error = cls_ecs_world_query_world_get(&world, query);
+    cls_error error = cls_ecs_world_query_world_get(&world, query);
     if (error)
         return error;
 
@@ -393,13 +393,13 @@ static int winner_system(struct cls_ecs_world_query *query,
     return CLS_SUCCESS;
 }
 
-static int debug_labels_system(struct cls_ecs_world_query *query,
-                               struct cls_app *app) {
+static cls_error debug_labels_system(struct cls_ecs_world_query *query,
+                                     struct cls_app *app) {
     if (!query || !app)
         return CLS_NULLPTR;
 
     struct cls_ecs_world *world = NULL;
-    int error = cls_ecs_world_query_world_get(&world, query);
+    cls_error error = cls_ecs_world_query_world_get(&world, query);
     if (error)
         return error;
 
@@ -503,7 +503,7 @@ static int debug_labels_system(struct cls_ecs_world_query *query,
     return CLS_SUCCESS;
 }
 
-static int game_init(struct cls_app *app) {
+static cls_error game_init(struct cls_app *app) {
     struct cls_assets *assets = app->assets;
     struct cls_ecs *ecs = app->ecs;
 
@@ -515,7 +515,7 @@ static int game_init(struct cls_app *app) {
     struct cls_ecs_world *main_world = NULL;
     struct cls_ecs_world *ui_world = NULL;
 
-    int error = cls_ecs_world_add(&main_world, ecs, "main", true);
+    cls_error error = cls_ecs_world_add(&main_world, ecs, "main", true);
     if (error)
         return error;
 
@@ -668,8 +668,8 @@ int main(void) {
                              .texture2d_destroy = cls_gl_texture2d_destroy,
                              .texture2d_use = cls_gl_texture2d_use};
     struct cls_app app = {0};
-    int error = cls_app_init(&app, &api, (ivec2){WIN_WIDTH, WIN_HEIGHT},
-                             WIN_TITLE, WIN_COLOR);
+    cls_error error = cls_app_init(&app, &api, (ivec2){WIN_WIDTH, WIN_HEIGHT},
+                                   WIN_TITLE, WIN_COLOR);
     if (error) {
         CLS_LOGGER_LOG_ERROR(CLS_LOGGER_ERROR, error, "%s", "Init app failed");
         goto cleanup;

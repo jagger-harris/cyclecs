@@ -1,13 +1,12 @@
 #include <cglm/types.h>
 #include <cls/gfx/gl/shader.h>
 #include <cls/gfx/shader.h>
-#include <cls/util/error.h>
 #include <cls/util/logger.h>
 #include <string.h>
 
 #define LOG_BUFFER 512
 
-static int check_shader(GLuint s, GLuint type) {
+static cls_error check_shader(GLuint s, GLuint type) {
     if (!glIsShader(s))
         return CLS_INVALID_ARG;
 
@@ -39,20 +38,19 @@ static int check_shader(GLuint s, GLuint type) {
     return CLS_SUCCESS;
 }
 
-int cls_gl_shader_init(struct cls_shader *s,
-                       const struct cls_shader_info *info) {
+cls_error cls_gl_shader_init(struct cls_shader *s,
+                             const struct cls_shader_info *info) {
     if (!s || !info || !info->vert_src || !info->frag_src)
         return CLS_NULLPTR;
 
     GLuint vert = 0;
     GLuint frag = 0;
     GLuint prog = 0;
-    int error = CLS_SUCCESS;
 
     vert = glCreateShader(GL_VERTEX_SHADER);
     glShaderSource(vert, 1, &info->vert_src, NULL);
     glCompileShader(vert);
-    error = check_shader(vert, GL_VERTEX_SHADER);
+    cls_error error = check_shader(vert, GL_VERTEX_SHADER);
     if (error)
         goto cleanup;
 
@@ -106,7 +104,7 @@ void cls_gl_shader_destroy(struct cls_shader *s) {
     glDeleteProgram(s->gl.id);
 }
 
-int cls_gl_shader_use(const struct cls_shader *s) {
+cls_error cls_gl_shader_use(const struct cls_shader *s) {
     if (!s)
         return CLS_NULLPTR;
 
@@ -117,7 +115,7 @@ int cls_gl_shader_use(const struct cls_shader *s) {
     return CLS_SUCCESS;
 }
 
-int cls_gl_shader_set_bool(GLuint s, const char *id, GLboolean value) {
+cls_error cls_gl_shader_set_bool(GLuint s, const char *id, GLboolean value) {
     if (!id)
         return CLS_NULLPTR;
 
@@ -128,7 +126,7 @@ int cls_gl_shader_set_bool(GLuint s, const char *id, GLboolean value) {
     return CLS_SUCCESS;
 }
 
-int cls_gl_shader_set_int(GLuint s, const char *id, GLint value) {
+cls_error cls_gl_shader_set_int(GLuint s, const char *id, GLint value) {
     if (!id)
         return CLS_NULLPTR;
 
@@ -139,7 +137,7 @@ int cls_gl_shader_set_int(GLuint s, const char *id, GLint value) {
     return CLS_SUCCESS;
 }
 
-int cls_gl_shader_set_float(GLuint s, const char *id, GLfloat value) {
+cls_error cls_gl_shader_set_float(GLuint s, const char *id, GLfloat value) {
     if (!id)
         return CLS_NULLPTR;
 
@@ -150,7 +148,7 @@ int cls_gl_shader_set_float(GLuint s, const char *id, GLfloat value) {
     return CLS_SUCCESS;
 }
 
-int cls_gl_shader_set_mat4(GLuint s, const char *id, mat4 *value) {
+cls_error cls_gl_shader_set_mat4(GLuint s, const char *id, mat4 *value) {
     if (!id || !value)
         return CLS_NULLPTR;
 
@@ -162,7 +160,7 @@ int cls_gl_shader_set_mat4(GLuint s, const char *id, mat4 *value) {
     return CLS_SUCCESS;
 }
 
-int cls_gl_shader_set_vec2(GLuint s, const char *id, vec2 *value) {
+cls_error cls_gl_shader_set_vec2(GLuint s, const char *id, vec2 *value) {
     if (!id || !value)
         return CLS_NULLPTR;
 
@@ -173,7 +171,7 @@ int cls_gl_shader_set_vec2(GLuint s, const char *id, vec2 *value) {
     return CLS_SUCCESS;
 }
 
-int cls_gl_shader_set_vec3(GLuint s, const char *id, vec3 *value) {
+cls_error cls_gl_shader_set_vec3(GLuint s, const char *id, vec3 *value) {
     if (!id || !value)
         return CLS_NULLPTR;
 
@@ -184,7 +182,7 @@ int cls_gl_shader_set_vec3(GLuint s, const char *id, vec3 *value) {
     return CLS_SUCCESS;
 }
 
-int cls_gl_shader_set_vec4(GLuint s, const char *id, vec4 *value) {
+cls_error cls_gl_shader_set_vec4(GLuint s, const char *id, vec4 *value) {
     if (!id || !value)
         return CLS_NULLPTR;
 

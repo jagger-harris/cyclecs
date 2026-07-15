@@ -1,5 +1,4 @@
 #include <assert.h>
-#include <cls/util/error.h>
 #include <cls/util/profiler.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -88,7 +87,7 @@ void cls_profiler_reset(void) {
     }
 }
 
-int cls_profiler_mem_usage_get(size_t *mb) {
+cls_error cls_profiler_mem_usage_get(size_t *mb) {
     if (!mb)
         return CLS_NULLPTR;
 

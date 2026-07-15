@@ -3,6 +3,7 @@
 
 #include <GLFW/glfw3.h>
 #include <cglm/types.h>
+#include <cls/util/error.h>
 
 /* Forward declarations. */
 struct cls_app;
@@ -20,7 +21,7 @@ struct cls_renderer_ctx;
  * @return CLS_SUCCESS On success.
  * @retval CLS_GL If loading OpenGL functions fails.
  */
-int cls_gl_renderer_init(ivec4 bg_color);
+cls_error cls_gl_renderer_init(ivec4 bg_color);
 
 /**
  * @brief Swaps window buffers.
@@ -30,7 +31,7 @@ int cls_gl_renderer_init(ivec4 bg_color);
  * @return CLS_SUCCESS On success.
  * @retval CLS_NULLPTR If `win` is NULL.
  */
-int cls_gl_renderer_swap_buffers(GLFWwindow *win);
+cls_error cls_gl_renderer_swap_buffers(GLFWwindow *win);
 
 /**
  * @brief Updates the viewport.
@@ -61,8 +62,9 @@ void cls_gl_renderer_begin_frame(void);
  * @retval CLS_NULLPTR If `app` or `batches` is NULL.
  * @retval (error)     If reading or sorting batch data fails.
  */
-int cls_gl_renderer_draw_batches(struct cls_app *app, struct cls_array *cmds,
-                                 struct cls_array *batches,
-                                 struct cls_array **transparent_batches);
+cls_error cls_gl_renderer_draw_batches(struct cls_app *app,
+                                       struct cls_array *cmds,
+                                       struct cls_array *batches,
+                                       struct cls_array **transparent_batches);
 
 #endif // CLS_GL_RENDERER_H

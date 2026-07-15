@@ -4,7 +4,6 @@
 #include <cglm/vec2.h>
 #include <cls/app/window.h>
 #include <cls/gfx/renderer.h>
-#include <cls/util/error.h>
 #include <cls/util/logger.h>
 #include <cls/util/mem.h>
 #include <string.h>
@@ -43,7 +42,8 @@ struct cls_window {
 };
 
 static void error_callback(int error, const char *msg) {
-    CLS_LOGGER_LOG_ERROR(CLS_LOGGER_ERROR, error, "GLFW error: %s", msg);
+    CLS_LOGGER_LOG_ERROR(CLS_LOGGER_ERROR, (cls_error)error, "GLFW error: %s",
+                         msg);
 }
 
 static void window_size_callback(GLFWwindow *glfw_window, int width,
@@ -72,7 +72,7 @@ static void framebuffer_size_callback(GLFWwindow *glfw_window, int width,
     }
 
     glm_ivec2_copy((ivec2){width, height}, window->fb_size);
-    int error = cls_renderer_on_resize(window->renderer, width, height);
+    cls_error error = cls_renderer_on_resize(window->renderer, width, height);
     if (error)
         CLS_LOGGER_LOG_ERROR(CLS_LOGGER_ERROR, error, "%s",
                              "Renderer resize failed");
@@ -140,12 +140,13 @@ static void cursor_pos_callback(GLFWwindow *glfw_window, double pos_x,
     cls_window_input_cursor_pos_set(window, (vec2){(float)pos_x, (float)pos_y});
 }
 
-static int input_create(struct cls_input **in, struct cls_mem *alloc) {
+static cls_error input_create(struct cls_input **in, struct cls_mem *alloc) {
     assert(in && alloc && "in or alloc is NULL");
 
     void *instance_ptr = NULL;
-    int error = cls_mem_alloc(&instance_ptr, alloc, sizeof(struct cls_input),
-                              alignof(struct cls_input));
+    cls_error error =
+        cls_mem_alloc(&instance_ptr, alloc, sizeof(struct cls_input),
+                      alignof(struct cls_input));
     if (error)
         return error;
 
@@ -153,12 +154,13 @@ static int input_create(struct cls_input **in, struct cls_mem *alloc) {
     return CLS_SUCCESS;
 }
 
-static int timing_create(struct cls_timing **t, struct cls_mem *alloc) {
+static cls_error timing_create(struct cls_timing **t, struct cls_mem *alloc) {
     assert(t && alloc && "t or alloc is NULL");
 
     void *instance_ptr = NULL;
-    int error = cls_mem_alloc(&instance_ptr, alloc, sizeof(struct cls_timing),
-                              alignof(struct cls_timing));
+    cls_error error =
+        cls_mem_alloc(&instance_ptr, alloc, sizeof(struct cls_timing),
+                      alignof(struct cls_timing));
     if (error)
         return error;
 
@@ -169,10 +171,11 @@ static int timing_create(struct cls_timing **t, struct cls_mem *alloc) {
     return CLS_SUCCESS;
 }
 
-int cls_window_create(struct cls_window **win, struct cls_mem *mem_persistant,
-                      struct cls_mem *mem_frame, struct cls_gfx_api *api,
-                      ivec2 size, const char *title, bool vsync,
-                      const ivec4 bg_color) {
+cls_error cls_window_create(struct cls_window **win,
+                            struct cls_mem *mem_persistant,
+                            struct cls_mem *mem_frame, struct cls_gfx_api *api,
+                            ivec2 size, const char *title, bool vsync,
+                            const ivec4 bg_color) {
     if (!win || !mem_persistant || !mem_frame || !title)
         return CLS_NULLPTR;
 
@@ -190,7 +193,7 @@ int cls_window_create(struct cls_window **win, struct cls_mem *mem_persistant,
     glfwWindowHint(GLFW_MAXIMIZED, GLFW_TRUE);
 
     struct cls_window *instance = NULL;
-    int error =
+    cls_error error =
         cls_mem_alloc((void **)&instance, mem_persistant,
                       sizeof(struct cls_window), alignof(struct cls_window));
     if (error)
@@ -258,8 +261,8 @@ void cls_window_destroy(struct cls_window *win) {
     cls_renderer_destroy(win->renderer);
 }
 
-int cls_window_renderer_get(struct cls_renderer **rend,
-                            struct cls_window *win) {
+cls_error cls_window_renderer_get(struct cls_renderer **rend,
+                                  struct cls_window *win) {
     if (!rend || !win)
         return CLS_NULLPTR;
 
@@ -267,8 +270,8 @@ int cls_window_renderer_get(struct cls_renderer **rend,
     return CLS_SUCCESS;
 }
 
-int cls_window_update(bool *should_close, struct cls_window *win) {
-    int error = cls_window_should_close(should_close, win);
+cls_error cls_window_update(bool *should_close, struct cls_window *win) {
+    cls_error error = cls_window_should_close(should_close, win);
     if (error)
         return error;
 
@@ -289,11 +292,12 @@ int cls_window_update(bool *should_close, struct cls_window *win) {
     return CLS_SUCCESS;
 }
 
-int cls_window_renderer_update(struct cls_window *win, struct cls_app *app) {
+cls_error cls_window_renderer_update(struct cls_window *win,
+                                     struct cls_app *app) {
     if (!win || !app)
         return CLS_NULLPTR;
 
-    int error = cls_renderer_frame_create(win->renderer, app);
+    cls_error error = cls_renderer_frame_create(win->renderer, app);
     if (error) {
         CLS_LOGGER_LOG_ERROR(CLS_LOGGER_ERROR, error, "%s",
                              "Renderer creating frame failed");
@@ -310,7 +314,8 @@ int cls_window_renderer_update(struct cls_window *win, struct cls_app *app) {
     return CLS_SUCCESS;
 }
 
-int cls_window_should_close(bool *should_close, const struct cls_window *win) {
+cls_error cls_window_should_close(bool *should_close,
+                                  const struct cls_window *win) {
     if (!should_close || !win)
         return CLS_NULLPTR;
 
@@ -318,7 +323,7 @@ int cls_window_should_close(bool *should_close, const struct cls_window *win) {
     return CLS_SUCCESS;
 }
 
-int cls_window_size_get(ivec2 size, struct cls_window *win) {
+cls_error cls_window_size_get(ivec2 size, struct cls_window *win) {
     if (!size || !win)
         return CLS_NULLPTR;
 
@@ -326,7 +331,7 @@ int cls_window_size_get(ivec2 size, struct cls_window *win) {
     return CLS_SUCCESS;
 }
 
-int cls_window_fb_size_get(ivec2 fb_size, struct cls_window *win) {
+cls_error cls_window_fb_size_get(ivec2 fb_size, struct cls_window *win) {
     if (!fb_size || !win)
         return CLS_NULLPTR;
 
@@ -334,7 +339,7 @@ int cls_window_fb_size_get(ivec2 fb_size, struct cls_window *win) {
     return CLS_SUCCESS;
 }
 
-int cls_window_input_update(struct cls_window *win) {
+cls_error cls_window_input_update(struct cls_window *win) {
     if (!win)
         return CLS_NULLPTR;
 
@@ -346,7 +351,7 @@ int cls_window_input_update(struct cls_window *win) {
     return CLS_SUCCESS;
 }
 
-int cls_window_input_key(struct cls_window *win, int key, int action) {
+cls_error cls_window_input_key(struct cls_window *win, int key, int action) {
     if (!win)
         return CLS_NULLPTR;
 
@@ -362,8 +367,8 @@ int cls_window_input_key(struct cls_window *win, int key, int action) {
     return CLS_SUCCESS;
 }
 
-int cls_window_input_mouse_button_set(struct cls_window *win, int button,
-                                      int action) {
+cls_error cls_window_input_mouse_button_set(struct cls_window *win, int button,
+                                            int action) {
     if (!win)
         return CLS_NULLPTR;
 
@@ -379,7 +384,7 @@ int cls_window_input_mouse_button_set(struct cls_window *win, int button,
     return CLS_SUCCESS;
 }
 
-int cls_window_input_cursor_pos_get(vec2 pos, struct cls_window *win) {
+cls_error cls_window_input_cursor_pos_get(vec2 pos, struct cls_window *win) {
     if (!win)
         return CLS_NULLPTR;
 
@@ -387,7 +392,7 @@ int cls_window_input_cursor_pos_get(vec2 pos, struct cls_window *win) {
     return CLS_SUCCESS;
 }
 
-int cls_window_input_cursor_pos_set(struct cls_window *win, vec2 pos) {
+cls_error cls_window_input_cursor_pos_set(struct cls_window *win, vec2 pos) {
     if (!win)
         return CLS_NULLPTR;
 
@@ -395,7 +400,8 @@ int cls_window_input_cursor_pos_set(struct cls_window *win, vec2 pos) {
     return CLS_SUCCESS;
 }
 
-int cls_window_input_scroll_offset_get(vec2 offset, struct cls_window *win) {
+cls_error cls_window_input_scroll_offset_get(vec2 offset,
+                                             struct cls_window *win) {
     if (!win)
         return CLS_NULLPTR;
 
@@ -403,7 +409,8 @@ int cls_window_input_scroll_offset_get(vec2 offset, struct cls_window *win) {
     return CLS_SUCCESS;
 }
 
-int cls_window_input_scroll_offset_set(struct cls_window *win, vec2 offset) {
+cls_error cls_window_input_scroll_offset_set(struct cls_window *win,
+                                             vec2 offset) {
     if (!win)
         return CLS_NULLPTR;
 
@@ -411,8 +418,8 @@ int cls_window_input_scroll_offset_set(struct cls_window *win, vec2 offset) {
     return CLS_SUCCESS;
 }
 
-int cls_window_input_key_pressed(bool *pressed, const struct cls_window *win,
-                                 int key) {
+cls_error cls_window_input_key_pressed(bool *pressed,
+                                       const struct cls_window *win, int key) {
     if (!pressed || !win)
         return CLS_NULLPTR;
 
@@ -420,8 +427,8 @@ int cls_window_input_key_pressed(bool *pressed, const struct cls_window *win,
     return CLS_SUCCESS;
 }
 
-int cls_window_input_key_released(bool *released, const struct cls_window *win,
-                                  int key) {
+cls_error cls_window_input_key_released(bool *released,
+                                        const struct cls_window *win, int key) {
     if (!released || !win)
         return CLS_NULLPTR;
 
@@ -429,8 +436,8 @@ int cls_window_input_key_released(bool *released, const struct cls_window *win,
     return CLS_SUCCESS;
 }
 
-int cls_window_input_key_down(bool *down, const struct cls_window *win,
-                              int key) {
+cls_error cls_window_input_key_down(bool *down, const struct cls_window *win,
+                                    int key) {
     if (!down || !win)
         return CLS_NULLPTR;
 
@@ -438,8 +445,9 @@ int cls_window_input_key_down(bool *down, const struct cls_window *win,
     return CLS_SUCCESS;
 }
 
-int cls_window_input_mouse_pressed(bool *pressed, const struct cls_window *win,
-                                   int button) {
+cls_error cls_window_input_mouse_pressed(bool *pressed,
+                                         const struct cls_window *win,
+                                         int button) {
     if (!pressed || !win)
         return CLS_NULLPTR;
 
@@ -448,8 +456,9 @@ int cls_window_input_mouse_pressed(bool *pressed, const struct cls_window *win,
     return CLS_SUCCESS;
 }
 
-int cls_window_input_mouse_released(bool *released,
-                                    const struct cls_window *win, int button) {
+cls_error cls_window_input_mouse_released(bool *released,
+                                          const struct cls_window *win,
+                                          int button) {
     if (!released || !win)
         return CLS_NULLPTR;
 
@@ -458,8 +467,8 @@ int cls_window_input_mouse_released(bool *released,
     return CLS_SUCCESS;
 }
 
-int cls_window_input_mouse_down(bool *down, const struct cls_window *win,
-                                int button) {
+cls_error cls_window_input_mouse_down(bool *down, const struct cls_window *win,
+                                      int button) {
     if (!down || !win)
         return CLS_NULLPTR;
 
@@ -468,7 +477,7 @@ int cls_window_input_mouse_down(bool *down, const struct cls_window *win,
     return CLS_SUCCESS;
 }
 
-int cls_window_timing_update(struct cls_window *win) {
+cls_error cls_window_timing_update(struct cls_window *win) {
     if (!win)
         return CLS_NULLPTR;
 
@@ -493,7 +502,7 @@ int cls_window_timing_update(struct cls_window *win) {
     return CLS_SUCCESS;
 }
 
-int cls_window_timing_dt_get(float *dt, const struct cls_window *win) {
+cls_error cls_window_timing_dt_get(float *dt, const struct cls_window *win) {
     if (!dt || !win)
         return CLS_NULLPTR;
 
@@ -501,7 +510,7 @@ int cls_window_timing_dt_get(float *dt, const struct cls_window *win) {
     return CLS_SUCCESS;
 }
 
-int cls_window_timing_fps_get(float *fps, const struct cls_window *win) {
+cls_error cls_window_timing_fps_get(float *fps, const struct cls_window *win) {
     if (!fps || !win)
         return CLS_NULLPTR;
 
@@ -509,8 +518,8 @@ int cls_window_timing_fps_get(float *fps, const struct cls_window *win) {
     return CLS_SUCCESS;
 }
 
-int cls_window_timing_fps_avg_get(float *fps_avg,
-                                  const struct cls_window *win) {
+cls_error cls_window_timing_fps_avg_get(float *fps_avg,
+                                        const struct cls_window *win) {
     if (!fps_avg || !win)
         return CLS_NULLPTR;
 

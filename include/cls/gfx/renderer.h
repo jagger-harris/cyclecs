@@ -58,9 +58,10 @@ struct cls_renderer_cmd {
  * cls_renderer_destroy(rend);
  * @endcode
  */
-int cls_renderer_create(struct cls_renderer **rend, struct cls_mem *mem_perm,
-                        struct cls_mem *mem_frame, struct cls_gfx_api *api,
-                        const ivec4 bg_color);
+cls_error cls_renderer_create(struct cls_renderer **rend,
+                              struct cls_mem *mem_perm,
+                              struct cls_mem *mem_frame,
+                              struct cls_gfx_api *api, const ivec4 bg_color);
 
 /**
  * @brief Destroys a renderer.
@@ -81,7 +82,8 @@ void cls_renderer_destroy(struct cls_renderer *rend);
  * @retval CLS_NULLPTR If `rend` or `window` is NULL.
  * @retval (error)     If swapping the buffers fails.
  */
-int cls_renderer_swap_buffers(struct cls_renderer *rend, GLFWwindow *window);
+cls_error cls_renderer_swap_buffers(struct cls_renderer *rend,
+                                    GLFWwindow *window);
 
 /**
  * @brief Handles a renderer resize.
@@ -95,7 +97,8 @@ int cls_renderer_swap_buffers(struct cls_renderer *rend, GLFWwindow *window);
  * @return CLS_SUCCESS On success.
  * @retval CLS_NULLPTR If `rend` is NULL.
  */
-int cls_renderer_on_resize(struct cls_renderer *rend, int width, int height);
+cls_error cls_renderer_on_resize(struct cls_renderer *rend, int width,
+                                 int height);
 
 /**
  * @brief Pushes a render command.
@@ -112,8 +115,9 @@ int cls_renderer_on_resize(struct cls_renderer *rend, int width, int height);
  * @retval CLS_NULLPTR If `rend`, `ren`, or `tf` is NULL.
  * @retval (error)     If adding the command fails.
  */
-int cls_renderer_cmd_push(struct cls_renderer *rend, struct renderable *ren,
-                          struct transform *tf, float depth);
+cls_error cls_renderer_cmd_push(struct cls_renderer *rend,
+                                struct renderable *ren, struct transform *tf,
+                                float depth);
 
 /**
  * @brief Creates a renderer frame.
@@ -128,6 +132,7 @@ int cls_renderer_cmd_push(struct cls_renderer *rend, struct renderable *ren,
  * @retval CLS_NULLPTR If `rend` or `app` is NULL.
  * @retval (error)     If batching, drawing, or resetting the frame fails.
  */
-int cls_renderer_frame_create(struct cls_renderer *rend, struct cls_app *app);
+cls_error cls_renderer_frame_create(struct cls_renderer *rend,
+                                    struct cls_app *app);
 
 #endif // CLS_RENDERER_H

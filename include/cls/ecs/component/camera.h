@@ -42,9 +42,10 @@ struct camera {
 
 struct transform;
 
-int camera_update(struct camera *cam, struct transform *tf);
+cls_error camera_update(struct camera *cam, struct transform *tf);
 void camera_resize(struct camera *cam, ivec2 size);
-int camera_screen_to_world(vec2 pos, struct camera *cam, const vec2 cursor_pos,
-                           const ivec2 viewport_size);
+cls_error camera_screen_to_world(vec2 pos, struct camera *cam,
+                                 const vec2 cursor_pos,
+                                 const ivec2 viewport_size);
 
 #endif // CLS_ECS_COMPONENT_CAMERA_H

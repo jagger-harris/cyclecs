@@ -1,6 +1,5 @@
 #include <assert.h>
 #include <cls/util/arena.h>
-#include <cls/util/error.h>
 #include <cls/util/types.h>
 #include <stdalign.h>
 #include <stdint.h>
@@ -20,7 +19,7 @@ static inline void *arena_data(struct cls_arena *a) {
     return (u8 *)a + sizeof(struct cls_arena);
 }
 
-int cls_arena_create(struct cls_arena **a, size_t size) {
+cls_error cls_arena_create(struct cls_arena **a, size_t size) {
     if (!a)
         return CLS_NULLPTR;
 
@@ -53,8 +52,8 @@ void cls_arena_destroy(struct cls_arena *a) {
     free(a);
 }
 
-int cls_arena_alloc(void **dest, struct cls_arena *a, size_t size,
-                    size_t align) {
+cls_error cls_arena_alloc(void **dest, struct cls_arena *a, size_t size,
+                          size_t align) {
     if (!dest || !a)
         return CLS_NULLPTR;
 
@@ -76,7 +75,7 @@ int cls_arena_alloc(void **dest, struct cls_arena *a, size_t size,
     return CLS_SUCCESS;
 }
 
-int cls_arena_clear(struct cls_arena *a) {
+cls_error cls_arena_clear(struct cls_arena *a) {
     if (!a)
         return CLS_NULLPTR;
 
@@ -85,7 +84,7 @@ int cls_arena_clear(struct cls_arena *a) {
     return CLS_SUCCESS;
 }
 
-int cls_arena_marker_save(cls_arena_marker *marker, struct cls_arena *a) {
+cls_error cls_arena_marker_save(cls_arena_marker *marker, struct cls_arena *a) {
     if (!marker || !a)
         return CLS_NULLPTR;
 
@@ -93,7 +92,8 @@ int cls_arena_marker_save(cls_arena_marker *marker, struct cls_arena *a) {
     return CLS_SUCCESS;
 }
 
-int cls_arena_marker_restore(struct cls_arena *a, cls_arena_marker *marker) {
+cls_error cls_arena_marker_restore(struct cls_arena *a,
+                                   cls_arena_marker *marker) {
     if (!a || !marker)
         return CLS_NULLPTR;
 

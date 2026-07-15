@@ -6,7 +6,6 @@
 #include <cls/io/ascii.h>
 #include <cls/io/font.h>
 #include <cls/io/image.h>
-#include <cls/util/error.h>
 #include <cls/util/logger.h>
 #include <cls/util/mem.h>
 #include <cls/util/string.h>
@@ -32,7 +31,7 @@ struct cls_assets {
     FT_Library ft;
 };
 
-static int load_missing_texture(struct cls_assets *assets) {
+static cls_error load_missing_texture(struct cls_assets *assets) {
     assert(assets && "assets is NULL");
 
     static u8 missingno[16] = {
@@ -45,7 +44,7 @@ static int load_missing_texture(struct cls_assets *assets) {
                                       .filter = CLS_TEXTURE_FILTER_NEAREST,
                                       .wrap = CLS_TEXTURE_WRAP_REPEAT};
     struct cls_texture2d texture = {0};
-    int error = assets->api->texture2d_init(&texture, &info);
+    cls_error error = assets->api->texture2d_init(&texture, &info);
     if (error)
         return error;
 
@@ -62,7 +61,7 @@ static int load_missing_texture(struct cls_assets *assets) {
     return CLS_SUCCESS;
 }
 
-static int load_blank_texture(struct cls_assets *assets) {
+static cls_error load_blank_texture(struct cls_assets *assets) {
     assert(assets && "assets is NULL");
 
     static u8 blank[4] = {255, 255, 255, 0};
@@ -73,7 +72,7 @@ static int load_blank_texture(struct cls_assets *assets) {
                                       .filter = CLS_TEXTURE_FILTER_NEAREST,
                                       .wrap = CLS_TEXTURE_WRAP_CLAMP};
     struct cls_texture2d texture = {0};
-    int error = assets->api->texture2d_init(&texture, &info);
+    cls_error error = assets->api->texture2d_init(&texture, &info);
     if (error)
         return error;
 
@@ -90,7 +89,7 @@ static int load_blank_texture(struct cls_assets *assets) {
     return CLS_SUCCESS;
 }
 
-static int assets_load_defaults(struct cls_assets *assets) {
+static cls_error assets_load_defaults(struct cls_assets *assets) {
     assert(assets && "assets is NULL");
 
     cls_assets_mesh_add(assets, "quad", CLS_QUAD_VERTICES,
@@ -100,7 +99,7 @@ static int assets_load_defaults(struct cls_assets *assets) {
     cls_assets_shader_add(assets, "mesh");
     cls_assets_shader_add(assets, "sprite");
     cls_assets_font_add(assets, "human_sans-regular.otf", 64);
-    int error = load_missing_texture(assets);
+    cls_error error = load_missing_texture(assets);
     if (error)
         return error;
 
@@ -111,14 +110,15 @@ static int assets_load_defaults(struct cls_assets *assets) {
     return CLS_SUCCESS;
 }
 
-int cls_assets_create(struct cls_assets **assets, struct cls_mem *mem,
-                      struct cls_gfx_api *api) {
+cls_error cls_assets_create(struct cls_assets **assets, struct cls_mem *mem,
+                            struct cls_gfx_api *api) {
     if (!assets || !mem || !api)
         return CLS_NULLPTR;
 
     void *instance_ptr = NULL;
-    int error = cls_mem_alloc(&instance_ptr, mem, sizeof(struct cls_assets),
-                              alignof(struct cls_assets));
+    cls_error error =
+        cls_mem_alloc(&instance_ptr, mem, sizeof(struct cls_assets),
+                      alignof(struct cls_assets));
     if (error)
         return error;
 
@@ -169,7 +169,7 @@ void cls_assets_destroy(struct cls_assets *assets) {
         return;
 
     struct cls_table_iterator *iter = NULL;
-    int error = cls_table_iterator_create(&iter, assets->fonts);
+    cls_error error = cls_table_iterator_create(&iter, assets->fonts);
     if (error)
         return;
 
@@ -204,7 +204,7 @@ void cls_assets_font_add(struct cls_assets *assets, const char *font_path,
         return;
 
     u32 id = 0;
-    int error = cls_xxhash32(&id, font_path, strlen(font_path), 0);
+    cls_error error = cls_xxhash32(&id, font_path, strlen(font_path), 0);
     if (error)
         return;
 
@@ -259,13 +259,13 @@ void cls_assets_font_add(struct cls_assets *assets, const char *font_path,
     return;
 }
 
-int cls_assets_font_get(struct cls_font **font, const struct cls_assets *assets,
-                        const char *id) {
+cls_error cls_assets_font_get(struct cls_font **font,
+                              const struct cls_assets *assets, const char *id) {
     if (!font || !assets || !id)
         return CLS_NULLPTR;
 
     u32 hash = 0;
-    int error = cls_xxhash32(&hash, id, strlen(id), 0);
+    cls_error error = cls_xxhash32(&hash, id, strlen(id), 0);
     if (error)
         return error;
 
@@ -283,7 +283,7 @@ void cls_assets_shader_add(struct cls_assets *assets, const char *shader_path) {
         return;
 
     u32 id = 0;
-    int error = cls_xxhash32(&id, shader_path, strlen(shader_path), 0);
+    cls_error error = cls_xxhash32(&id, shader_path, strlen(shader_path), 0);
     if (error)
         return;
 
@@ -353,13 +353,14 @@ cleanup:
     cls_ascii_destroy(&frag_src);
 }
 
-int cls_assets_shader_get(struct cls_shader **shader,
-                          const struct cls_assets *assets, u32 shader_id) {
+cls_error cls_assets_shader_get(struct cls_shader **shader,
+                                const struct cls_assets *assets,
+                                u32 shader_id) {
     if (!shader || !assets || !shader_id)
         return CLS_NULLPTR;
 
     void *found_ptr = NULL;
-    int error = cls_table_find(&found_ptr, assets->shaders, &shader_id);
+    cls_error error = cls_table_find(&found_ptr, assets->shaders, &shader_id);
     if (error)
         return error;
 
@@ -379,7 +380,8 @@ void cls_assets_texture2d_add(struct cls_assets *assets,
         return;
 
     u32 id = 0;
-    int error = cls_xxhash32(&id, texture2d_path, strlen(texture2d_path), 0);
+    cls_error error =
+        cls_xxhash32(&id, texture2d_path, strlen(texture2d_path), 0);
     if (error)
         return;
 
@@ -439,16 +441,16 @@ cleanup:
     cls_image_destroy(&img);
 }
 
-int cls_assets_texture2d_get(struct cls_texture2d **texture,
-                             const struct cls_assets *assets,
-                             u32 texture2d_id) {
+cls_error cls_assets_texture2d_get(struct cls_texture2d **texture,
+                                   const struct cls_assets *assets,
+                                   u32 texture2d_id) {
     if (!texture || !assets)
         return CLS_NULLPTR;
 
     void *found_ptr = NULL;
 
     u32 null_texture_id = 0;
-    int error = cls_xxhash32(&null_texture_id, "", strlen(""), 0);
+    cls_error error = cls_xxhash32(&null_texture_id, "", strlen(""), 0);
     if (error)
         return error;
 
@@ -498,7 +500,7 @@ void cls_assets_mesh_add(struct cls_assets *assets, const char *mesh_id,
         return;
 
     u32 id = 0;
-    int error = cls_xxhash32(&id, mesh_id, strlen(mesh_id), 0);
+    cls_error error = cls_xxhash32(&id, mesh_id, strlen(mesh_id), 0);
     if (error)
         return;
 
@@ -529,13 +531,13 @@ void cls_assets_mesh_add(struct cls_assets *assets, const char *mesh_id,
     return;
 }
 
-int cls_assets_mesh_get(struct cls_gl_mesh **mesh,
-                        const struct cls_assets *assets, u32 mesh_id) {
+cls_error cls_assets_mesh_get(struct cls_gl_mesh **mesh,
+                              const struct cls_assets *assets, u32 mesh_id) {
     if (!mesh || !assets || !mesh_id)
         return CLS_NULLPTR;
 
     void *found_ptr = NULL;
-    int error = cls_table_find(&found_ptr, assets->meshes, &mesh_id);
+    cls_error error = cls_table_find(&found_ptr, assets->meshes, &mesh_id);
     if (error)
         return error;
 

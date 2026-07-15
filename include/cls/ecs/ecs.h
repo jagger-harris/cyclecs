@@ -1,6 +1,7 @@
 #ifndef CLS_ECS_H
 #define CLS_ECS_H
 
+#include <cls/util/error.h>
 #include <cls/util/table.h>
 #include <cls/util/types.h>
 
@@ -48,8 +49,8 @@ struct cls_ecs_world_query;
  * @return CLS_SUCCESS On success.
  * @retval (error)     If the callback reports an error. Iteration continues.
  */
-typedef int (*cls_ecs_world_iter_fn)(struct cls_ecs_world *world,
-                                     void *user_data);
+typedef cls_error (*cls_ecs_world_iter_fn)(struct cls_ecs_world *world,
+                                           void *user_data);
 
 /**
  * @brief Callback invoked by a system.
@@ -63,8 +64,8 @@ typedef int (*cls_ecs_world_iter_fn)(struct cls_ecs_world *world,
  * @return CLS_SUCCESS On success.
  * @retval (error)     If the system fails.
  */
-typedef int (*cls_ecs_world_system_fn)(struct cls_ecs_world_query *query,
-                                       struct cls_app *app);
+typedef cls_error (*cls_ecs_world_system_fn)(struct cls_ecs_world_query *query,
+                                             struct cls_app *app);
 
 /**
  * @brief Creates an ECS.
@@ -86,7 +87,7 @@ typedef int (*cls_ecs_world_system_fn)(struct cls_ecs_world_query *query,
  * cls_ecs_destroy(ecs);
  * @endcode
  */
-int cls_ecs_create(struct cls_ecs **ecs, struct cls_mem *mem);
+cls_error cls_ecs_create(struct cls_ecs **ecs, struct cls_mem *mem);
 
 /**
  * @brief Destroys an ECS.
@@ -116,8 +117,8 @@ void cls_ecs_destroy(struct cls_ecs *ecs);
  * cls_ecs_world_add(&world, ecs, "main", true);
  * @endcode
  */
-int cls_ecs_world_add(struct cls_ecs_world **world, struct cls_ecs *ecs,
-                      const char *id, bool should_update);
+cls_error cls_ecs_world_add(struct cls_ecs_world **world, struct cls_ecs *ecs,
+                            const char *id, bool should_update);
 
 /**
  * @brief Removes a world.
@@ -131,7 +132,7 @@ int cls_ecs_world_add(struct cls_ecs_world **world, struct cls_ecs *ecs,
  * @retval CLS_NULLPTR If `ecs` or `id` is NULL.
  * @retval (error)     If the world is not found.
  */
-int cls_ecs_world_remove(struct cls_ecs *ecs, const char *id);
+cls_error cls_ecs_world_remove(struct cls_ecs *ecs, const char *id);
 
 /**
  * @brief Retrieves a world.
@@ -144,8 +145,8 @@ int cls_ecs_world_remove(struct cls_ecs *ecs, const char *id);
  * @retval CLS_NULLPTR If `world`, `ecs`, or `id` is NULL.
  * @retval (error)     If the world is not found.
  */
-int cls_ecs_world_get(struct cls_ecs_world **world, const struct cls_ecs *ecs,
-                      const char *id);
+cls_error cls_ecs_world_get(struct cls_ecs_world **world,
+                            const struct cls_ecs *ecs, const char *id);
 
 /**
  * @brief Updates all worlds.
@@ -158,7 +159,7 @@ int cls_ecs_world_get(struct cls_ecs_world **world, const struct cls_ecs *ecs,
  * @return CLS_SUCCESS On success.
  * @retval CLS_NULLPTR If `ecs` is NULL.
  */
-int cls_ecs_world_update_all(struct cls_ecs *ecs, struct cls_app *app);
+cls_error cls_ecs_world_update_all(struct cls_ecs *ecs, struct cls_app *app);
 
 /**
  * @brief Iterates over all worlds.
@@ -172,8 +173,8 @@ int cls_ecs_world_update_all(struct cls_ecs *ecs, struct cls_app *app);
  * @return CLS_SUCCESS On success.
  * @retval CLS_NULLPTR If `ecs` or `fn` is NULL.
  */
-int cls_ecs_world_iter_all(struct cls_ecs *ecs, cls_ecs_world_iter_fn fn,
-                           void *user_data);
+cls_error cls_ecs_world_iter_all(struct cls_ecs *ecs, cls_ecs_world_iter_fn fn,
+                                 void *user_data);
 
 /**
  * @brief Flushes pending entity removals.
@@ -185,7 +186,7 @@ int cls_ecs_world_iter_all(struct cls_ecs *ecs, cls_ecs_world_iter_fn fn,
  * @return CLS_SUCCESS On success.
  * @retval CLS_NULLPTR If `world` is NULL.
  */
-int cls_ecs_world_flush(struct cls_ecs_world *world);
+cls_error cls_ecs_world_flush(struct cls_ecs_world *world);
 
 /**
  * @brief Creates an entity.
@@ -196,7 +197,7 @@ int cls_ecs_world_flush(struct cls_ecs_world *world);
  * @return CLS_SUCCESS On success.
  * @retval CLS_NULLPTR If `e` or `world` is NULL.
  */
-int cls_ecs_world_entity_add(cls_entity *e, struct cls_ecs_world *world);
+cls_error cls_ecs_world_entity_add(cls_entity *e, struct cls_ecs_world *world);
 
 /**
  * @brief Queues an entity for removal.
@@ -210,7 +211,8 @@ int cls_ecs_world_entity_add(cls_entity *e, struct cls_ecs_world *world);
  * @retval CLS_NULLPTR     If `world` is NULL.
  * @retval CLS_INVALID_ARG If `e` is CLS_ENTITY_MAX.
  */
-int cls_ecs_world_entity_remove(struct cls_ecs_world *world, cls_entity e);
+cls_error cls_ecs_world_entity_remove(struct cls_ecs_world *world,
+                                      cls_entity e);
 
 /**
  * @brief Registers a component type.
@@ -225,8 +227,8 @@ int cls_ecs_world_entity_remove(struct cls_ecs_world *world, cls_entity e);
  * @retval CLS_NULLPTR       If `world` is NULL.
  * @retval CLS_OUT_OF_MEMORY If allocation fails.
  */
-int cls_ecs_world_component_type_add(struct cls_ecs_world *world,
-                                     const char *id, size_t comp_size);
+cls_error cls_ecs_world_component_type_add(struct cls_ecs_world *world,
+                                           const char *id, size_t comp_size);
 
 /**
  * @brief Removes a component type.
@@ -238,8 +240,8 @@ int cls_ecs_world_component_type_add(struct cls_ecs_world *world,
  * @retval CLS_NULLPTR If `world` is NULL.
  * @retval (error)     If the component type is not found.
  */
-int cls_ecs_world_component_type_remove(struct cls_ecs_world *world,
-                                        const char *id);
+cls_error cls_ecs_world_component_type_remove(struct cls_ecs_world *world,
+                                              const char *id);
 
 /**
  * @brief Adds a component to an entity.
@@ -255,8 +257,8 @@ int cls_ecs_world_component_type_remove(struct cls_ecs_world *world,
  * @retval CLS_NULLPTR If `world` or `comp` is NULL.
  * @retval (error)     If the component type does not exist.
  */
-int cls_ecs_world_component_add(struct cls_ecs_world *world, cls_entity e,
-                                const char *id, const void *comp);
+cls_error cls_ecs_world_component_add(struct cls_ecs_world *world, cls_entity e,
+                                      const char *id, const void *comp);
 
 /**
  * @brief Removes a component from an entity.
@@ -269,8 +271,8 @@ int cls_ecs_world_component_add(struct cls_ecs_world *world, cls_entity e,
  * @retval CLS_NULLPTR     If `world` is NULL.
  * @retval CLS_INVALID_ARG If `e` is CLS_ENTITY_MAX or is out of range.
  */
-int cls_ecs_world_component_remove(struct cls_ecs_world *world, cls_entity e,
-                                   const char *id);
+cls_error cls_ecs_world_component_remove(struct cls_ecs_world *world,
+                                         cls_entity e, const char *id);
 
 /**
  * @brief Retrieves a component from an entity.
@@ -286,8 +288,9 @@ int cls_ecs_world_component_remove(struct cls_ecs_world *world, cls_entity e,
  *                         not exist, or the entity does not have the
  *                         component.
  */
-int cls_ecs_world_component_get(void **comp, const struct cls_ecs_world *world,
-                                cls_entity e, const char *id);
+cls_error cls_ecs_world_component_get(void **comp,
+                                      const struct cls_ecs_world *world,
+                                      cls_entity e, const char *id);
 
 /**
  * @brief Creates a query.
@@ -314,9 +317,9 @@ int cls_ecs_world_component_get(void **comp, const struct cls_ecs_world *world,
  * cls_ecs_world_query_destroy(query);
  * @endcode
  */
-int cls_ecs_world_query_create(struct cls_ecs_world_query **query,
-                               struct cls_ecs_world *world, size_t comp_count,
-                               const char *ids[]);
+cls_error cls_ecs_world_query_create(struct cls_ecs_world_query **query,
+                                     struct cls_ecs_world *world,
+                                     size_t comp_count, const char *ids[]);
 
 /**
  * @brief Destroys a query.
@@ -336,8 +339,8 @@ void cls_ecs_world_query_destroy(struct cls_ecs_world_query *query);
  * @return CLS_SUCCESS On success.
  * @retval CLS_NULLPTR If `world` or `query` is NULL.
  */
-int cls_ecs_world_query_world_get(struct cls_ecs_world **world,
-                                  struct cls_ecs_world_query *query);
+cls_error cls_ecs_world_query_world_get(struct cls_ecs_world **world,
+                                        struct cls_ecs_world_query *query);
 
 /**
  * @brief Resets a query.
@@ -349,7 +352,7 @@ int cls_ecs_world_query_world_get(struct cls_ecs_world **world,
  * @return CLS_SUCCESS On success.
  * @retval CLS_NULLPTR If `query` is NULL.
  */
-int cls_ecs_world_query_clear(struct cls_ecs_world_query *query);
+cls_error cls_ecs_world_query_clear(struct cls_ecs_world_query *query);
 
 /**
  * @brief Retrieves the next matching entity.
@@ -374,8 +377,8 @@ int cls_ecs_world_query_clear(struct cls_ecs_world_query *query);
  * }
  * @endcode
  */
-int cls_ecs_world_query_next(cls_entity *e, void **comps,
-                             struct cls_ecs_world_query *query);
+cls_error cls_ecs_world_query_next(cls_entity *e, void **comps,
+                                   struct cls_ecs_world_query *query);
 
 /**
  * @brief Registers a system.
@@ -395,9 +398,10 @@ int cls_ecs_world_query_next(cls_entity *e, void **comps,
  * @retval CLS_NULLPTR If `world` is NULL.
  * @retval (error)     If query creation or system registration fails.
  */
-int cls_ecs_world_system_add(struct cls_ecs_world *world, const char *id,
-                             cls_ecs_world_system_fn system, float tick_rate,
-                             size_t comp_count, const char *ids[]);
+cls_error cls_ecs_world_system_add(struct cls_ecs_world *world, const char *id,
+                                   cls_ecs_world_system_fn system,
+                                   float tick_rate, size_t comp_count,
+                                   const char *ids[]);
 
 /**
  * @brief Removes a system.
@@ -409,7 +413,8 @@ int cls_ecs_world_system_add(struct cls_ecs_world *world, const char *id,
  * @retval CLS_NULLPTR If `world` is NULL.
  * @retval (error)     If the system is not found.
  */
-int cls_ecs_world_system_remove(struct cls_ecs_world *world, const char *id);
+cls_error cls_ecs_world_system_remove(struct cls_ecs_world *world,
+                                      const char *id);
 
 /**
  * @brief Adds or updates a singleton.
@@ -426,8 +431,9 @@ int cls_ecs_world_system_remove(struct cls_ecs_world *world, const char *id);
  * @retval CLS_NULLPTR       If `world`, `id`, or `data` is NULL.
  * @retval CLS_OUT_OF_MEMORY If allocation fails.
  */
-int cls_ecs_world_singleton_add(struct cls_ecs_world *world, const char *id,
-                                const void *data, size_t size);
+cls_error cls_ecs_world_singleton_add(struct cls_ecs_world *world,
+                                      const char *id, const void *data,
+                                      size_t size);
 
 /**
  * @brief Removes a singleton.
@@ -439,7 +445,8 @@ int cls_ecs_world_singleton_add(struct cls_ecs_world *world, const char *id,
  * @retval CLS_NULLPTR If `world` or `id` is NULL.
  * @retval (error)     If the singleton is not found.
  */
-int cls_ecs_world_singleton_remove(struct cls_ecs_world *world, const char *id);
+cls_error cls_ecs_world_singleton_remove(struct cls_ecs_world *world,
+                                         const char *id);
 
 /**
  * @brief Retrieves a singleton.
@@ -452,8 +459,9 @@ int cls_ecs_world_singleton_remove(struct cls_ecs_world *world, const char *id);
  * @retval CLS_NULLPTR     If `out`, `world`, or `id` is NULL.
  * @retval CLS_INVALID_ARG If the singleton is not found.
  */
-int cls_ecs_world_singleton_get(void **out, const struct cls_ecs_world *world,
-                                const char *id);
+cls_error cls_ecs_world_singleton_get(void **out,
+                                      const struct cls_ecs_world *world,
+                                      const char *id);
 
 /**
  * @brief Updates a world.
@@ -468,7 +476,8 @@ int cls_ecs_world_singleton_get(void **out, const struct cls_ecs_world *world,
  * @retval CLS_NULLPTR If `world` or `app` is NULL.
  * @retval (error)     If running systems or flushing entities fails.
  */
-int cls_ecs_world_update(struct cls_ecs_world *world, struct cls_app *app);
+cls_error cls_ecs_world_update(struct cls_ecs_world *world,
+                               struct cls_app *app);
 
 /**
  * @brief Retrieves the number of allocated entities.
@@ -482,8 +491,8 @@ int cls_ecs_world_update(struct cls_ecs_world *world, struct cls_app *app);
  * @return CLS_SUCCESS On success.
  * @retval CLS_NULLPTR If `len` or `world` is NULL.
  */
-int cls_ecs_world_entities_length_get(size_t *len,
-                                      const struct cls_ecs_world *world);
+cls_error cls_ecs_world_entities_length_get(size_t *len,
+                                            const struct cls_ecs_world *world);
 
 /**
  * @brief Retrieves the number of reusable entity identifiers.
@@ -494,7 +503,8 @@ int cls_ecs_world_entities_length_get(size_t *len,
  * @return CLS_SUCCESS On success.
  * @retval CLS_NULLPTR If `len` or `world` is NULL.
  */
-int cls_ecs_world_free_entities_length_get(size_t *len,
-                                           const struct cls_ecs_world *world);
+cls_error
+cls_ecs_world_free_entities_length_get(size_t *len,
+                                       const struct cls_ecs_world *world);
 
 #endif // CLS_ECS_H

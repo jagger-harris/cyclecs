@@ -1,6 +1,8 @@
 #ifndef CLS_ASCII_H
 #define CLS_ASCII_H
 
+#include <cls/util/error.h>
+
 /**
  * @brief Reads a file into a buffer.
  *
@@ -24,7 +26,7 @@
  * cls_ascii_destroy(&ascii);
  * @endcode
  */
-int cls_ascii_init(const char **ascii, const char *path);
+cls_error cls_ascii_init(const char **ascii, const char *path);
 
 /**
  * @brief Destroys a buffer.

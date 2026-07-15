@@ -1,6 +1,5 @@
 #include <assert.h>
 #include <cls/util/array.h>
-#include <cls/util/error.h>
 #include <cls/util/logger.h>
 #include <cls/util/types.h>
 #include <stdalign.h>
@@ -16,7 +15,7 @@ struct cls_array {
     void *data;
 };
 
-static int array_grow(struct cls_array **arr) {
+static cls_error array_grow(struct cls_array **arr) {
     assert(arr && "in is NULL");
 
     struct cls_array *array = *arr;
@@ -51,8 +50,8 @@ static int array_grow(struct cls_array **arr) {
     return CLS_SUCCESS;
 }
 
-int cls_array_create(struct cls_array **a, size_t start_capacity,
-                     size_t elem_size) {
+cls_error cls_array_create(struct cls_array **a, size_t start_capacity,
+                           size_t elem_size) {
     if (!a)
         return CLS_NULLPTR;
 
@@ -86,7 +85,7 @@ void cls_array_destroy(struct cls_array *a) {
     free(a);
 }
 
-int cls_array_length_get(size_t *out, struct cls_array *a) {
+cls_error cls_array_length_get(size_t *out, struct cls_array *a) {
     if (!out || !a)
         return CLS_NULLPTR;
 
@@ -94,7 +93,7 @@ int cls_array_length_get(size_t *out, struct cls_array *a) {
     return CLS_SUCCESS;
 }
 
-int cls_array_data_get(void **out, struct cls_array *a) {
+cls_error cls_array_data_get(void **out, struct cls_array *a) {
     if (!out || !a)
         return CLS_NULLPTR;
 
@@ -102,7 +101,7 @@ int cls_array_data_get(void **out, struct cls_array *a) {
     return CLS_SUCCESS;
 }
 
-int cls_array_clear(struct cls_array *a) {
+cls_error cls_array_clear(struct cls_array *a) {
     if (!a)
         return CLS_NULLPTR;
 
@@ -110,7 +109,8 @@ int cls_array_clear(struct cls_array *a) {
     return CLS_SUCCESS;
 }
 
-int cls_array_elem_get(void **out, const struct cls_array *a, size_t index) {
+cls_error cls_array_elem_get(void **out, const struct cls_array *a,
+                             size_t index) {
     if (!out || !a)
         return CLS_NULLPTR;
 
@@ -121,7 +121,8 @@ int cls_array_elem_get(void **out, const struct cls_array *a, size_t index) {
     return CLS_SUCCESS;
 }
 
-int cls_array_elem_get_cpy(void *out, const struct cls_array *a, size_t index) {
+cls_error cls_array_elem_get_cpy(void *out, const struct cls_array *a,
+                                 size_t index) {
     if (!out || !a)
         return CLS_NULLPTR;
 
@@ -132,7 +133,8 @@ int cls_array_elem_get_cpy(void *out, const struct cls_array *a, size_t index) {
     return CLS_SUCCESS;
 }
 
-int cls_array_elem_set(struct cls_array *a, size_t index, const void *data) {
+cls_error cls_array_elem_set(struct cls_array *a, size_t index,
+                             const void *data) {
     if (!a || !data)
         return CLS_NULLPTR;
 
@@ -143,14 +145,14 @@ int cls_array_elem_set(struct cls_array *a, size_t index, const void *data) {
     return CLS_SUCCESS;
 }
 
-int cls_array_push(struct cls_array **in, const void *data) {
+cls_error cls_array_push(struct cls_array **in, const void *data) {
     if (!in || !*in || !data)
         return CLS_NULLPTR;
 
     struct cls_array *array = *in;
 
     if (array->length >= array->capacity) {
-        int error = array_grow(in);
+        cls_error error = array_grow(in);
         if (error)
             return error;
 
@@ -164,7 +166,7 @@ int cls_array_push(struct cls_array **in, const void *data) {
     return CLS_SUCCESS;
 }
 
-int cls_array_pop(void *last, struct cls_array *a) {
+cls_error cls_array_pop(void *last, struct cls_array *a) {
     if (!a)
         return CLS_NULLPTR;
 
@@ -180,7 +182,8 @@ int cls_array_pop(void *last, struct cls_array *a) {
     return CLS_SUCCESS;
 }
 
-int cls_array_insert(struct cls_array **a, size_t index, const void *data) {
+cls_error cls_array_insert(struct cls_array **a, size_t index,
+                           const void *data) {
     if (!a || !*a || !data)
         return CLS_NULLPTR;
 
@@ -190,7 +193,7 @@ int cls_array_insert(struct cls_array **a, size_t index, const void *data) {
         return CLS_INVALID_ARG;
 
     if (array->length >= array->capacity) {
-        int error = array_grow(a);
+        cls_error error = array_grow(a);
         if (error)
             return error;
 
@@ -207,7 +210,7 @@ int cls_array_insert(struct cls_array **a, size_t index, const void *data) {
     return CLS_SUCCESS;
 }
 
-int cls_array_remove(struct cls_array *a, size_t index) {
+cls_error cls_array_remove(struct cls_array *a, size_t index) {
     if (!a)
         return CLS_NULLPTR;
 
@@ -222,7 +225,8 @@ int cls_array_remove(struct cls_array *a, size_t index) {
     return CLS_SUCCESS;
 }
 
-int cls_array_concat(struct cls_array **dest, const struct cls_array *src) {
+cls_error cls_array_concat(struct cls_array **dest,
+                           const struct cls_array *src) {
     if (!dest || !*dest || !src)
         return CLS_NULLPTR;
 

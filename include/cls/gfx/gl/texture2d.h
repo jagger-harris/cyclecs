@@ -1,6 +1,7 @@
 #ifndef CLS_GL_TEXTURE2D_H
 #define CLS_GL_TEXTURE2D_H
 
+#include <cls/util/error.h>
 #include <cls/util/types.h>
 #include <glad/gl.h>
 
@@ -31,8 +32,8 @@ struct cls_gl_texture2d {
  *
  * @note The texture is unbound after creation.
  */
-int cls_gl_texture2d_init(struct cls_texture2d *tex,
-                          struct cls_texture2d_info *info);
+cls_error cls_gl_texture2d_init(struct cls_texture2d *tex,
+                                struct cls_texture2d_info *info);
 
 /**
  * @brief Destroys a 2D texture.
@@ -53,6 +54,6 @@ void cls_gl_texture2d_destroy(struct cls_texture2d *in);
  * @return CLS_SUCCESS On success.
  * @retval CLS_INVALID_ARG If the texture is invalid.
  */
-int cls_gl_texture2d_use(const struct cls_texture2d *in);
+cls_error cls_gl_texture2d_use(const struct cls_texture2d *in);
 
 #endif // CLS_GL_TEXTURE2D_H

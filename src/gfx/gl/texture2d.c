@@ -3,8 +3,8 @@
 #include <cls/util/error.h>
 #include <stddef.h>
 
-int cls_gl_texture2d_init(struct cls_texture2d *tex,
-                          struct cls_texture2d_info *info) {
+cls_error cls_gl_texture2d_init(struct cls_texture2d *tex,
+                                struct cls_texture2d_info *info) {
     if (!tex || !info)
         return CLS_NULLPTR;
 
@@ -48,7 +48,7 @@ void cls_gl_texture2d_destroy(struct cls_texture2d *in) {
     glDeleteTextures(1, &in->gl.id);
 }
 
-int cls_gl_texture2d_use(const struct cls_texture2d *in) {
+cls_error cls_gl_texture2d_use(const struct cls_texture2d *in) {
     if (!glIsTexture(in->gl.id))
         return CLS_INVALID_ARG;
 

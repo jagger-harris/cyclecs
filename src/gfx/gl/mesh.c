@@ -1,14 +1,14 @@
 #include "cls/util/logger.h"
 #include <cglm/types.h>
 #include <cls/gfx/gl/mesh.h>
-#include <cls/util/error.h>
 #include <cls/util/types.h>
 #include <stddef.h>
 #include <string.h>
 
-int cls_gl_mesh_init(struct cls_gl_mesh *mesh,
-                     const struct cls_vertex *vertices, size_t vertex_count,
-                     const unsigned int *indices, size_t index_count) {
+cls_error cls_gl_mesh_init(struct cls_gl_mesh *mesh,
+                           const struct cls_vertex *vertices,
+                           size_t vertex_count, const unsigned int *indices,
+                           size_t index_count) {
     if (!mesh || !vertices || !indices)
         return CLS_NULLPTR;
 
@@ -54,7 +54,7 @@ void cls_gl_mesh_destroy(struct cls_gl_mesh *mesh) {
     glDeleteBuffers(1, &mesh->ebo);
 }
 
-int cls_gl_mesh_draw(const struct cls_gl_mesh *mesh) {
+cls_error cls_gl_mesh_draw(const struct cls_gl_mesh *mesh) {
     if (!mesh)
         return CLS_NULLPTR;
 
@@ -63,9 +63,10 @@ int cls_gl_mesh_draw(const struct cls_gl_mesh *mesh) {
     return CLS_SUCCESS;
 }
 
-int cls_gl_mesh_draw_instanced(struct cls_gl_mesh *mesh,
-                               struct cls_gl_mesh_instance_data *instances,
-                               GLsizei instance_count) {
+cls_error
+cls_gl_mesh_draw_instanced(struct cls_gl_mesh *mesh,
+                           struct cls_gl_mesh_instance_data *instances,
+                           GLsizei instance_count) {
     if (!mesh || !instances)
         return CLS_NULLPTR;
 

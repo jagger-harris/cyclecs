@@ -1,6 +1,7 @@
 #ifndef CLS_TABLE_H
 #define CLS_TABLE_H
 
+#include <cls/util/error.h>
 #include <stdbool.h>
 #include <stddef.h>
 
@@ -39,8 +40,8 @@ struct cls_table_iterator;
  * cls_table_destroy(t);
  * @endcode
  */
-int cls_table_create(struct cls_table **t, size_t start_capacity,
-                     size_t key_size, size_t value_size);
+cls_error cls_table_create(struct cls_table **t, size_t start_capacity,
+                           size_t key_size, size_t value_size);
 
 /**
  * @brief Destroys a table.
@@ -70,7 +71,8 @@ void cls_table_destroy(struct cls_table *t);
  * cls_table_insert(t, &key, &value);
  * @endcode
  */
-int cls_table_insert(struct cls_table *t, const void *key, const void *value);
+cls_error cls_table_insert(struct cls_table *t, const void *key,
+                           const void *value);
 
 /**
  * @brief Removes a key.
@@ -90,7 +92,7 @@ int cls_table_insert(struct cls_table *t, const void *key, const void *value);
  * cls_table_remove(&value, t, &key);
  * @endcode
  */
-int cls_table_remove(void *value, struct cls_table *t, const void *key);
+cls_error cls_table_remove(void *value, struct cls_table *t, const void *key);
 
 /**
  * @brief Finds a value.
@@ -104,7 +106,8 @@ int cls_table_remove(void *value, struct cls_table *t, const void *key);
  * @return CLS_SUCCESS On success.
  * @retval CLS_NULLPTR If `value`, `t`, or `key` is NULL.
  */
-int cls_table_find(void **value, const struct cls_table *t, const void *key);
+cls_error cls_table_find(void **value, const struct cls_table *t,
+                         const void *key);
 
 /**
  * @brief Copies a value.
@@ -118,7 +121,8 @@ int cls_table_find(void **value, const struct cls_table *t, const void *key);
  * @return CLS_SUCCESS On success.
  * @retval CLS_NULLPTR If `value`, `t`, or `key` is NULL.
  */
-int cls_table_find_cpy(void *value, const struct cls_table *t, const void *key);
+cls_error cls_table_find_cpy(void *value, const struct cls_table *t,
+                             const void *key);
 
 /**
  * @brief Clears a table.
@@ -130,7 +134,7 @@ int cls_table_find_cpy(void *value, const struct cls_table *t, const void *key);
  * @return CLS_SUCCESS On success.
  * @retval CLS_NULLPTR If `t` is NULL.
  */
-int cls_table_clear(struct cls_table *t);
+cls_error cls_table_clear(struct cls_table *t);
 
 /**
  * @brief Creates a table iterator.
@@ -152,8 +156,8 @@ int cls_table_clear(struct cls_table *t);
  * cls_table_iterator_destroy(it);
  * @endcode
  */
-int cls_table_iterator_create(struct cls_table_iterator **it,
-                              const struct cls_table *t);
+cls_error cls_table_iterator_create(struct cls_table_iterator **it,
+                                    const struct cls_table *t);
 
 /**
  * @brief Destroys a table iterator.
@@ -173,7 +177,7 @@ void cls_table_iterator_destroy(struct cls_table_iterator *it);
  * @return CLS_SUCCESS On success.
  * @retval CLS_NULLPTR If `exists` or `it` is NULL.
  */
-int cls_table_iterator_next(bool *exists, struct cls_table_iterator *it);
+cls_error cls_table_iterator_next(bool *exists, struct cls_table_iterator *it);
 
 /**
  * @brief Clears an iterator.
@@ -185,7 +189,7 @@ int cls_table_iterator_next(bool *exists, struct cls_table_iterator *it);
  * @return CLS_SUCCESS On success.
  * @retval CLS_NULLPTR If `it` is NULL.
  */
-int cls_table_iterator_clear(struct cls_table_iterator *it);
+cls_error cls_table_iterator_clear(struct cls_table_iterator *it);
 
 /**
  * @brief Retrieves the iterator key.
@@ -196,7 +200,8 @@ int cls_table_iterator_clear(struct cls_table_iterator *it);
  * @return CLS_SUCCESS On success.
  * @retval CLS_NULLPTR If `key` or `it` is NULL.
  */
-int cls_table_iterator_key_get(void **key, const struct cls_table_iterator *it);
+cls_error cls_table_iterator_key_get(void **key,
+                                     const struct cls_table_iterator *it);
 
 /**
  * @brief Retrieves the iterator value.
@@ -207,7 +212,7 @@ int cls_table_iterator_key_get(void **key, const struct cls_table_iterator *it);
  * @return CLS_SUCCESS On success.
  * @retval CLS_NULLPTR If `value` or `it` is NULL.
  */
-int cls_table_iterator_value_get(void **value,
-                                 const struct cls_table_iterator *it);
+cls_error cls_table_iterator_value_get(void **value,
+                                       const struct cls_table_iterator *it);
 
 #endif // CLS_TABLE_H

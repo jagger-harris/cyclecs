@@ -1,6 +1,7 @@
 #ifndef CLS_IMAGE_H
 #define CLS_IMAGE_H
 
+#include <cls/util/error.h>
 #include <cls/util/types.h>
 
 /**
@@ -34,7 +35,7 @@ struct cls_image {
  * cls_image_destroy(&img);
  * @endcode
  */
-int cls_image_init(struct cls_image *img, const char *path);
+cls_error cls_image_init(struct cls_image *img, const char *path);
 
 /**
  * @brief Destroys an image.
@@ -58,6 +59,6 @@ void cls_image_destroy(struct cls_image *img);
  * @retval CLS_INVALID_ARG If the image size or channel count is invalid.
  * @retval CLS_FAILURE     If writing the image fails.
  */
-int cls_image_save(const struct cls_image *img, const char *path);
+cls_error cls_image_save(const struct cls_image *img, const char *path);
 
 #endif // CLS_IMAGE_H

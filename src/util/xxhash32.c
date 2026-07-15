@@ -1,5 +1,4 @@
 #include <assert.h>
-#include <cls/util/error.h>
 #include <cls/util/types.h>
 #include <cls/util/xxhash32.h>
 #include <stdint.h>
@@ -39,7 +38,7 @@ static u32 xxh32_avalanche(u32 h32) {
     return h32;
 }
 
-int cls_xxhash32(u32 *hash, const void *input, size_t length, u32 seed) {
+cls_error cls_xxhash32(u32 *hash, const void *input, size_t length, u32 seed) {
     if (!hash || !input)
         return CLS_NULLPTR;
 

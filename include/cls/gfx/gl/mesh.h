@@ -54,9 +54,10 @@ struct cls_gl_mesh_instance_data {
  * @return CLS_SUCCESS On success.
  * @retval CLS_NULLPTR If `mesh`, `vertices`, or `indices` is NULL.
  */
-int cls_gl_mesh_init(struct cls_gl_mesh *mesh,
-                     const struct cls_vertex *vertices, size_t vertex_count,
-                     const unsigned int *indices, size_t index_count);
+cls_error cls_gl_mesh_init(struct cls_gl_mesh *mesh,
+                           const struct cls_vertex *vertices,
+                           size_t vertex_count, const unsigned int *indices,
+                           size_t index_count);
 
 /**
  * @brief Destroys a mesh.
@@ -75,7 +76,7 @@ void cls_gl_mesh_destroy(struct cls_gl_mesh *mesh);
  * @return CLS_SUCCESS On success.
  * @retval CLS_NULLPTR If `mesh` is NULL.
  */
-int cls_gl_mesh_draw(const struct cls_gl_mesh *mesh);
+cls_error cls_gl_mesh_draw(const struct cls_gl_mesh *mesh);
 
 /**
  * @brief Draws mesh instances.
@@ -90,8 +91,9 @@ int cls_gl_mesh_draw(const struct cls_gl_mesh *mesh);
  * @retval CLS_NULLPTR     If `mesh` is NULL.
  * @retval CLS_INVALID_ARG If `instance_count` is zero.
  */
-int cls_gl_mesh_draw_instanced(struct cls_gl_mesh *mesh,
-                               struct cls_gl_mesh_instance_data *instances,
-                               GLsizei instance_count);
+cls_error
+cls_gl_mesh_draw_instanced(struct cls_gl_mesh *mesh,
+                           struct cls_gl_mesh_instance_data *instances,
+                           GLsizei instance_count);
 
 #endif // CLS_GL_MESH_H

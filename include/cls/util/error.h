@@ -4,8 +4,6 @@
 /**
  * @enum cls_error
  * @brief Error codes.
- *
- * Functions return these values as `int` to keep return types consistent.
  */
 typedef enum {
     CLS_SUCCESS = 0, /**< Operation completed successfully. */
