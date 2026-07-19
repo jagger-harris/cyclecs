@@ -1,7 +1,24 @@
+/**
+ * @file cls/io/ascii.h
+ * @brief Ascii text management for the Cyclecs library.
+ *
+ * SPDX-License-Identifier: LGPL-3.0-only
+ *
+ * @copyright Copyright (C) 2026 Jagger Harris
+ * @see cls/io/ascii.c
+ */
+
 #ifndef CLS_ASCII_H
 #define CLS_ASCII_H
 
 #include <cls/util/error.h>
+
+/**
+ * @defgroup ascii ASCII.
+ * @ingroup io
+ * @brief ASCII file loader.
+ * @{
+ */
 
 /**
  * @brief Reads a file into a buffer.
@@ -36,5 +53,7 @@ cls_error cls_ascii_init(const char **ascii, const char *path);
  * @param[in,out] ascii Buffer to destroy.
  */
 void cls_ascii_destroy(const char **ascii);
+
+/** @} */
 
 #endif // CLS_ASCII_H

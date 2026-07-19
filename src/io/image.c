@@ -1,3 +1,13 @@
+/**
+ * @file cls/io/image.c
+ * @brief Image management for the Cyclecs library.
+ *
+ * SPDX-License-Identifier: LGPL-3.0-only
+ *
+ * @copyright Copyright (C) 2026 Jagger Harris
+ * @see cls/io/image.h
+ */
+
 #include <cls/io/image.h>
 #include <cls/util/error.h>
 #include <stdbool.h>

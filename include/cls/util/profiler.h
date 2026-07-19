@@ -1,9 +1,30 @@
+/**
+ * @file cls/util/profiler.h
+ * @brief Profiler utils for the Cyclecs library.
+ *
+ * SPDX-License-Identifier: LGPL-3.0-only
+ *
+ * @copyright Copyright (C) 2026 Jagger Harris
+ * @see cls/util/profiler.c
+ */
+
 #ifndef CLS_PROFILER_H
 #define CLS_PROFILER_H
 
 #include <cls/util/error.h>
 #include <stddef.h>
 
+/**
+ * @defgroup profiler Profiler
+ * @ingroup util
+ * @brief Profiling helper utils.
+ * @{
+ */
+
+/**
+ * @struct cls_profiler_timer
+ * @brief Profiler timer helper.
+ */
 struct cls_profiler_timer {
     size_t entry_idx;
     double start_time;
@@ -66,5 +87,7 @@ void cls_profiler_reset(void);
  * @retval CLS_FILE_NOT_FOUND If reading the process status fails.
  */
 cls_error cls_profiler_mem_usage_get(size_t *mb);
+
+/** @} */
 
 #endif // CLS_PROFILER_H

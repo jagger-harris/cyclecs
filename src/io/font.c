@@ -1,3 +1,13 @@
+/**
+ * @file cls/io/font.c
+ * @brief Font management for the Cyclecs library.
+ *
+ * SPDX-License-Identifier: LGPL-3.0-only
+ *
+ * @copyright Copyright (C) 2026 Jagger Harris
+ * @see cls/io/font.h
+ */
+
 #include <assert.h>
 #include <cls/io/font.h>
 #include <cls/io/image.h>

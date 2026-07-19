@@ -1,3 +1,13 @@
+/**
+ * @file cls/util/array.c
+ * @brief Dynamic array implementation for the Cyclecs library.
+ *
+ * SPDX-License-Identifier: LGPL-3.0-only
+ *
+ * @copyright Copyright (C) 2026 Jagger Harris
+ * @see cls/util/array.h
+ */
+
 #include <assert.h>
 #include <cls/util/array.h>
 #include <cls/util/logger.h>

@@ -1,3 +1,13 @@
+/**
+ * @file cls/app/window.h
+ * @brief Assets management for the Cyclecs library.
+ *
+ * SPDX-License-Identifier: LGPL-3.0-only
+ *
+ * @copyright Copyright (C) 2026 Jagger Harris
+ * @see cls/app/window.c
+ */
+
 #ifndef CLS_WINDOW_H
 #define CLS_WINDOW_H
 
@@ -6,11 +16,19 @@
 #include <stdbool.h>
 #include <stddef.h>
 
+/**
+ * @defgroup window Window
+ * @ingroup app
+ * @brief Window state and logic for the application.
+ * @{
+ */
+
 /* Forward declarations. */
 struct cls_app;
 struct cls_gfx_api;
 struct cls_mem;
 struct cls_renderer;
+struct cls_renderer_api;
 
 /**
  * @struct cls_window
@@ -51,8 +69,9 @@ struct cls_window;
  */
 cls_error cls_window_create(struct cls_window **win,
                             struct cls_mem *mem_persistant,
-                            struct cls_mem *mem_frame, struct cls_gfx_api *api,
-                            ivec2 size, const char *title, bool vsync,
+                            struct cls_mem *mem_frame,
+                            struct cls_renderer_api *api, ivec2 size,
+                            const char *title, bool vsync,
                             const ivec4 bg_color);
 
 /**
@@ -354,5 +373,7 @@ cls_error cls_window_timing_fps_get(float *fps, const struct cls_window *win);
  */
 cls_error cls_window_timing_fps_avg_get(float *fps_avg,
                                         const struct cls_window *win);
+
+/** @} */
 
 #endif // CLS_WINDOW_H

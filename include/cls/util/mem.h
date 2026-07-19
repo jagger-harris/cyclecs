@@ -1,8 +1,25 @@
+/**
+ * @file cls/util/mem.h
+ * @brief Generic memory management for the Cyclecs library.
+ *
+ * SPDX-License-Identifier: LGPL-3.0-only
+ *
+ * @copyright Copyright (C) 2026 Jagger Harris
+ * @see cls/util/mem.c
+ */
+
 #ifndef CLS_MEM_H
 #define CLS_MEM_H
 
 #include <cls/util/error.h>
 #include <stddef.h>
+
+/**
+ * @defgroup mem Mem
+ * @ingroup util
+ * @brief Generic memory management.
+ * @{
+ */
 
 /**
  * @typedef cls_mem_alloc_fn
@@ -100,5 +117,7 @@ cls_error cls_mem_alloc(void **dest, struct cls_mem *alloc, size_t size,
  * @param[in] src   Memory to free.
  */
 void cls_mem_free(struct cls_mem *alloc, void *src);
+
+/** @} */
 
 #endif // CLS_MEM_H

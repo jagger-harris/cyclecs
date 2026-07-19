@@ -1,9 +1,26 @@
+/**
+ * @file cls/gfx/gl/mesh.h
+ * @brief OpenGL mesh for the Cyclecs library.
+ *
+ * SPDX-License-Identifier: LGPL-3.0-only
+ *
+ * @copyright Copyright (C) 2026 Jagger Harris
+ * @see cls/gfx/gl/mesh.c
+ */
+
 #ifndef CLS_GL_MESH_H
 #define CLS_GL_MESH_H
 
 #include <cglm/cglm.h>
 #include <cls/ecs/component/components.h>
 #include <glad/gl.h>
+
+/**
+ * @defgroup gl_mesh OpenGL mesh.
+ * @ingroup gfx
+ * @brief OpenGL mesh.
+ * @{
+ */
 
 /**
  * @struct cls_vertex
@@ -95,5 +112,7 @@ cls_error
 cls_gl_mesh_draw_instanced(struct cls_gl_mesh *mesh,
                            struct cls_gl_mesh_instance_data *instances,
                            GLsizei instance_count);
+
+/** @} */
 
 #endif // CLS_GL_MESH_H

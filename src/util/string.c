@@ -1,3 +1,13 @@
+/**
+ * @file cls/util/string.c
+ * @brief String utils for the Cyclecs library.
+ *
+ * SPDX-License-Identifier: LGPL-3.0-only
+ *
+ * @copyright Copyright (C) 2026 Jagger Harris
+ * @see cls/util/string.h
+ */
+
 #include <assert.h>
 #include <cls/util/string.h>
 #include <stdarg.h>

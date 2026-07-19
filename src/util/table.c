@@ -1,3 +1,13 @@
+/**
+ * @file cls/util/table.c
+ * @brief Hash table for the Cyclecs library.
+ *
+ * SPDX-License-Identifier: LGPL-3.0-only
+ *
+ * @copyright Copyright (C) 2026 Jagger Harris
+ * @see cls/util/table.h
+ */
+
 #include <assert.h>
 #include <cls/util/logger.h>
 #include <cls/util/table.h>

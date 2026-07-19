@@ -1,3 +1,13 @@
+/**
+ * @file cls/gfx/gl/shader.c
+ * @brief OpenGL shader for the Cyclecs library.
+ *
+ * SPDX-License-Identifier: LGPL-3.0-only
+ *
+ * @copyright Copyright (C) 2026 Jagger Harris
+ * @see cls/gfx/gl/shader.h
+ */
+
 #include <cglm/types.h>
 #include <cls/gfx/gl/shader.h>
 #include <cls/gfx/shader.h>

@@ -1,8 +1,25 @@
+/**
+ * @file cls/util/array.h
+ * @brief Dynamic array implementation for the Cyclecs library.
+ *
+ * SPDX-License-Identifier: LGPL-3.0-only
+ *
+ * @copyright Copyright (C) 2026 Jagger Harris
+ * @see cls/util/array.c
+ */
+
 #ifndef CLS_ARRAY_H
 #define CLS_ARRAY_H
 
 #include <cls/util/error.h>
 #include <stddef.h>
+
+/**
+ * @defgroup array Dynamic Array
+ * @ingroup util
+ * @brief Dynamic array container for storing values at runtime.
+ * @{
+ */
 
 /**
  * @struct cls_array
@@ -202,5 +219,7 @@ cls_error cls_array_remove(struct cls_array *a, size_t index);
  */
 cls_error cls_array_concat(struct cls_array **dest,
                            const struct cls_array *src);
+
+/** @} */
 
 #endif // CLS_ARRAY_H

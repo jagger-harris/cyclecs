@@ -1,3 +1,13 @@
+/**
+ * @file cls/ecs/system/systems.c
+ * @brief Default systems for the Cyclecs library.
+ *
+ * SPDX-License-Identifier: LGPL-3.0-only
+ *
+ * @copyright Copyright (C) 2026 Jagger Harris
+ * @see cls/ecs/system/systems.h
+ */
+
 #include <GLFW/glfw3.h>
 #include <cglm/ivec4.h>
 #include <cls/app/app.h>
@@ -17,7 +27,7 @@ cls_error cls_button_system(struct cls_ecs_world_query *query,
     if (!query || !app)
         return CLS_NULLPTR;
 
-    struct camera *cam_data = NULL;
+    struct cls_camera *cam_data = NULL;
     cls_entity cam = CLS_ENTITY_MAX;
     struct cls_ecs_world *world = NULL;
     cls_error error = cls_ecs_world_query_world_get(&world, query);
@@ -27,30 +37,31 @@ cls_error cls_button_system(struct cls_ecs_world_query *query,
     struct cls_ecs_world_query *cam_query = NULL;
     error = cls_ecs_world_query_create(
         &cam_query, world, 2,
-        (const char *[]){CLS_COMP_CAMERA, CLS_COMP_CAMERA_ACTIVE});
+        (const cls_component[]){CLS_COMP_CAMERA, CLS_COMP_CAMERA_ACTIVE});
     if (error)
         return error;
 
     void *cam_comps[2] = {NULL, NULL};
+    bool found_camera = false;
     while (cls_ecs_world_query_next(&cam, cam_comps, cam_query) ==
                CLS_SUCCESS &&
            cam != CLS_ENTITY_MAX) {
         cam_data = cam_comps[0];
-        if (cam)
-            break;
+        found_camera = true;
+        break;
     }
 
     cls_ecs_world_query_destroy(cam_query);
 
-    if (!cam)
+    if (!found_camera)
         return CLS_NULLPTR;
 
     cls_entity button = CLS_ENTITY_MAX;
     void *comps[3] = {NULL, NULL, NULL};
     while (cls_ecs_world_query_next(&button, comps, query) == CLS_SUCCESS &&
            button != CLS_ENTITY_MAX) {
-        struct button *button_comp = comps[1];
-        struct transform *tf = comps[2];
+        struct cls_button *button_comp = comps[1];
+        struct cls_transform *tf = comps[2];
 
         float half_width = tf->scale[0] * 0.5f;
         float half_height = tf->scale[1] * 0.5f;
@@ -70,7 +81,7 @@ cls_error cls_button_system(struct cls_ecs_world_query *query,
             return error;
 
         vec2 cursor_world = {0};
-        camera_screen_to_world(cursor_world, cam_data, cursor_pos, fb_size);
+        cls_camera_screen_to_world(cursor_world, cam_data, cursor_pos, fb_size);
 
         bool inside = cursor_world[0] >= min_x && cursor_world[0] <= max_x &&
                       cursor_world[1] >= min_y && cursor_world[1] <= max_y;
@@ -104,23 +115,23 @@ cls_error cls_camera_system(struct cls_ecs_world_query *query,
     error = cls_window_fb_size_get(fb_size, app->window);
     if (error)
         return error;
-    struct singleton_camera_active active = {0};
+    struct cls_singleton_camera_active active = {0};
 
     cls_entity e = CLS_ENTITY_MAX;
     void *comps[3] = {NULL, NULL, NULL};
     while (cls_ecs_world_query_next(&e, comps, query) == CLS_SUCCESS &&
            e != CLS_ENTITY_MAX) {
-        struct camera *cam = comps[0];
-        struct transform *cam_tf = comps[2];
+        struct cls_camera *cam = comps[0];
+        struct cls_transform *cam_tf = comps[2];
         if (!cam || !cam_tf)
             continue;
 
         if (fb_size[0] != (int)cam->ortho.right ||
             fb_size[1] != (int)cam->ortho.bottom)
-            camera_resize(cam, fb_size);
+            cls_camera_resize(cam, fb_size);
 
         if (cam->dirty || cam_tf->dirty) {
-            error = camera_update(cam, cam_tf);
+            error = cls_camera_update(cam, cam_tf);
             if (error)
                 CLS_LOGGER_LOG_ERROR(CLS_LOGGER_ERROR, error, "%s",
                                      "Updating camera failed");
@@ -158,35 +169,26 @@ cls_error cls_label_render_system(struct cls_ecs_world_query *query,
     if (error)
         return CLS_SUCCESS;
 
-    struct singleton_camera_active *active = cam_ptr;
+    struct cls_singleton_camera_active *active = cam_ptr;
     if (!active)
         return CLS_SUCCESS;
-
-    const char *quad_id = "quad";
-    u32 quad_hash = 0;
-    error = cls_xxhash32(&quad_hash, quad_id, strlen(quad_id), 0);
-    if (error)
-        return error;
-
-    const char *font_id = "font";
-    u32 font_hash = 0;
-    error = cls_xxhash32(&font_hash, font_id, strlen(font_id), 0);
-    if (error)
-        return error;
 
     cls_entity e = CLS_ENTITY_MAX;
     void *comps[2] = {NULL, NULL};
     while (cls_ecs_world_query_next(&e, comps, query) == CLS_SUCCESS &&
            e != CLS_ENTITY_MAX) {
-        struct label *l = comps[0];
-        struct transform *tf = comps[1];
+        struct cls_label *l = comps[0];
+        struct cls_transform *tf = comps[1];
         if (!l || !tf || !l->visible)
             continue;
 
         struct cls_font *f = NULL;
-        error = cls_assets_font_get(&f, app->assets, "human_sans-regular.otf");
+        error = cls_assets_font_get(&f, app->assets, l->font_id);
         if (error)
             return error;
+
+        if (!f)
+            return CLS_NULLPTR;
 
         float scale = (float)l->font_size / (float)f->pixel_size;
         float cursor_x = tf->pos[0];
@@ -209,9 +211,9 @@ cls_error cls_label_render_system(struct cls_ecs_world_query *query,
             float pos_y = cursor_y - (float)glyph->bearing_y * scale +
                           ((float)glyph->height * scale * 0.5f);
 
-            struct renderable ren = {
-                .mesh_id = quad_hash,
-                .shader_id = font_hash,
+            struct cls_renderable ren = {
+                .mesh_id = CLS_MESH_QUAD,
+                .shader_id = CLS_SHADER_FONT,
                 .texture_id = l->font_id,
                 .uv_offset = {(float)glyph->atlas_x / (float)f->atlas_width,
                               (float)glyph->atlas_y / (float)f->atlas_height},
@@ -224,12 +226,12 @@ cls_error cls_label_render_system(struct cls_ecs_world_query *query,
                           .blend_dest = GL_ONE_MINUS_SRC_ALPHA}};
             glm_ivec4_copy(l->tint, ren.tint);
 
-            struct transform glyph_tf = {.pos = {pos_x, pos_y, tf->pos[2]},
-                                         .scale = {(float)glyph->width * scale,
-                                                   (float)glyph->height * scale,
-                                                   1.0f},
-                                         .rot_axis = {0.0f, 0.0f, 1.0f},
-                                         .rot_angle = 0.0f};
+            struct cls_transform glyph_tf = {
+                .pos = {pos_x, pos_y, tf->pos[2]},
+                .scale = {(float)glyph->width * scale,
+                          (float)glyph->height * scale, 1.0f},
+                .rot_axis = {0.0f, 0.0f, 1.0f},
+                .rot_angle = 0.0f};
 
             vec3 delta = {0.0f};
             glm_vec3_sub(glyph_tf.pos, active->tf.pos, delta);
@@ -280,7 +282,7 @@ cls_error cls_render_system(struct cls_ecs_world_query *query,
     if (error)
         return CLS_SUCCESS;
 
-    struct singleton_camera_active *active = cam_ptr;
+    struct cls_singleton_camera_active *active = cam_ptr;
     if (!active)
         return CLS_SUCCESS;
 
@@ -291,8 +293,8 @@ cls_error cls_render_system(struct cls_ecs_world_query *query,
     void *comps[2] = {NULL, NULL};
     while (cls_ecs_world_query_next(&e, comps, query) == CLS_SUCCESS &&
            e != CLS_ENTITY_MAX) {
-        struct renderable *ren = comps[0];
-        struct transform *tf = comps[1];
+        struct cls_renderable *ren = comps[0];
+        struct cls_transform *tf = comps[1];
         if (!ren || !tf || !ren->visible)
             continue;
 

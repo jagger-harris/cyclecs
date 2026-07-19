@@ -1,11 +1,19 @@
-#include "cls/gfx/gl/texture2d.h"
+/**
+ * @file cls/gfx/gl/renderer.c
+ * @brief OpenGL renderer for the Cyclecs library.
+ *
+ * SPDX-License-Identifier: LGPL-3.0-only
+ *
+ * @copyright Copyright (C) 2026 Jagger Harris
+ * @see cls/gfx/gl/renderer.h
+ */
+
 #include <GLFW/glfw3.h>
 #include <assert.h>
 #include <cls/app/app.h>
 #include <cls/app/assets.h>
 #include <cls/ecs/component/camera.h>
 #include <cls/ecs/component/components.h>
-#include <cls/gfx/batch.h>
 #include <cls/gfx/gl/mesh.h>
 #include <cls/gfx/renderer.h>
 #include <cls/gfx/shader.h>
@@ -62,7 +70,7 @@ void cls_gl_renderer_on_resize(int width, int height) {
     glViewport(0, 0, width, height);
 }
 
-static void apply_render_state(const struct render_state *state) {
+static void apply_render_state(const struct cls_render_state *state) {
     assert(state && "state is NULL");
 
     if (state->depth_test) {

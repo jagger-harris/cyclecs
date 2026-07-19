@@ -1,3 +1,13 @@
+/**
+ * @file cls/util/logger.c
+ * @brief Logger for the Cyclecs library.
+ *
+ * SPDX-License-Identifier: LGPL-3.0-only
+ *
+ * @copyright Copyright (C) 2026 Jagger Harris
+ * @see cls/util/logger.h
+ */
+
 #include <cls/util/logger.h>
 #include <stdarg.h>
 #include <stdbool.h>
@@ -112,6 +122,9 @@ static void logger_log_all(enum cls_logger_level level, bool has_error,
 }
 
 void cls_logger_log(enum cls_logger_level level, const char *fmt, ...) {
+    if (!fmt)
+        return;
+
     va_list args;
     va_start(args, fmt);
     logger_log_all(level, false, false, 0, NULL, NULL, 0, fmt, args);
@@ -120,6 +133,9 @@ void cls_logger_log(enum cls_logger_level level, const char *fmt, ...) {
 
 void cls_logger_log_debug(enum cls_logger_level level, const char *file,
                           const char *func, int line, const char *fmt, ...) {
+    if (!fmt)
+        return;
+
     va_list args;
     va_start(args, fmt);
     logger_log_all(level, false, true, 0, file, func, line, fmt, args);
@@ -128,6 +144,9 @@ void cls_logger_log_debug(enum cls_logger_level level, const char *file,
 
 void cls_logger_log_error(enum cls_logger_level level, cls_error error,
                           const char *fmt, ...) {
+    if (!fmt)
+        return;
+
     va_list args;
     va_start(args, fmt);
     logger_log_all(level, true, false, error, NULL, NULL, 0, fmt, args);
@@ -137,6 +156,9 @@ void cls_logger_log_error(enum cls_logger_level level, cls_error error,
 void cls_logger_log_error_debug(enum cls_logger_level level, cls_error error,
                                 const char *file, const char *func, int line,
                                 const char *fmt, ...) {
+    if (!fmt)
+        return;
+
     va_list args;
     va_start(args, fmt);
     logger_log_all(level, true, true, error, file, func, line, fmt, args);

@@ -1,3 +1,13 @@
+/**
+ * @file cls/io/font.h
+ * @brief Font management for the Cyclecs library.
+ *
+ * SPDX-License-Identifier: LGPL-3.0-only
+ *
+ * @copyright Copyright (C) 2026 Jagger Harris
+ * @see cls/io/font.c
+ */
+
 #ifndef CLS_FONT_H
 #define CLS_FONT_H
 
@@ -6,6 +16,13 @@
 #include <ft2build.h>
 #include <stdbool.h>
 #include FT_FREETYPE_H
+
+/**
+ * @defgroup font Font.
+ * @ingroup io
+ * @brief Font file loader.
+ * @{
+ */
 
 /**
  * @enum

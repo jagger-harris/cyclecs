@@ -1,3 +1,13 @@
+/**
+ * @file cls/gfx/gl/shader.h
+ * @brief OpenGL shader for the Cyclecs library.
+ *
+ * SPDX-License-Identifier: LGPL-3.0-only
+ *
+ * @copyright Copyright (C) 2026 Jagger Harris
+ * @see cls/gfx/gl/shader.c
+ */
+
 #ifndef CLS_GL_SHADER_H
 #define CLS_GL_SHADER_H
 
@@ -5,6 +15,13 @@
 #include <cls/util/error.h>
 #include <glad/gl.h>
 #include <stdint.h>
+
+/**
+ * @defgroup gl_shader OpenGL shader.
+ * @ingroup gfx
+ * @brief OpenGL shader.
+ * @{
+ */
 
 /* Forward declarations. */
 struct cls_shader;
@@ -148,5 +165,7 @@ cls_error cls_gl_shader_set_vec3(GLuint s, const char *id, vec3 *value);
  * @retval CLS_INVALID_ARG If `s` is invalid.
  */
 cls_error cls_gl_shader_set_vec4(GLuint s, const char *id, vec4 *value);
+
+/** @} */
 
 #endif // CLS_GL_SHADER_H

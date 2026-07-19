@@ -1,9 +1,26 @@
+/**
+ * @file cls/util/table.h
+ * @brief Hash table for the Cyclecs library.
+ *
+ * SPDX-License-Identifier: LGPL-3.0-only
+ *
+ * @copyright Copyright (C) 2026 Jagger Harris
+ * @see cls/util/table.c
+ */
+
 #ifndef CLS_TABLE_H
 #define CLS_TABLE_H
 
 #include <cls/util/error.h>
 #include <stdbool.h>
 #include <stddef.h>
+
+/**
+ * @defgroup table Table
+ * @ingroup util
+ * @brief Generic and dynamic hash table implementation.
+ * @{
+ */
 
 /**
  * @struct cls_table
@@ -214,5 +231,7 @@ cls_error cls_table_iterator_key_get(void **key,
  */
 cls_error cls_table_iterator_value_get(void **value,
                                        const struct cls_table_iterator *it);
+
+/** @} */
 
 #endif // CLS_TABLE_H

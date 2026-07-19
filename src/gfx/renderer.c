@@ -1,3 +1,13 @@
+/**
+ * @file cls/gfx/renderer.c
+ * @brief Renderer for the Cyclecs library.
+ *
+ * SPDX-License-Identifier: LGPL-3.0-only
+ *
+ * @copyright Copyright (C) 2026 Jagger Harris
+ * @see cls/gfx/renderer.h
+ */
+
 #include <assert.h>
 #include <cglm/ivec4.h>
 #include <cls/app/app.h>
@@ -5,8 +15,6 @@
 #include <cls/ecs/component/camera.h>
 #include <cls/ecs/component/components.h>
 #include <cls/ecs/ecs.h>
-#include <cls/gfx/batch.h>
-#include <cls/gfx/gfx_api.h>
 #include <cls/gfx/renderer.h>
 #include <cls/util/arena.h>
 #include <cls/util/array.h>
@@ -20,7 +28,7 @@ struct cls_renderer {
     struct cls_array *batches;
     struct cls_array *transparent_batches;
     struct cls_table *batch_indices;
-    struct cls_gfx_api *api;
+    struct cls_renderer_api *api;
     ivec4 bg_color;
 };
 
@@ -209,7 +217,8 @@ static cls_error renderer_frame_reset(struct cls_renderer *rend,
 cls_error cls_renderer_create(struct cls_renderer **rend,
                               struct cls_mem *mem_perm,
                               struct cls_mem *mem_frame,
-                              struct cls_gfx_api *api, const ivec4 bg_color) {
+                              struct cls_renderer_api *api,
+                              const ivec4 bg_color) {
     if (!rend || !mem_perm || !mem_frame || !api)
         return CLS_NULLPTR;
 
@@ -287,8 +296,8 @@ cls_error cls_renderer_on_resize(struct cls_renderer *rend, int width,
 }
 
 cls_error cls_renderer_cmd_push(struct cls_renderer *rend,
-                                struct renderable *ren, struct transform *tf,
-                                float depth) {
+                                struct cls_renderable *ren,
+                                struct cls_transform *tf, float depth) {
     if (!rend || !ren || !tf)
         return CLS_NULLPTR;
 

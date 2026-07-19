@@ -10,6 +10,7 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 # Library options
 option(CLS_BUILD_EXAMPLES "Build examples" ON)
+option(CLS_BUILD_DOCS "Build Doxygen+Sphinx documentation" OFF) 
 
 # Library directory
 set(LIB_DIR ${CMAKE_CURRENT_SOURCE_DIR}/libs)
@@ -120,4 +121,9 @@ if (CLS_BUILD_EXAMPLES)
             )
         endif()
     endforeach()
+endif()
+
+# Documentation
+if(CLS_BUILD_DOCS)
+    add_subdirectory(docs)
 endif()

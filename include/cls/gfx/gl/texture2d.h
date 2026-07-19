@@ -1,9 +1,26 @@
+/**
+ * @file cls/gfx/gl/texture2d.h
+ * @brief OpenGL texture2d for the Cyclecs library.
+ *
+ * SPDX-License-Identifier: LGPL-3.0-only
+ *
+ * @copyright Copyright (C) 2026 Jagger Harris
+ * @see cls/gfx/gl/texture2d.c
+ */
+
 #ifndef CLS_GL_TEXTURE2D_H
 #define CLS_GL_TEXTURE2D_H
 
 #include <cls/util/error.h>
 #include <cls/util/types.h>
 #include <glad/gl.h>
+
+/**
+ * @defgroup gl_texture2d OpenGL texture2d.
+ * @ingroup gfx
+ * @brief OpenGL texture2d.
+ * @{
+ */
 
 /* Forward declarations. */
 struct cls_texture2d;
@@ -55,5 +72,7 @@ void cls_gl_texture2d_destroy(struct cls_texture2d *in);
  * @retval CLS_INVALID_ARG If the texture is invalid.
  */
 cls_error cls_gl_texture2d_use(const struct cls_texture2d *in);
+
+/** @} */
 
 #endif // CLS_GL_TEXTURE2D_H

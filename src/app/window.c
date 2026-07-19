@@ -1,3 +1,13 @@
+/**
+ * @file cls/app/window.c
+ * @brief Assets management for the Cyclecs library.
+ *
+ * SPDX-License-Identifier: LGPL-3.0-only
+ *
+ * @copyright Copyright (C) 2026 Jagger Harris
+ * @see cls/app/window.h
+ */
+
 #include <GLFW/glfw3.h>
 #include <assert.h>
 #include <cglm/ivec2.h>
@@ -173,8 +183,9 @@ static cls_error timing_create(struct cls_timing **t, struct cls_mem *alloc) {
 
 cls_error cls_window_create(struct cls_window **win,
                             struct cls_mem *mem_persistant,
-                            struct cls_mem *mem_frame, struct cls_gfx_api *api,
-                            ivec2 size, const char *title, bool vsync,
+                            struct cls_mem *mem_frame,
+                            struct cls_renderer_api *api, ivec2 size,
+                            const char *title, bool vsync,
                             const ivec4 bg_color) {
     if (!win || !mem_persistant || !mem_frame || !title)
         return CLS_NULLPTR;

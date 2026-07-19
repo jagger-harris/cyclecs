@@ -1,8 +1,25 @@
+/**
+ * @file cls/io/image.h
+ * @brief Image management for the Cyclecs library.
+ *
+ * SPDX-License-Identifier: LGPL-3.0-only
+ *
+ * @copyright Copyright (C) 2026 Jagger Harris
+ * @see cls/io/image.c
+ */
+
 #ifndef CLS_IMAGE_H
 #define CLS_IMAGE_H
 
 #include <cls/util/error.h>
 #include <cls/util/types.h>
+
+/**
+ * @defgroup image Image.
+ * @ingroup io
+ * @brief Image file loader.
+ * @{
+ */
 
 /**
  * @struct cls_image
@@ -60,5 +77,7 @@ void cls_image_destroy(struct cls_image *img);
  * @retval CLS_FAILURE     If writing the image fails.
  */
 cls_error cls_image_save(const struct cls_image *img, const char *path);
+
+/** @} */
 
 #endif // CLS_IMAGE_H

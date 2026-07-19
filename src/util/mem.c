@@ -1,3 +1,13 @@
+/**
+ * @file cls/util/mem.c
+ * @brief Generic memory management for the Cyclecs library.
+ *
+ * SPDX-License-Identifier: LGPL-3.0-only
+ *
+ * @copyright Copyright (C) 2026 Jagger Harris
+ * @see cls/util/mem.h
+ */
+
 #include <cls/util/mem.h>
 #include <stdint.h>
 #include <stdlib.h>

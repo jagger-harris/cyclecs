@@ -1,3 +1,13 @@
+/**
+ * @file cls/io/ascii.c
+ * @brief Ascii text management for the Cyclecs library.
+ *
+ * SPDX-License-Identifier: LGPL-3.0-only
+ *
+ * @copyright Copyright (C) 2026 Jagger Harris
+ * @see cls/io/ascii.h
+ */
+
 #include <assert.h>
 #include <cls/io/ascii.h>
 #include <stdio.h>

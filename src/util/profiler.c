@@ -1,3 +1,13 @@
+/**
+ * @file cls/util/profiler.c
+ * @brief Profiler utils for the Cyclecs library.
+ *
+ * SPDX-License-Identifier: LGPL-3.0-only
+ *
+ * @copyright Copyright (C) 2026 Jagger Harris
+ * @see cls/util/profiler.h
+ */
+
 #include <assert.h>
 #include <cls/util/profiler.h>
 #include <stdio.h>

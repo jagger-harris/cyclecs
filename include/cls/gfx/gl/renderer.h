@@ -1,9 +1,26 @@
+/**
+ * @file cls/gfx/gl/renderer.h
+ * @brief OpenGL renderer for the Cyclecs library.
+ *
+ * SPDX-License-Identifier: LGPL-3.0-only
+ *
+ * @copyright Copyright (C) 2026 Jagger Harris
+ * @see cls/gfx/gl/renderer.c
+ */
+
 #ifndef CLS_GL_RENDERER_H
 #define CLS_GL_RENDERER_H
 
 #include <GLFW/glfw3.h>
 #include <cglm/types.h>
 #include <cls/util/error.h>
+
+/**
+ * @defgroup gl_renderer OpenGL renderer.
+ * @ingroup gfx
+ * @brief OpenGL renderer.
+ * @{
+ */
 
 /* Forward declarations. */
 struct cls_app;
@@ -66,5 +83,7 @@ cls_error cls_gl_renderer_draw_batches(struct cls_app *app,
                                        struct cls_array *cmds,
                                        struct cls_array *batches,
                                        struct cls_array **transparent_batches);
+
+/** @} */
 
 #endif // CLS_GL_RENDERER_H

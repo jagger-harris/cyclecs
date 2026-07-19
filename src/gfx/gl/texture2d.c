@@ -1,3 +1,13 @@
+/**
+ * @file cls/gfx/gl/texture2d.c
+ * @brief OpenGL texture2d for the Cyclecs library.
+ *
+ * SPDX-License-Identifier: LGPL-3.0-only
+ *
+ * @copyright Copyright (C) 2026 Jagger Harris
+ * @see cls/gfx/gl/texture2d.h
+ */
+
 #include <cls/gfx/gl/texture2d.h>
 #include <cls/gfx/texture2d.h>
 #include <cls/util/error.h>

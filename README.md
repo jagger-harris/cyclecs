@@ -45,6 +45,9 @@ make
 ./executable
 ```
 
+## Building Documentation
+For building documentation, you can read how to [here](docs/README.md).
+
 ## Contributing
 This is a personal project. Contributions will not be accepted as of now.
 

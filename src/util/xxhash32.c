@@ -1,3 +1,13 @@
+/**
+ * @file cls/util/xxhash32.c
+ * @brief xxHash32 for the Cyclecs library.
+ *
+ * SPDX-License-Identifier: LGPL-3.0-only
+ *
+ * @copyright Copyright (C) 2026 Jagger Harris
+ * @see cls/util/xxhash32.h
+ */
+
 #include <assert.h>
 #include <cls/util/types.h>
 #include <cls/util/xxhash32.h>

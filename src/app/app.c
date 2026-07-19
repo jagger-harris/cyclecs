@@ -1,10 +1,18 @@
+/**
+ * @file cls/app/app.c
+ * @brief App state management for the Cyclecs library.
+ *
+ * SPDX-License-Identifier: LGPL-3.0-only
+ *
+ * @copyright Copyright (C) 2026 Jagger Harris
+ * @see cls/app/app.h
+ */
+
 #include <assert.h>
 #include <cls/app/app.h>
 #include <cls/app/assets.h>
 #include <cls/app/window.h>
 #include <cls/ecs/ecs.h>
-#include <cls/gfx/gfx_api.h>
-#include <cls/gfx/gl/renderer.h>
 #include <cls/gfx/gl/shader.h>
 #include <cls/gfx/renderer.h>
 #include <cls/util/arena.h>
@@ -21,8 +29,8 @@ static cls_error allocator_arena_alloc(void **dest, void *ctx, size_t size,
     return cls_arena_alloc(dest, (struct cls_arena *)ctx, size, align);
 }
 
-cls_error cls_app_init(struct cls_app *app, struct cls_gfx_api *api,
-                       ivec2 window_size, const char *title,
+cls_error cls_app_init(struct cls_app *app, struct cls_renderer_api *api,
+                       ivec2 window_size, const char *title, bool vsync,
                        const ivec4 bg_color) {
     if (!app || !title)
         return CLS_NULLPTR;
@@ -47,8 +55,6 @@ cls_error cls_app_init(struct cls_app *app, struct cls_gfx_api *api,
     if (error)
         goto cleanup;
 
-    // TODO: Add checking vsync via an options file
-    bool vsync = false;
     error = cls_window_create(&app->window, app->mem_perm, app->mem_frame,
                               app->api, window_size, title, vsync, bg_color);
     if (error) {

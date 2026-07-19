@@ -1,8 +1,25 @@
+/**
+ * @file cls/util/arena.h
+ * @brief Memory arena management for the Cyclecs library.
+ *
+ * SPDX-License-Identifier: LGPL-3.0-only
+ *
+ * @copyright Copyright (C) 2026 Jagger Harris
+ * @see cls/util/arena.c
+ */
+
 #ifndef CLS_ARENA_H
 #define CLS_ARENA_H
 
 #include <cls/util/error.h>
 #include <stddef.h>
+
+/**
+ * @defgroup arena Arena Allocator
+ * @ingroup util
+ * @brief Linear memory allocator used for scoped, bulk-freed allocations.
+ * @{
+ */
 
 /**
  * @typedef cls_arena_marker
@@ -136,5 +153,7 @@ cls_error cls_arena_marker_save(cls_arena_marker *marker, struct cls_arena *a);
  */
 cls_error cls_arena_marker_restore(struct cls_arena *a,
                                    cls_arena_marker *marker);
+
+/** @} */
 
 #endif // CLS_ARENA_H

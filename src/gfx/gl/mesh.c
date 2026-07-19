@@ -1,3 +1,13 @@
+/**
+ * @file cls/gfx/gl/mesh.c
+ * @brief OpenGL mesh for the Cyclecs library.
+ *
+ * SPDX-License-Identifier: LGPL-3.0-only
+ *
+ * @copyright Copyright (C) 2026 Jagger Harris
+ * @see cls/gfx/gl/mesh.h
+ */
+
 #include "cls/util/logger.h"
 #include <cglm/types.h>
 #include <cls/gfx/gl/mesh.h>

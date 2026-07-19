@@ -1,9 +1,95 @@
+/**
+ * @file cls/app/assets.h
+ * @brief Assets management for the Cyclecs library.
+ *
+ * SPDX-License-Identifier: LGPL-3.0-only
+ *
+ * @copyright Copyright (C) 2026 Jagger Harris
+ * @see cls/app/assets.c
+ */
+
 #ifndef CLS_ASSETS_H
 #define CLS_ASSETS_H
 
 #include <cls/gfx/texture2d.h>
 #include <cls/util/error.h>
 #include <stddef.h>
+
+/**
+ * @defgroup assets Assets
+ * @ingroup app
+ * @brief Assets state and logic for the application.
+ * @{
+ */
+
+/**
+ * @brief Sentinel value representing an invalid font.
+ */
+static const u32 CLS_FONT_MAX = U32_MAX;
+
+/**
+ * @brief Sentinel value representing an invalid OpenGL mesh.
+ */
+static const u32 CLS_GL_MESH_MAX = U32_MAX;
+
+/**
+ * @brief Sentinel value representing an invalid shader.
+ */
+static const u32 CLS_SHADER_MAX = U32_MAX;
+
+/**
+ * @brief Sentinel value representing an invalid texture2d.
+ */
+static const u32 CLS_TEXTURE2D_MAX = U32_MAX;
+
+/**
+ * @brief Font identifier.
+ *
+ * A value of CLS_FONT_MAX represents an invalid font.
+ */
+typedef u32 cls_font_id;
+
+/**
+ * @brief OpenGL mesh identifier.
+ *
+ * A value of CLS_GL_MESH_MAX represents an invalid OpenGl mesh.
+ */
+typedef u32 cls_gl_mesh_id;
+
+/**
+ * @brief Shader identifier.
+ *
+ * A value of CLS_SHADER_MAX represents an invalid shader.
+ */
+typedef u32 cls_shader_id;
+
+/**
+ * @brief Texture2D identifier.
+ *
+ * A value of CLS_TEXTURE2D_MAX represents an invalid texture2d.
+ */
+typedef u32 cls_texture2d_id;
+
+/**
+ * @enum
+ * @brief Default meshes.
+ */
+enum { CLS_MESH_QUAD = 0 };
+
+/**
+ * @enum
+ * @brief Default shaders.
+ */
+enum { CLS_SHADER_FONT = 0, CLS_SHADER_MESH, CLS_SHADER_SPRITE };
+
+/**
+ * @enum
+ * @brief Default fonts.
+ */
+enum { CLS_FONT_HUMANSANS_REG = 0 };
+
+static const cls_texture2d_id CLS_TEXTURE2D_MISSING = CLS_TEXTURE2D_MAX;
+static const cls_texture2d_id CLS_TEXTURE2D_BLANK = CLS_TEXTURE2D_MAX - 1;
 
 /* Forward declarations. */
 struct cls_font;
@@ -12,6 +98,7 @@ struct cls_gl_mesh;
 struct cls_mem;
 struct cls_shader;
 struct cls_vertex;
+struct cls_renderer_api;
 
 /**
  * @struct cls_assets
@@ -44,7 +131,7 @@ struct cls_assets;
  * @endcode
  */
 cls_error cls_assets_create(struct cls_assets **assets, struct cls_mem *mem,
-                            struct cls_gfx_api *api);
+                            struct cls_renderer_api *api);
 
 /**
  * @brief Destroys an asset store.
@@ -66,11 +153,12 @@ void cls_assets_destroy(struct cls_assets *assets);
  * stores both resources. Does nothing if the font is already loaded.
  *
  * @param[in] assets     Asset store.
+ * @param[in] id         Font identifier.
  * @param[in] font_path  Path to the font file, relative to the font directory.
  * @param[in] pixel_size Pixel size used to rasterize the glyph atlas.
  */
-void cls_assets_font_add(struct cls_assets *assets, const char *font_path,
-                         int pixel_size);
+void cls_assets_font_add(struct cls_assets *assets, cls_font_id id,
+                         const char *font_path, int pixel_size);
 
 /**
  * @brief Retrieves a font by its identifier.
@@ -80,13 +168,13 @@ void cls_assets_font_add(struct cls_assets *assets, const char *font_path,
  * @param[in]  id     Font identifier.
  *
  * @return CLS_SUCCESS On success.
- * @retval CLS_NULLPTR If `font`, `assets`, or `id` is NULL.
+ * @retval CLS_NULLPTR If `font` or `assets` is NULL.
  * @retval (error)     If the lookup fails.
  *
  * @note On success, `*font` may be NULL if no font is registered under `id`.
  */
 cls_error cls_assets_font_get(struct cls_font **font,
-                              const struct cls_assets *assets, const char *id);
+                              const struct cls_assets *assets, cls_font_id id);
 
 /**
  * @brief Loads a shader into the asset store.
@@ -95,18 +183,20 @@ cls_error cls_assets_font_get(struct cls_font **font,
  * shader. Does nothing if the shader is already loaded.
  *
  * @param[in] assets      Asset store.
+ * @param[in] id          Shader identifier.
  * @param[in] shader_path Base shader path, relative to the shader directory.
  *                        The `.vert` and `.frag` extensions are appended
  *                        automatically.
  */
-void cls_assets_shader_add(struct cls_assets *assets, const char *shader_path);
+void cls_assets_shader_add(struct cls_assets *assets, cls_shader_id id,
+                           const char *shader_path);
 
 /**
  * @brief Retrieves a shader by its identifier.
  *
- * @param[out] shader    Pointer to the shader.
- * @param[in]  assets    Asset store to search.
- * @param[in]  shader_id Hashed shader identifier.
+ * @param[out] shader Pointer to the shader.
+ * @param[in]  assets Asset store to search.
+ * @param[in]  id     Hashed shader identifier.
  *
  * @return CLS_SUCCESS On success.
  * @retval CLS_NULLPTR If `shader` or `assets` is NULL, or `shader_id` is 0.
@@ -116,7 +206,8 @@ void cls_assets_shader_add(struct cls_assets *assets, const char *shader_path);
  * `shader_id`.
  */
 cls_error cls_assets_shader_get(struct cls_shader **shader,
-                                const struct cls_assets *assets, u32 shader_id);
+                                const struct cls_assets *assets,
+                                cls_shader_id id);
 
 /**
  * @brief Loads a texture into the asset store.
@@ -125,12 +216,13 @@ cls_error cls_assets_shader_get(struct cls_shader **shader,
  * modes, and stores it. Does nothing if the texture is already loaded.
  *
  * @param[in] assets         Asset store.
+ * @param[in] id             Texture identifier.
  * @param[in] texture2d_path Path to the texture file, relative to the texture
  *                           directory.
  * @param[in] filter         Texture filtering mode.
  * @param[in] wrap           Texture wrapping mode.
  */
-void cls_assets_texture2d_add(struct cls_assets *assets,
+void cls_assets_texture2d_add(struct cls_assets *assets, cls_texture2d_id id,
                               const char *texture2d_path,
                               enum cls_texture2d_filter filter,
                               enum cls_texture2d_wrap wrap);
@@ -141,10 +233,10 @@ void cls_assets_texture2d_add(struct cls_assets *assets,
  * If `texture2d_id` is 0, returns the default blank texture. If no texture is
  * registered under `texture2d_id`, returns the default missing texture.
  *
- * @param[out] texture      Pointer to the texture.
- * @param[in]  assets       Asset store to search.
- * @param[in]  texture2d_id Hashed texture identifier. Pass 0 to retrieve the
- *                          default blank texture.
+ * @param[out] texture Pointer to the texture.
+ * @param[in]  assets  Asset store to search.
+ * @param[in]  id      Hashed texture identifier. Pass 0 to retrieve the default
+ *                     blank texture.
  *
  * @return CLS_SUCCESS On success.
  * @retval CLS_NULLPTR If `texture` or `assets` is NULL.
@@ -153,7 +245,7 @@ void cls_assets_texture2d_add(struct cls_assets *assets,
  */
 cls_error cls_assets_texture2d_get(struct cls_texture2d **texture,
                                    const struct cls_assets *assets,
-                                   u32 texture2d_id);
+                                   cls_texture2d_id id);
 
 /**
  * @brief Creates a mesh and adds it to the asset store.
@@ -162,13 +254,13 @@ cls_error cls_assets_texture2d_get(struct cls_texture2d **texture,
  * nothing if the mesh is already loaded.
  *
  * @param[in] assets       Asset store.
- * @param[in] mesh_id      Mesh identifier.
+ * @param[in] id           Mesh identifier.
  * @param[in] vertices     Vertex data.
  * @param[in] vertex_count Number of vertices in `vertices`.
  * @param[in] indices      Index data.
  * @param[in] index_count  Number of indices in `indices`.
  */
-void cls_assets_mesh_add(struct cls_assets *assets, const char *mesh_id,
+void cls_assets_mesh_add(struct cls_assets *assets, cls_gl_mesh_id id,
                          const struct cls_vertex *vertices, size_t vertex_count,
                          const unsigned int *indices, size_t index_count);
 
@@ -188,5 +280,7 @@ void cls_assets_mesh_add(struct cls_assets *assets, const char *mesh_id,
  */
 cls_error cls_assets_mesh_get(struct cls_gl_mesh **mesh,
                               const struct cls_assets *assets, u32 mesh_id);
+
+/** @} */
 
 #endif // CLS_ASSETS_H

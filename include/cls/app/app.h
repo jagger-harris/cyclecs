@@ -1,13 +1,31 @@
+/**
+ * @file cls/app/app.h
+ * @brief App state management for the Cyclecs library.
+ *
+ * SPDX-License-Identifier: LGPL-3.0-only
+ *
+ * @copyright Copyright (C) 2026 Jagger Harris
+ * @see cls/app/app.c
+ */
+
 #ifndef CLS_APP_H
 #define CLS_APP_H
 
 #include <cglm/types.h>
 #include <cls/util/error.h>
+#include <stdbool.h>
+
+/**
+ * @defgroup app Application
+ * @ingroup app
+ * @brief Application state and logic.
+ * @{
+ */
 
 /* Forward declarations. */
 struct cls_assets;
 struct cls_ecs;
-struct cls_gfx_api;
+struct cls_renderer_api;
 struct cls_mem;
 struct cls_window;
 
@@ -18,7 +36,7 @@ struct cls_window;
 struct cls_app {
     struct cls_assets *assets;
     struct cls_ecs *ecs;
-    struct cls_gfx_api *api;
+    struct cls_renderer_api *api;
     struct cls_arena *arena_perm;
     struct cls_arena *arena_frame;
     struct cls_mem *mem_perm;
@@ -38,6 +56,7 @@ struct cls_app {
  * @param[in] api             Graphics API.
  * @param[in] window_size     Initial window size.
  * @param[in] title           Window title.
+ * @param[in] vsync           Vertical synchronization.
  * @param[in] bg_color        Initial background color.
  *
  * @return CLS_SUCCESS On success.
@@ -47,13 +66,13 @@ struct cls_app {
  *
  * @code
  * struct cls_app app = {0};
- * cls_app_init(&app, api, (ivec2){500, 500}, "My Game", (ivec4){0, 0, 0, 255});
- * cls_app_run(&app);
- * cls_app_destroy(&app);
+ * cls_app_init(&app, api, (ivec2){500, 500}, "My Game", true, (ivec4){0, 0, 0,
+ * 255});
+ * cls_app_run(&app); cls_app_destroy(&app);
  * @endcode
  */
-cls_error cls_app_init(struct cls_app *app, struct cls_gfx_api *api,
-                       ivec2 window_size, const char *title,
+cls_error cls_app_init(struct cls_app *app, struct cls_renderer_api *api,
+                       ivec2 window_size, const char *title, bool vsync,
                        const ivec4 bg_color);
 
 /**
@@ -79,5 +98,7 @@ void cls_app_destroy(struct cls_app *app);
  * @retval (error)     If updating the window, ECS, or renderer fails.
  */
 cls_error cls_app_run(struct cls_app *app);
+
+/** @} */
 
 #endif // CLS_APP_H

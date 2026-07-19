@@ -1,3 +1,13 @@
+/**
+ * @file cls/util/arena.c
+ * @brief Memory arena management for the Cyclecs library.
+ *
+ * SPDX-License-Identifier: LGPL-3.0-only
+ *
+ * @copyright Copyright (C) 2026 Jagger Harris
+ * @see cls/util/arena.h
+ */
+
 #include <assert.h>
 #include <cls/util/arena.h>
 #include <cls/util/types.h>
