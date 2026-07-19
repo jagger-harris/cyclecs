@@ -17,7 +17,6 @@ A custom game engine written in C (C17) which uses a custom ECS architecture for
 
 ## Getting and Running
 Clone the repository:
-
 ```shell
 git clone https://github.com/jagger-harris/cyclecs.git
 cd cyclecs
@@ -25,24 +24,16 @@ cd cyclecs
 
 Debug build:
 ```shell
-mkdir build
-cd build
-mkdir debug
-cd debug
-cmake ../.. -DCMAKE_BUILD_TYPE=debug
-make
-./executable
+cmake -S . -B build/debug -DCMAKE_BUILD_TYPE=debug
+cmake --build build/debug
+./build/debug/executable
 ```
 
 Release build:
 ```shell
-mkdir build
-cd build
-mkdir release
-cd release
-cmake ../.. -DCMAKE_BUILD_TYPE=release
-make
-./executable
+cmake -S . -B build/release -DCMAKE_BUILD_TYPE=release
+cmake --build build/release
+./build/release/executable
 ```
 
 ## Building Documentation
