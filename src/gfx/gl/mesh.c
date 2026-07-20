@@ -8,12 +8,10 @@
  * @see cls/gfx/gl/mesh.h
  */
 
-#include "cls/util/logger.h"
 #include <cglm/types.h>
 #include <cls/gfx/gl/mesh.h>
 #include <cls/util/types.h>
 #include <stddef.h>
-#include <string.h>
 
 cls_error cls_gl_mesh_init(struct cls_gl_mesh *mesh,
                            const struct cls_vertex *vertices,

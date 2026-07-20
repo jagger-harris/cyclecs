@@ -10,7 +10,6 @@
 
 #include <cls/io/image.h>
 #include <cls/util/error.h>
-#include <stdbool.h>
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 #define STBI_MSC_SECURE_CRT

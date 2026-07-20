@@ -13,8 +13,6 @@
 #include <cls/app/assets.h>
 #include <cls/app/window.h>
 #include <cls/ecs/ecs.h>
-#include <cls/gfx/gl/shader.h>
-#include <cls/gfx/renderer.h>
 #include <cls/util/arena.h>
 #include <cls/util/logger.h>
 #include <cls/util/mem.h>

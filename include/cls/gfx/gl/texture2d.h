@@ -12,7 +12,6 @@
 #define CLS_GL_TEXTURE2D_H
 
 #include <cls/util/error.h>
-#include <cls/util/types.h>
 #include <glad/gl.h>
 
 /**

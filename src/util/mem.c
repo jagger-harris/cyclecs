@@ -9,9 +9,7 @@
  */
 
 #include <cls/util/mem.h>
-#include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
 
 struct cls_mem {
     cls_mem_alloc_fn alloc;

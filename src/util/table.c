@@ -9,7 +9,6 @@
  */
 
 #include <assert.h>
-#include <cls/util/logger.h>
 #include <cls/util/table.h>
 #include <cls/util/xxhash32.h>
 #include <stdalign.h>

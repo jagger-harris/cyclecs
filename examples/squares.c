@@ -8,8 +8,6 @@
 #include <cls/gfx/gl/shader.h>
 #include <cls/gfx/gl/texture2d.h>
 #include <cls/gfx/renderer.h>
-#include <cls/gfx/texture2d.h>
-#include <cls/util/array.h>
 #include <cls/util/error.h>
 #include <cls/util/logger.h>
 #include <cls/util/profiler.h>

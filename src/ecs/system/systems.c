@@ -16,11 +16,9 @@
 #include <cls/ecs/component/components.h>
 #include <cls/ecs/ecs.h>
 #include <cls/ecs/system/systems.h>
-#include <cls/gfx/gl/texture2d.h>
 #include <cls/gfx/renderer.h>
 #include <cls/io/font.h>
 #include <cls/util/logger.h>
-#include <cls/util/xxhash32.h>
 
 cls_error cls_button_system(struct cls_ecs_world_query *query,
                             struct cls_app *app) {

@@ -14,7 +14,6 @@
 #include <stdalign.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
 
 struct cls_arena {
     size_t size;

@@ -11,7 +11,6 @@
 #include "cls/util/error.h"
 #include <cls/ecs/component/camera.h>
 #include <cls/ecs/component/components.h>
-#include <cls/ecs/ecs.h>
 
 cls_error cls_camera_update(struct cls_camera *cam, struct cls_transform *tf) {
     if (!cam || !tf)

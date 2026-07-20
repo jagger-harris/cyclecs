@@ -10,7 +10,6 @@
 
 #include <assert.h>
 #include <cls/util/array.h>
-#include <cls/util/logger.h>
 #include <cls/util/types.h>
 #include <stdalign.h>
 #include <stdlib.h>

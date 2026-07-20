@@ -11,7 +11,6 @@
 #include <cls/gfx/gl/texture2d.h>
 #include <cls/gfx/texture2d.h>
 #include <cls/util/error.h>
-#include <stddef.h>
 
 cls_error cls_gl_texture2d_init(struct cls_texture2d *tex,
                                 struct cls_texture2d_info *info) {

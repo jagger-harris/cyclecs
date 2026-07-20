@@ -11,14 +11,10 @@
 #include <assert.h>
 #include <cglm/ivec4.h>
 #include <cls/app/app.h>
-#include <cls/app/window.h>
-#include <cls/ecs/component/camera.h>
 #include <cls/ecs/component/components.h>
-#include <cls/ecs/ecs.h>
 #include <cls/gfx/renderer.h>
 #include <cls/util/arena.h>
 #include <cls/util/array.h>
-#include <cls/util/logger.h>
 
 static const size_t CMD_START_CAPACITY = 128;
 static const size_t BATCH_START_CAPACITY = 128;

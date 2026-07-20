@@ -1,4 +1,3 @@
-#include <cglm/vec3.h>
 #include <cls/app/app.h>
 #include <cls/app/assets.h>
 #include <cls/app/window.h>
@@ -10,7 +9,6 @@
 #include <cls/gfx/gl/texture2d.h>
 #include <cls/gfx/renderer.h>
 #include <cls/gfx/texture2d.h>
-#include <cls/util/array.h>
 #include <cls/util/logger.h>
 #include <cls/util/profiler.h>
 #include <cls/util/xxhash32.h>

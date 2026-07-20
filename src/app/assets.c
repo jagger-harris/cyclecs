@@ -8,7 +8,6 @@
  * @see cls/app/assets.h
  */
 
-#include "cls/gfx/gl/mesh.h"
 #include <assert.h>
 #include <cls/app/assets.h>
 #include <cls/gfx/primitive.h>
@@ -22,7 +21,6 @@
 #include <cls/util/string.h>
 #include <cls/util/table.h>
 #include <cls/util/types.h>
-#include <cls/util/xxhash32.h>
 
 #define CORE_PATH "data/core/"
 #define FONT_PATH CORE_PATH "gfx/fonts/"

@@ -8,7 +8,6 @@
  * @see cls/io/ascii.h
  */
 
-#include <assert.h>
 #include <cls/io/ascii.h>
 #include <stdio.h>
 #include <stdlib.h>

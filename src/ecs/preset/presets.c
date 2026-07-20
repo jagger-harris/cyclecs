@@ -11,13 +11,10 @@
 #include "cls/ecs/component/components.h"
 #include "cls/util/error.h"
 #include <cglm/ivec4.h>
-#include <cglm/vec2.h>
 #include <cls/app/assets.h>
 #include <cls/ecs/ecs.h>
 #include <cls/ecs/preset/presets.h>
-#include <cls/io/font.h>
 #include <cls/util/array.h>
-#include <cls/util/logger.h>
 #include <cls/util/xxhash32.h>
 #include <glad/gl.h>
 #include <stdio.h>

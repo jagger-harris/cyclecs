@@ -12,16 +12,16 @@
 #include <assert.h>
 #include <cls/app/app.h>
 #include <cls/app/assets.h>
-#include <cls/ecs/component/camera.h>
 #include <cls/ecs/component/components.h>
 #include <cls/gfx/gl/mesh.h>
 #include <cls/gfx/renderer.h>
 #include <cls/gfx/shader.h>
 #include <cls/util/array.h>
-#include <cls/util/logger.h>
 #include <cls/util/mem.h>
 
 #if NDEBUG
+#include <cls/util/logger.h>
+
 void GLAPIENTRY msg_callback(GLenum source, GLenum type, GLuint id,
                              GLenum severity, GLsizei length,
                              const GLchar *message, const void *user) {

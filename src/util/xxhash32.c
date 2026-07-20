@@ -11,7 +11,6 @@
 #include <assert.h>
 #include <cls/util/types.h>
 #include <cls/util/xxhash32.h>
-#include <stdint.h>
 #include <string.h>
 
 static const u32 XXH_PRIME32_1 = 0x9E3779B1U;

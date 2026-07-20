@@ -19,9 +19,6 @@
 #include <cls/util/logger.h>
 #include <cls/util/mem.h>
 #include <cls/util/table.h>
-#include <cls/util/xxhash32.h>
-#include <stdarg.h>
-#include <stdio.h>
 #include <stdlib.h>
 
 static const size_t CLS_ECS_WORLD_START_CAPACITY = 4;
