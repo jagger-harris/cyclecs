@@ -18,7 +18,7 @@ Documentation is generated directly through CMake. The build system automaticall
 
 Configure the project:
 ```shell
-cmake -S . -B build
+cmake -S . -B build -DCLS_BUILD_DOCS=ON
 ```
 
 Generate the documentation:

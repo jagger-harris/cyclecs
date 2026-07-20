@@ -1,5 +1,5 @@
 Presets
-================
+=======
 
 .. doxygengroup:: presets
    :project: cyclecs

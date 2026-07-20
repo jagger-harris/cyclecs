@@ -1,5 +1,5 @@
 Assets
-================
+======
 
 .. doxygengroup:: assets
    :project: cyclecs

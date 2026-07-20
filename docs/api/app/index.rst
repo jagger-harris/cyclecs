@@ -1,5 +1,5 @@
 Application
-====
+===========
 
 .. toctree::
    :maxdepth: 1

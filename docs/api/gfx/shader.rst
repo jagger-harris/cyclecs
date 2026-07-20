@@ -1,5 +1,5 @@
 Shader
-================
+======
 
 .. doxygengroup:: shader
    :project: cyclecs

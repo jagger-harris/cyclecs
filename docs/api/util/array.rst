@@ -1,5 +1,5 @@
 Dynamic Array
-================
+=============
 
 .. doxygengroup:: array
    :project: cyclecs

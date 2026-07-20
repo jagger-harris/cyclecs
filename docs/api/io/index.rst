@@ -1,5 +1,5 @@
 Input/Output
-=======================
+============
 
 .. toctree::
    :maxdepth: 1

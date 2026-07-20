@@ -1,5 +1,5 @@
 Cyclecs Documentation
-======================
+=====================
 
 .. toctree::
    :maxdepth: 1

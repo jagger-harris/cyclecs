@@ -1,5 +1,5 @@
 Window
-================
+======
 
 .. doxygengroup:: window
    :project: cyclecs

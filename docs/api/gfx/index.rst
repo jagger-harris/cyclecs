@@ -1,5 +1,5 @@
 Graphics
-=======================
+========
 
 .. toctree::
    :maxdepth: 2

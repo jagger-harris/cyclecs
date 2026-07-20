@@ -1,5 +1,5 @@
 App
-================
+===
 
 .. doxygengroup:: app
    :project: cyclecs

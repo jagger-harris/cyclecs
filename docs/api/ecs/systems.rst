@@ -1,5 +1,5 @@
 Systems
-================
+=======
 
 .. doxygengroup:: systems
    :project: cyclecs

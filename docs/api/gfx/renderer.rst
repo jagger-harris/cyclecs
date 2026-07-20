@@ -1,5 +1,5 @@
 Renderer
-================
+========
 
 .. doxygengroup:: renderer
    :project: cyclecs

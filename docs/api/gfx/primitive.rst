@@ -1,5 +1,5 @@
 Primitives
-================
+==========
 
 .. doxygengroup:: primitive
    :project: cyclecs

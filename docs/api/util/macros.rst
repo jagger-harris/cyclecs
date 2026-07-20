@@ -1,5 +1,5 @@
 Macros
-================
+======
 
 .. doxygengroup:: macros
    :project: cyclecs

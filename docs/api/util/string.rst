@@ -1,5 +1,5 @@
 String
-================
+======
 
 .. doxygengroup:: string
    :project: cyclecs
