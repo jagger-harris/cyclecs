@@ -14,16 +14,16 @@
 #include <cls/util/error.h>
 #include <glad/gl.h>
 
+/* Forward declarations. */
+struct cls_texture2d;
+struct cls_texture2d_info;
+
 /**
  * @defgroup gl_texture2d OpenGL texture2d.
  * @ingroup gfx
  * @brief OpenGL texture2d.
  * @{
  */
-
-/* Forward declarations. */
-struct cls_texture2d;
-struct cls_texture2d_info;
 
 /**
  * @struct cls_gl_texture2d

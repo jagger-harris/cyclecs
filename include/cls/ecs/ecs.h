@@ -15,6 +15,11 @@
 #include <cls/util/table.h>
 #include <cls/util/types.h>
 
+/* Forward declarations. */
+struct cls_array;
+struct cls_app;
+struct cls_mem;
+
 /**
  * @defgroup ecs Entity-Component-System
  * @ingroup ecs
@@ -81,11 +86,6 @@ typedef u32 cls_singleton;
  * A value of CLS_SYSTEM_MAX represents an invalid system.
  */
 typedef u32 cls_system;
-
-/* Forward declarations. */
-struct cls_array;
-struct cls_app;
-struct cls_mem;
 
 /**
  * @struct cls_ecs

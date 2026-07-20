@@ -16,16 +16,16 @@
 #include <cls/ecs/component/components.h>
 #include <cls/ecs/ecs.h>
 
+/* Forward declarations. */
+struct cls_assets;
+struct cls_ecs_world;
+
 /**
  * @defgroup presets Presets
  * @ingroup ecs
  * @brief Default preset helpers.
  * @{
  */
-
-/* Forward declarations. */
-struct cls_assets;
-struct cls_ecs_world;
 
 /**
  * @struct cls_preset_ui_image_button

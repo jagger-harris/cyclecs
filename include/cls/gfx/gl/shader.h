@@ -16,16 +16,16 @@
 #include <glad/gl.h>
 #include <stdint.h>
 
+/* Forward declarations. */
+struct cls_shader;
+struct cls_shader_info;
+
 /**
  * @defgroup gl_shader OpenGL shader.
  * @ingroup gfx
  * @brief OpenGL shader.
  * @{
  */
-
-/* Forward declarations. */
-struct cls_shader;
-struct cls_shader_info;
 
 /**
  * @struct cls_gl_shader

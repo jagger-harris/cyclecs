@@ -17,13 +17,6 @@
 #include <cls/util/mem.h>
 #include <cls/util/table.h>
 
-/**
- * @defgroup renderer Renderer.
- * @ingroup gfx
- * @brief Universal renderer.
- * @{
- */
-
 /* Forward declarations. */
 typedef struct GLFWwindow GLFWwindow;
 struct cls_app;
@@ -31,6 +24,13 @@ struct cls_gfx_api;
 struct cls_mem;
 struct cls_shader_info;
 struct cls_ecs_world;
+
+/**
+ * @defgroup renderer Renderer.
+ * @ingroup gfx
+ * @brief Universal renderer.
+ * @{
+ */
 
 /**
  * @struct cls_renderer

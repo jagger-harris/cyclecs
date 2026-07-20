@@ -15,17 +15,17 @@
 #include <cglm/types.h>
 #include <cls/util/error.h>
 
+/* Forward declarations. */
+struct cls_app;
+struct cls_array;
+struct cls_renderer_ctx;
+
 /**
  * @defgroup gl_renderer OpenGL renderer.
  * @ingroup gfx
  * @brief OpenGL renderer.
  * @{
  */
-
-/* Forward declarations. */
-struct cls_app;
-struct cls_array;
-struct cls_renderer_ctx;
 
 /**
  * @brief Initializes the OpenGL renderer.

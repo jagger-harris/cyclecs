@@ -16,19 +16,19 @@
 #include <stdbool.h>
 #include <stddef.h>
 
-/**
- * @defgroup window Window
- * @ingroup app
- * @brief Window state and logic for the application.
- * @{
- */
-
 /* Forward declarations. */
 struct cls_app;
 struct cls_gfx_api;
 struct cls_mem;
 struct cls_renderer;
 struct cls_renderer_api;
+
+/**
+ * @defgroup window Window
+ * @ingroup app
+ * @brief Window state and logic for the application.
+ * @{
+ */
 
 /**
  * @struct cls_window

@@ -15,6 +15,15 @@
 #include <cls/util/error.h>
 #include <stddef.h>
 
+/* Forward declarations. */
+struct cls_font;
+struct cls_gfx_api;
+struct cls_gl_mesh;
+struct cls_mem;
+struct cls_shader;
+struct cls_vertex;
+struct cls_renderer_api;
+
 /**
  * @defgroup assets Assets
  * @ingroup app
@@ -90,15 +99,6 @@ enum { CLS_FONT_HUMANSANS_REG = 0 };
 
 static const cls_texture2d_id CLS_TEXTURE2D_MISSING = CLS_TEXTURE2D_MAX;
 static const cls_texture2d_id CLS_TEXTURE2D_BLANK = CLS_TEXTURE2D_MAX - 1;
-
-/* Forward declarations. */
-struct cls_font;
-struct cls_gfx_api;
-struct cls_gl_mesh;
-struct cls_mem;
-struct cls_shader;
-struct cls_vertex;
-struct cls_renderer_api;
 
 /**
  * @struct cls_assets

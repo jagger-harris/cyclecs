@@ -13,16 +13,16 @@
 
 #include <cls/util/error.h>
 
+/* Forward declarations. */
+struct cls_app;
+struct cls_ecs_world_query;
+
 /**
  * @defgroup systems Systems
  * @ingroup ecs
  * @brief Default system helpers.
  * @{
  */
-
-/* Forward declarations. */
-struct cls_app;
-struct cls_ecs_world_query;
 
 cls_error cls_button_system(struct cls_ecs_world_query *query,
                             struct cls_app *app);

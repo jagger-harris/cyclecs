@@ -18,15 +18,15 @@
 #include <cls/util/types.h>
 #include <stdbool.h>
 
+/* Forward declarations. */
+struct cls_transform;
+
 /**
  * @defgroup camera Camera
  * @ingroup ecs
  * @brief Camera component helpers.
  * @{
  */
-
-/* Forward declarations. */
-struct cls_transform;
 
 /**
  * @enum cls_camera_type

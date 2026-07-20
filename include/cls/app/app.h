@@ -15,19 +15,19 @@
 #include <cls/util/error.h>
 #include <stdbool.h>
 
-/**
- * @defgroup app Application
- * @ingroup app
- * @brief Application state and logic.
- * @{
- */
-
 /* Forward declarations. */
 struct cls_assets;
 struct cls_ecs;
 struct cls_renderer_api;
 struct cls_mem;
 struct cls_window;
+
+/**
+ * @defgroup app Application
+ * @ingroup app
+ * @brief Application state and logic.
+ * @{
+ */
 
 /**
  * @struct cls_app
