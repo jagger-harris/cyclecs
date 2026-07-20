@@ -307,7 +307,6 @@ cls_error cls_render_system(struct cls_ecs_world_query *query,
         glm_scale(model, tf->scale);
 
         glm_mat4_identity(ren->mvp);
-        glm_mat4_mul(ren->mvp, model, ren->mvp);
         glm_mat4_mul(view_proj, model, ren->mvp);
 
         error = cls_renderer_cmd_push(rend, ren, tf, depth);
