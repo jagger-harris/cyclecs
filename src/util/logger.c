@@ -15,16 +15,16 @@
 #include <string.h>
 #include <time.h>
 
-#define STR_MAX 32
+static const size_t STR_MAX = 32;
 
-// ANSI Colors
-#define ANSI_RED "\x1b[31m"
-#define ANSI_BRIGHT_RED "\x1b[91m"
-#define ANSI_YELLOW "\x1b[33m"
-#define ANSI_BRIGHT_WHITE "\x1b[97m"
-#define ANSI_CYAN "\x1b[36m"
-#define ANSI_WHITE "\x1b[37m"
-#define ANSI_DEFAULT "\x1b[0m"
+// ANSI colors
+static const char ANSI_RED[] = "\x1b[31m";
+static const char ANSI_BRIGHT_RED[] = "\x1b[91m";
+static const char ANSI_YELLOW[] = "\x1b[33m";
+static const char ANSI_BRIGHT_WHITE[] = "\x1b[97m";
+static const char ANSI_CYAN[] = "\x1b[36m";
+static const char ANSI_WHITE[] = "\x1b[37m";
+static const char ANSI_DEFAULT[] = "\x1b[0m";
 
 static void logger_log_all(enum cls_logger_level level, bool has_error,
                            bool is_debug, cls_error error, const char *file,
@@ -40,7 +40,7 @@ static void logger_log_all(enum cls_logger_level level, bool has_error,
         if (ret < 0)
             return;
 
-        ret = snprintf(color_str, STR_MAX, ANSI_RED);
+        ret = snprintf(color_str, STR_MAX, "%s", ANSI_RED);
         if (ret < 0)
             return;
 
@@ -50,7 +50,7 @@ static void logger_log_all(enum cls_logger_level level, bool has_error,
         if (ret < 0)
             return;
 
-        ret = snprintf(color_str, STR_MAX, ANSI_BRIGHT_RED);
+        ret = snprintf(color_str, STR_MAX, "%s", ANSI_BRIGHT_RED);
         if (ret < 0)
             return;
 
@@ -60,7 +60,7 @@ static void logger_log_all(enum cls_logger_level level, bool has_error,
         if (ret < 0)
             return;
 
-        ret = snprintf(color_str, STR_MAX, ANSI_YELLOW);
+        ret = snprintf(color_str, STR_MAX, "%s", ANSI_YELLOW);
         if (ret < 0)
             return;
 
@@ -70,7 +70,7 @@ static void logger_log_all(enum cls_logger_level level, bool has_error,
         if (ret < 0)
             return;
 
-        ret = snprintf(color_str, STR_MAX, ANSI_BRIGHT_WHITE);
+        ret = snprintf(color_str, STR_MAX, "%s", ANSI_BRIGHT_WHITE);
         if (ret < 0)
             return;
 
@@ -80,7 +80,7 @@ static void logger_log_all(enum cls_logger_level level, bool has_error,
         if (ret < 0)
             return;
 
-        ret = snprintf(color_str, STR_MAX, ANSI_CYAN);
+        ret = snprintf(color_str, STR_MAX, "%s", ANSI_CYAN);
         if (ret < 0)
             return;
 
@@ -90,7 +90,7 @@ static void logger_log_all(enum cls_logger_level level, bool has_error,
         if (ret < 0)
             return;
 
-        ret = snprintf(color_str, STR_MAX, ANSI_WHITE);
+        ret = snprintf(color_str, STR_MAX, "%s", ANSI_WHITE);
         if (ret < 0)
             return;
 

@@ -14,7 +14,7 @@
 #include <cls/util/logger.h>
 #include <string.h>
 
-#define LOG_BUFFER 512
+enum { LOG_BUFFER_SIZE = 512 };
 
 static cls_error check_shader(GLuint s, GLuint type) {
     if (!glIsShader(s))
@@ -24,8 +24,8 @@ static cls_error check_shader(GLuint s, GLuint type) {
     glGetShaderiv(s, GL_COMPILE_STATUS, &gl_success);
 
     if (!gl_success) {
-        char log[LOG_BUFFER];
-        glGetShaderInfoLog(s, LOG_BUFFER, NULL, log);
+        char log[LOG_BUFFER_SIZE] = {0};
+        glGetShaderInfoLog(s, LOG_BUFFER_SIZE, NULL, log);
 
         const char *type_id;
         switch (type) {

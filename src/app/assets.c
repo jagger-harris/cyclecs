@@ -22,10 +22,9 @@
 #include <cls/util/table.h>
 #include <cls/util/types.h>
 
-#define CORE_PATH "data/core/"
-#define FONT_PATH CORE_PATH "gfx/fonts/"
-#define SHADER_PATH CORE_PATH "gfx/shaders/"
-#define TEXTURE2D_PATH CORE_PATH "gfx/texture2ds/"
+static const char FONT_PATH[] = "data/core/gfx/fonts/";
+static const char SHADER_PATH[] = "data/core/gfx/shaders/";
+static const char TEXTURE2D_PATH[] = "data/core/gfx/texture2ds/";
 
 static const size_t START_CAPACITY = 64;
 
@@ -216,7 +215,7 @@ void cls_assets_font_add(struct cls_assets *assets, cls_font_id id,
         return;
     }
 
-    char *font_full_path = cls_str_fmt(FONT_PATH "%s", font_path);
+    char *font_full_path = cls_str_fmt("%s%s", FONT_PATH, font_path);
     if (!font_full_path)
         return;
 

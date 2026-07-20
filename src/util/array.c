@@ -15,7 +15,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define ARRAY_GROWTH_FACTOR 1.5
+static const double ARRAY_GROWTH_FACTOR = 1.5;
 
 struct cls_array {
     size_t capacity;
