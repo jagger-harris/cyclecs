@@ -68,6 +68,7 @@ struct cls_render_state {
  * @struct cls_renderable
  * @brief Renderable component.
  */
+
 struct cls_renderable {
     struct cls_render_state state;
     mat4 mvp;
@@ -80,6 +81,7 @@ struct cls_renderable {
     float opacity;
     bool visible;
 };
+
 /**
  * @struct cls_transform
  * @brief Transform component.
@@ -92,6 +94,7 @@ struct cls_transform {
     float rot_angle;
     bool dirty;
 };
+
 /**
  * @struct cls_singleton_camera_active
  * @brief Singleton active camera component.
@@ -100,6 +103,7 @@ struct cls_singleton_camera_active {
     struct cls_camera cam;
     struct cls_transform tf;
 };
+
 /**
  * @struct cls_camera_active
  * @brief Active camera component.
@@ -107,6 +111,7 @@ struct cls_singleton_camera_active {
 struct cls_camera_active {
     u8 _;
 };
+
 /**
  * @struct cls_ui
  * @brief UI component.
@@ -115,6 +120,7 @@ struct cls_ui {
     bool dirty;
     bool interactable;
 };
+
 /**
  * @struct cls_button
  * @brief Button component.

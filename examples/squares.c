@@ -176,7 +176,7 @@ static cls_error squares_system(struct cls_ecs_world_query *query,
         float x_new = x * cos_t - y * sin_t;
         float y_new = x * sin_t + y * cos_t;
         glm_vec3_copy((vec3){x_new, y_new, z}, tf->pos);
-        tf->dirty = true;
+        // tf->dirty = true;
     }
 
     return CLS_SUCCESS;
