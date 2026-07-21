@@ -21,7 +21,6 @@ static const ivec4 WIN_COLOR = {5, 10, 20, 255};
 
 enum world_ids { WORLD_MAIN = 0, WORLD_UI };
 enum component_ids { COMP_SQUARE_TAG = 0 };
-enum singleton_ids { SING_WORLDS = 0 };
 enum system_ids {
     SYS_SQUARES = 0,
     SYS_CAMERA,
@@ -47,13 +46,6 @@ static cls_error debug_labels_system(struct cls_ecs_world_query *query,
     cls_error error = cls_ecs_world_query_world_get(&world, query);
     if (error)
         return error;
-
-    void *worlds_ptr = NULL;
-    error = cls_ecs_world_singleton_get(&worlds_ptr, world, SING_WORLDS);
-    if (error)
-        return error;
-
-    struct worlds *worlds = worlds_ptr;
 
     const char *fps_id = "fps";
     u32 fps_hash = 0;
@@ -107,15 +99,20 @@ static cls_error debug_labels_system(struct cls_ecs_world_query *query,
 
     snprintf(fps_l->text, sizeof(fps_l->text), "FPS: %.0f", fps);
 
+    struct cls_ecs_world *main_world = NULL;
+    error = cls_ecs_world_get(&main_world, app->ecs, WORLD_MAIN);
+    if (error)
+        return error;
+
     size_t main_world_entities_total = 0;
     error = cls_ecs_world_entities_length_get(&main_world_entities_total,
-                                              worlds->main);
+                                              main_world);
     if (error)
         return error;
 
     size_t main_world_entities_free = 0;
     error = cls_ecs_world_free_entities_length_get(&main_world_entities_free,
-                                                   worlds->main);
+                                                   main_world);
     if (error)
         return error;
 
@@ -176,7 +173,6 @@ static cls_error squares_system(struct cls_ecs_world_query *query,
         float x_new = x * cos_t - y * sin_t;
         float y_new = x * sin_t + y * cos_t;
         glm_vec3_copy((vec3){x_new, y_new, z}, tf->pos);
-        // tf->dirty = true;
     }
 
     return CLS_SUCCESS;
@@ -199,13 +195,6 @@ static cls_error game_init(struct cls_app *app) {
 
     error = cls_ecs_world_component_type_add(main_world, COMP_SQUARE_TAG,
                                              sizeof(struct square_tag));
-    if (error)
-        return error;
-
-    // Singletons
-    struct worlds worlds = {.main = main_world};
-    error = cls_ecs_world_singleton_add(ui_world, SING_WORLDS, &worlds,
-                                        sizeof(struct worlds));
     if (error)
         return error;
 
@@ -279,7 +268,7 @@ static cls_error game_init(struct cls_app *app) {
         error = cls_preset_rect_spawn(
             &e, main_world, CLS_TEXTURE2D_BLANK,
             (vec2){cosf((float)i) * (i / 2.0f), sinf((float)i) * (i / 2.0f)},
-            (vec2){5.0f, 5.0f}, 0.0f, 1.0f, (ivec4){255, 255, 255, 255},
+            (vec2){5.0f, 5.0f}, 0.0f, 1.0f, (ivec4){100, 255, 255, 255},
             (vec2){1.0f, 1.0f}, (vec2){1.0f, 1.0f}, true);
         if (error)
             return error;

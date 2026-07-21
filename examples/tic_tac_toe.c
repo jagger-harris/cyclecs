@@ -22,7 +22,7 @@ static const ivec4 WIN_COLOR = {5, 10, 20, 255};
 
 enum world_ids { WORLD_MAIN = 0, WORLD_UI };
 enum component_ids { COMP_BOARD_BUTTON, COMP_BOARD_TAG, COMP_CELL_STATE };
-enum singleton_ids { SING_GAME_STATE, SING_MAIN_WORLD, SING_UI_WORLD };
+enum singleton_ids { SING_GAME_STATE };
 enum system_ids {
     SYS_WINNER,
     SYS_CAMERA,
@@ -408,13 +408,6 @@ static cls_error debug_labels_system(struct cls_ecs_world_query *query,
     if (error)
         return error;
 
-    void *world_ptr = NULL;
-    error = cls_ecs_world_singleton_get(&world_ptr, world, SING_MAIN_WORLD);
-    if (error)
-        return error;
-
-    struct cls_ecs_world *main_world = *(struct cls_ecs_world **)world_ptr;
-
     const char *fps_id = "fps";
     u32 fps_hash = 0;
     error = cls_xxhash32(&fps_hash, fps_id, strlen(fps_id), 0);
@@ -466,6 +459,11 @@ static cls_error debug_labels_system(struct cls_ecs_world_query *query,
         return error;
 
     snprintf(fps_l->text, sizeof(fps_l->text), "FPS: %.0f", fps);
+
+    struct cls_ecs_world *main_world = NULL;
+    error = cls_ecs_world_get(&main_world, app->ecs, WORLD_MAIN);
+    if (error)
+        return error;
 
     size_t main_world_entities_total = 0;
     error = cls_ecs_world_entities_length_get(&main_world_entities_total,
@@ -546,16 +544,6 @@ static cls_error game_init(struct cls_app *app) {
     struct game_state state = {.turn = PLAYER_X, .winner = WINNER_NONE};
     error = cls_ecs_world_singleton_add(main_world, SING_GAME_STATE, &state,
                                         sizeof(struct game_state));
-    if (error)
-        return error;
-
-    error = cls_ecs_world_singleton_add(main_world, SING_UI_WORLD, &ui_world,
-                                        sizeof(ui_world));
-    if (error)
-        return error;
-
-    error = cls_ecs_world_singleton_add(ui_world, SING_MAIN_WORLD, &main_world,
-                                        sizeof(main_world));
     if (error)
         return error;
 
