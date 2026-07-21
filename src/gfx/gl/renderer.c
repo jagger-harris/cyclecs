@@ -151,7 +151,7 @@ static cls_error render_batch(struct cls_app *app, struct cls_array *cmds,
             if (!cmd)
                 continue;
 
-            glm_mat4_copy(cmd->ren.mvp, instances[i].mvp);
+            glm_mat4_copy(cmd->mvp, instances[i].mvp);
             glm_vec4_copy((vec4){(float)cmd->ren.tint[0] / 255.0f,
                                  (float)cmd->ren.tint[1] / 255.0f,
                                  (float)cmd->ren.tint[2] / 255.0f,
@@ -184,7 +184,7 @@ static cls_error render_batch(struct cls_app *app, struct cls_array *cmds,
                          (float)cmd->ren.tint[2] / 255.0f,
                          (float)cmd->ren.tint[3] / 255.0f};
 
-            cls_gl_shader_set_mat4(shader->gl.id, "u_mvp", &cmd->ren.mvp);
+            cls_gl_shader_set_mat4(shader->gl.id, "u_mvp", &cmd->mvp);
             cls_gl_shader_set_vec4(shader->gl.id, "u_tint", &tint);
             cls_gl_shader_set_vec2(shader->gl.id, "u_uv_offset",
                                    &cmd->ren.uv_offset);

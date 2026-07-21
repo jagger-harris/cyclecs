@@ -292,13 +292,11 @@ cls_error cls_renderer_on_resize(struct cls_renderer *rend, int width,
 }
 
 cls_error cls_renderer_cmd_push(struct cls_renderer *rend,
-                                struct cls_renderable *ren,
-                                struct cls_transform *tf, float depth) {
-    if (!rend || !ren || !tf)
+                                struct cls_renderer_cmd *cmd) {
+    if (!rend || !cmd)
         return CLS_NULLPTR;
 
-    struct cls_renderer_cmd cmd = {.ren = *ren, .tf = *tf, .depth = depth};
-    return cls_array_push(&rend->cmds, &cmd);
+    return cls_array_push(&rend->cmds, cmd);
 }
 
 cls_error cls_renderer_frame_create(struct cls_renderer *rend,

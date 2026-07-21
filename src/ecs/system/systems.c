@@ -137,8 +137,7 @@ cls_error cls_camera_system(struct cls_ecs_world_query *query,
             cam_tf->dirty = false;
         }
 
-        active.cam = *cam;
-        active.tf = *cam_tf;
+        active.entity = e;
         break;
     }
 
@@ -170,6 +169,24 @@ cls_error cls_label_render_system(struct cls_ecs_world_query *query,
     struct cls_singleton_camera_active *active = cam_ptr;
     if (!active)
         return CLS_SUCCESS;
+
+    struct cls_camera *cam = NULL;
+    error = cls_ecs_world_component_get((void **)&cam, world, active->entity,
+                                        CLS_COMP_CAMERA);
+    if (error)
+        return error;
+
+    struct cls_transform *cam_tf = NULL;
+    error = cls_ecs_world_component_get((void **)&cam_tf, world, active->entity,
+                                        CLS_COMP_TRANSFORM);
+    if (error)
+        return error;
+
+    if (!cam || !cam_tf)
+        return CLS_SUCCESS;
+
+    mat4 view_proj = {{0.0f}};
+    glm_mat4_mul(cam->projection, cam->view, view_proj);
 
     cls_entity e = CLS_ENTITY_MAX;
     void *comps[2] = {NULL, NULL};
@@ -232,19 +249,21 @@ cls_error cls_label_render_system(struct cls_ecs_world_query *query,
                 .rot_angle = 0.0f};
 
             vec3 delta = {0.0f};
-            glm_vec3_sub(glyph_tf.pos, active->tf.pos, delta);
-            float depth = glm_vec3_dot(active->cam.forward, delta);
+            glm_vec3_sub(glyph_tf.pos, cam_tf->pos, delta);
+            float depth = glm_vec3_dot(cam->forward, delta);
+
+            struct cls_renderer_cmd cmd = {
+                .ren = ren, .tf = glyph_tf, .depth = depth};
 
             mat4 model = {{0.0f}};
             glm_mat4_identity(model);
             glm_translate(model, glyph_tf.pos);
             glm_scale(model, glyph_tf.scale);
-            glm_mat4_identity(ren.mvp);
-            glm_mat4_mul(ren.mvp, active->cam.projection, ren.mvp);
-            glm_mat4_mul(ren.mvp, active->cam.view, ren.mvp);
-            glm_mat4_mul(ren.mvp, model, ren.mvp);
 
-            error = cls_renderer_cmd_push(rend, &ren, &glyph_tf, depth);
+            glm_mat4_identity(cmd.mvp);
+            glm_mat4_mul(view_proj, model, cmd.mvp);
+
+            error = cls_renderer_cmd_push(rend, &cmd);
             if (error)
                 continue;
 
@@ -284,8 +303,23 @@ cls_error cls_render_system(struct cls_ecs_world_query *query,
     if (!active)
         return CLS_SUCCESS;
 
+    struct cls_camera *cam = NULL;
+    error = cls_ecs_world_component_get((void **)&cam, world, active->entity,
+                                        CLS_COMP_CAMERA);
+    if (error)
+        return error;
+
+    struct cls_transform *cam_tf = NULL;
+    error = cls_ecs_world_component_get((void **)&cam_tf, world, active->entity,
+                                        CLS_COMP_TRANSFORM);
+    if (error)
+        return error;
+
+    if (!cam || !cam_tf)
+        return CLS_SUCCESS;
+
     mat4 view_proj = {{0.0f}};
-    glm_mat4_mul(active->cam.projection, active->cam.view, view_proj);
+    glm_mat4_mul(cam->projection, cam->view, view_proj);
 
     cls_entity e = CLS_ENTITY_MAX;
     void *comps[2] = {NULL, NULL};
@@ -297,19 +331,21 @@ cls_error cls_render_system(struct cls_ecs_world_query *query,
             continue;
 
         vec3 delta = {0.0f};
-        glm_vec3_sub(tf->pos, active->tf.pos, delta);
-        float depth = glm_vec3_dot(active->cam.forward, delta);
+        glm_vec3_sub(tf->pos, cam_tf->pos, delta);
+        float depth = glm_vec3_dot(cam->forward, delta);
+
+        struct cls_renderer_cmd cmd = {.ren = *ren, .tf = *tf, .depth = depth};
 
         mat4 model = {{0.0f}};
         glm_mat4_identity(model);
         glm_translate(model, tf->pos);
-        glm_rotate_at(model, tf->origin, tf->rot_angle, tf->rot_axis);
+        glm_rotate(model, tf->rot_angle, tf->rot_axis);
         glm_scale(model, tf->scale);
 
-        glm_mat4_identity(ren->mvp);
-        glm_mat4_mul(view_proj, model, ren->mvp);
+        glm_mat4_identity(cmd.mvp);
+        glm_mat4_mul(view_proj, model, cmd.mvp);
 
-        error = cls_renderer_cmd_push(rend, ren, tf, depth);
+        error = cls_renderer_cmd_push(rend, &cmd);
         if (error)
             continue;
     }

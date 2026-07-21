@@ -76,6 +76,7 @@ void cls_camera_resize(struct cls_camera *cam, ivec2 size) {
             cam->ortho.top = (float)size[1];
             cam->ortho.bottom = 0.0f;
         }
+
         break;
     default:
         break;

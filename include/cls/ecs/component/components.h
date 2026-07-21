@@ -13,6 +13,7 @@
 #include <cglm/types.h>
 #include <cls/app/assets.h>
 #include <cls/ecs/component/camera.h>
+#include <cls/ecs/ecs.h>
 #include <cls/io/font.h>
 #include <cls/util/types.h>
 #include <stdbool.h>
@@ -71,7 +72,6 @@ struct cls_render_state {
 
 struct cls_renderable {
     struct cls_render_state state;
-    mat4 mvp;
     vec2 uv_offset;
     vec2 uv_scale;
     ivec4 tint;
@@ -87,7 +87,6 @@ struct cls_renderable {
  * @brief Transform component.
  */
 struct cls_transform {
-    vec3 origin;
     vec3 pos;
     vec3 scale;
     vec3 rot_axis;
@@ -100,8 +99,7 @@ struct cls_transform {
  * @brief Singleton active camera component.
  */
 struct cls_singleton_camera_active {
-    struct cls_camera cam;
-    struct cls_transform tf;
+    cls_entity entity;
 };
 
 /**

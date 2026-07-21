@@ -67,6 +67,7 @@ struct cls_renderer_api {
 struct cls_renderer_cmd {
     struct cls_renderable ren;
     struct cls_transform tf;
+    mat4 mvp;
     float depth;
 };
 
@@ -167,18 +168,15 @@ cls_error cls_renderer_on_resize(struct cls_renderer *rend, int width,
  * Adds a render command to the renderer's command list for the current
  * frame.
  *
- * @param[in] rend  Renderer.
- * @param[in] ren   Renderable.
- * @param[in] tf    Transform.
- * @param[in] depth Depth value.
+ * @param[in] rend Renderer.
+ * @param[in] cmd  Renderer cmd.
  *
  * @return CLS_SUCCESS On success.
- * @retval CLS_NULLPTR If `rend`, `ren`, or `tf` is NULL.
+ * @retval CLS_NULLPTR If `rend` or `cmd` is NULL.
  * @retval (error)     If adding the command fails.
  */
 cls_error cls_renderer_cmd_push(struct cls_renderer *rend,
-                                struct cls_renderable *ren,
-                                struct cls_transform *tf, float depth);
+                                struct cls_renderer_cmd *cmd);
 
 /**
  * @brief Creates a renderer frame.
